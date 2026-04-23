@@ -50,7 +50,7 @@ Pessoa não-técnica que ouviu falar de "IA local" e quer testar sem complicaç�
 - `reqwest` — HTTP client (download de modelos e catálogo)
 - `sysinfo` — detecção de RAM/CPU
 - `raw-cpuid` — detecção de features de CPU (AVX2, AVX-512)
-- `nvml-wrapper` — detecção de NVIDIA GPUs (opcional/condicional)
+- `nvml-wrapper` — detecção de NVIDIA GPUs
 - `ash` ou `vulkano` — enumeração de devices Vulkan
 - `llama-cpp-2` — bindings seguros pro llama.cpp
 - `sha2` — checksum de modelos baixados
@@ -67,21 +67,35 @@ Pessoa não-técnica que ouviu falar de "IA local" e quer testar sem complicaç�
 
 ### 2.4. Backends de inferência
 
-Estratégia deliberadamente enxuta pra reduzir matriz de build:
+O sistema seleciona automaticamente o backend de inferência baseado no hardware detectado do usuário, seguindo esta ordem de prioridade:
 
-| OS | Backend primário | Fallback |
-|----|------------------|----------|
-| macOS | Metal (sempre) | — |
-| Windows | Vulkan | CPU |
-| Linux | Vulkan | CPU |
-| Qualquer com NVIDIA | CUDA (variante opcional de performance) | volta pra Vulkan |
+| Hardware detectado | Backend selecionado |
+|--------------------|---------------------|
+| Mac com Apple Silicon | **Metal** (sempre) |
+| Qualquer OS com GPU NVIDIA compatível com CUDA | **CUDA** |
+| Windows/Linux com GPU AMD, Intel, ou outra com suporte a Vulkan | **Vulkan** |
+| Sem GPU compatível ou detecção falha | **CPU** (fallback) |
 
-Vulkan foi escolhido como primário no Windows/Linux porque cobre NVIDIA, AMD e Intel com uma só variante de build, fica 5-15% abaixo de CUDA em performance (aceitável), e reduz dramaticamente complexidade de distribuição vs. manter CUDA + ROCm + SYCL separados. CUDA é tratado como variante premium opcional pra usuário NVIDIA que quer os 10-15% extras.
+**Regras explícitas:**
+
+- Se o PC do usuário tem uma placa que suporta CUDA, o sistema **deve** usar CUDA.
+- Se o PC do usuário tem GPU que suporta apenas Vulkan (AMD/Intel), o sistema **deve** usar Vulkan.
+- Em Mac com Apple Silicon, Metal é sempre o backend escolhido.
+- A seleção é automática e invisível pro usuário. Não há tela pedindo pro usuário escolher backend.
+
+**Racional da estratégia:**
+
+CUDA é escolhido sobre Vulkan em NVIDIA porque oferece 10-15% de performance superior em llama.cpp e é o caminho mais maduro e testado em hardware NVIDIA. Vulkan é escolhido em AMD/Intel porque cobre ambos os vendors com uma só variante de build, evitando a matriz ROCm + SYCL separados que seria necessária pra ter implementações nativas.
+
+**Implicações de build:**
+
+O `llama-cpp-2` é compilado com features `cuda` e `vulkan` ligadas simultaneamente no build do Windows e Linux. Isso exige CUDA Toolkit instalado no runner do CI, aumenta o tempo de build em ~5-10 minutos e aumenta o tamanho do instalador final em 500MB-1GB. É um custo aceito em troca de um instalador único por OS que funciona automaticamente em qualquer hardware. macOS tem build próprio com feature `metal` ligada.
 
 ### 2.5. Build e distribuição
 
 - **GitHub Actions** com matrix `[windows-latest, macos-latest, ubuntu-latest]` pra CI desde o dia 1.
 - **Tauri Bundler** gera `.dmg` (macOS), `.msi` + `.exe` (Windows), `.AppImage` + `.deb` (Linux).
+- Um instalador por OS, com todos os backends relevantes daquele OS embutidos (ver 2.4).
 - Sem assinatura de código paga no MVP. Instaladores vão exigir bypass manual de Gatekeeper/SmartScreen na primeira execução.
 
 ---
@@ -97,9 +111,11 @@ Considerados e rejeitados:
 - **Electron + Node + node-llama-cpp**: opção mais pragmática. Rejeitada porque o dev priorizou profundidade técnica e aprendizado de Rust sobre velocidade de entrega. Escolha consciente.
 - **Tauri + Rust (escolhido)**: single-runtime, bundle pequeno (~15MB vs ~150MB de Electron), performance superior, aprendizado valioso, alinhado com intenção de "feito direito".
 
-### 3.2. Por que Vulkan em vez de matriz CUDA+ROCm+SYCL
+### 3.2. Por que CUDA primário em NVIDIA e Vulkan em AMD/Intel
 
-Ver tabela em 2.4. Trade-off de ~10% de performance por uma fração do custo de engenharia. Usuário casual não percebe diferença; dev economiza meses.
+Aproveitar o melhor backend disponível em cada hardware, sem penalizar usuários NVIDIA com performance inferior e sem obrigar suporte a ROCm (AMD) ou SYCL (Intel), que multiplicariam complexidade de build.
+
+CUDA dá 10-15% a mais de performance em NVIDIA e é o caminho mais testado no ecossistema de llama.cpp. Vulkan cobre AMD e Intel juntos com uma só variante de build, o que mantém a matriz de engenharia enxuta. O custo de incluir CUDA no build (toolkit no CI, instalador maior) é aceito porque resulta em instalador único por OS com seleção automática invisível pro usuário casual.
 
 ### 3.3. Por que um único modelo carregado por vez
 
@@ -186,15 +202,7 @@ app/
 
 ## 5. Roadmap de features
 
-Organizado em 6 fases. Dentro de uma fase, features são razoavelmente independentes; entre fases, há dependências que devem ser respeitadas.
-
-### Fase 0 — Preparação (não-código)
-
-Aprendizado de fundamentos de Rust e primeiro contato com Tauri.
-
-- 0.1. Fundamentos mínimos de Rust (Rustlings ou primeiros capítulos do Rust Book): ownership, borrowing, Result/Option, traits, structs, enums, async básico.
-- 0.2. "Hello Tauri": tutorial oficial do Tauri v2 até um app que abre uma janela React e chama um command Rust.
-- 0.3. Setup do repo no GitHub com `.gitignore`, README inicial, licença.
+Organizado em 5 fases. Dentro de uma fase, features são razoavelmente independentes; entre fases, há dependências que devem ser respeitadas.
 
 ### Fase 1 — Fundação técnica
 
@@ -209,21 +217,21 @@ Aprendizado de fundamentos de Rust e primeiro contato com Tauri.
 ### Fase 2 — Detecção de hardware
 
 - 2.1. Detecção de SO, CPU (cores, features AVX2/AVX-512) e RAM via `sysinfo` + `raw-cpuid`.
-- 2.2. Detecção de GPU: Metal assumido em macOS via `cfg!(target_os)`; NVIDIA via `nvml-wrapper`; Vulkan via `ash`/`vulkano` enumerando devices físicos. Retorna enum `GpuBackend { Metal, Cuda { vram_mb }, Vulkan { vendor }, None }`.
-- 2.3. Lógica pura de seleção de backend com ordem de prioridade: Metal > CUDA (se NVIDIA + driver recente) > Vulkan > CPU. Testes unitários cobrindo combinações.
+- 2.2. Detecção de GPU: Metal assumido em macOS via `cfg!(target_os)`; NVIDIA via `nvml-wrapper` (se detectada, retorna VRAM e capability); Vulkan via `ash`/`vulkano` enumerando devices físicos (vendor AMD/Intel/outros). Retorna enum `GpuBackend { Metal, Cuda { vram_mb }, Vulkan { vendor }, None }`.
+- 2.3. Lógica pura de seleção de backend conforme regras da seção 2.4: Metal em Apple Silicon > CUDA se NVIDIA detectada > Vulkan se GPU AMD/Intel detectada > CPU como fallback. Testes unitários cobrindo todas as combinações.
 - 2.4. Cache de detecção em config local com hash de fingerprint de hardware pra re-detectar automaticamente se mudar.
 
-**Critério de pronto**: command `detect_hardware()` retorna estrutura serializável com backend escolhido e justificativa; segunda execução é instantânea via cache.
+**Critério de pronto**: command `detect_hardware()` retorna estrutura serializável com backend escolhido e justificativa; a mesma máquina com NVIDIA recebe CUDA, com AMD recebe Vulkan, Mac recebe Metal; segunda execução é instantânea via cache.
 
 ### Fase 3 — Motor de inferência
 
 - 3.1. Integração com `llama-cpp-2`: carregar um modelo hardcoded pequeno (ex. TinyLlama 1.1B Q4) e gerar tokens via teste de linha de comando.
 - 3.2. Trait `InferenceBackend` com métodos `load_model`, `unload`, `generate_stream` + impl concreta usando `llama-cpp-2`.
 - 3.3. Gerenciador de ciclo de vida do modelo: um modelo por vez, descarrega anterior antes de carregar novo, gerencia memória via `Arc<Mutex<Option<Model>>>` ou padrão similar.
-- 3.4. Build cross-platform com features condicionais de Cargo: `metal` em macOS, `vulkan` em Windows/Linux, `cuda` opcional.
+- 3.4. Build cross-platform com features condicionais de Cargo: `metal` em macOS, `cuda` + `vulkan` juntos em Windows/Linux (ambos compilados, selecionados em runtime conforme hardware).
 - 3.5. Streaming de tokens via Tauri Events (Rust emite cada token, React escuta e renderiza) + cancelamento.
 
-**Critério de pronto**: de uma tela temporária no frontend, usuário dispara geração e vê tokens aparecendo conforme são gerados, com possibilidade de cancelar.
+**Critério de pronto**: de uma tela temporária no frontend, usuário dispara geração e vê tokens aparecendo conforme são gerados, com possibilidade de cancelar. Mesma build funciona em máquina NVIDIA (usando CUDA) e em máquina AMD (usando Vulkan).
 
 ### Fase 4 — Gerenciador de modelos
 
@@ -263,11 +271,11 @@ Aprendizado de fundamentos de Rust e primeiro contato com Tauri.
 ### 6.1. Primeira execução
 
 1. Usuário abre o app instalado.
-2. App detecta hardware em background (rápido, < 2s). Tela de boas-vindas mostra animação/progresso.
+2. App detecta hardware em background (rápido, < 2s) e seleciona automaticamente o backend de inferência (Metal / CUDA / Vulkan / CPU) conforme regras da seção 2.4. Tela de boas-vindas mostra animação/progresso.
 3. App mostra catálogo de modelos filtrado/ordenado por compatibilidade. Modelo recomendado destacado.
 4. Usuário escolhe modelo. App mostra resumo ("vamos baixar X GB, pode demorar Y minutos").
 5. Download inicia com progresso visível e estimativa de tempo.
-6. Ao terminar, modelo é verificado (checksum) e carregado na memória.
+6. Ao terminar, modelo é verificado (checksum) e carregado na memória usando o backend selecionado.
 7. Usuário cai na tela de chat, pronto pra conversar.
 
 ### 6.2. Execuções subsequentes
