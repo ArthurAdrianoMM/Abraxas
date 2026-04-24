@@ -1,14 +1,25 @@
+mod commands;
 mod db;
 mod error;
 mod logging;
 
 use tauri::Manager;
 
+/// Re-exported so the `src/bin/export_bindings.rs` binary can regenerate
+/// `src/lib/tauri/bindings.ts`. Not part of the public API.
+#[doc(hidden)]
+pub use commands::specta::builder as __specta_builder;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let builder = commands::specta::builder();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
+        .invoke_handler(builder.invoke_handler())
+        .setup(move |app| {
+            builder.mount_events(app);
+
             let guard = logging::init(app.handle())?;
             app.manage(guard);
             tracing::info!(version = env!("CARGO_PKG_VERSION"), "abraxas starting");

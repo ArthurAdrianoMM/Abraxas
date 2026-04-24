@@ -77,3 +77,9 @@ jobs:
 
       - name: Test
         run: cargo test --locked
+
+      - name: Verify specta bindings are up to date
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo run --locked --bin export_bindings
+          git diff --exit-code ../src/lib/tauri/bindings.ts

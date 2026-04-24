@@ -19,3 +19,27 @@ pub enum AppError {
     #[error("migration error: {0}")]
     Migrate(#[from] sqlx::migrate::MigrateError),
 }
+
+/// Frontend-facing error shape. Stable across `AppError` refactors so the TS
+/// binding stays backwards-compatible.
+#[derive(Debug, serde::Serialize, specta::Type)]
+pub struct CommandError {
+    pub kind: String,
+    pub message: String,
+}
+
+impl From<AppError> for CommandError {
+    fn from(e: AppError) -> Self {
+        let kind = match &e {
+            AppError::LogDir(_) => "LogDir",
+            AppError::Io(_) => "Io",
+            AppError::TracingInit(_) => "TracingInit",
+            AppError::Db(_) => "Db",
+            AppError::Migrate(_) => "Migrate",
+        };
+        Self {
+            kind: kind.to_owned(),
+            message: e.to_string(),
+        }
+    }
+}

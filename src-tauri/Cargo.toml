@@ -3,6 +3,7 @@ name = "abraxas"
 version = "0.1.0"
 description = "Abraxas — local-first desktop chat with open-source LLMs."
 edition = "2021"
+default-run = "abraxas"
 
 [lib]
 # The `_lib` suffix is required so the lib name doesn't collide with the bin name on Windows.
@@ -24,6 +25,9 @@ tracing-appender = "0.2"
 thiserror = "1"
 time = { version = "0.3", features = ["formatting", "macros"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-none", "sqlite", "migrate", "macros", "time"] }
+specta = { version = "2.0.0-rc.22", features = ["derive"] }
+specta-typescript = "0.0.11"
+tauri-specta = { version = "2.0.0-rc.22", features = ["derive", "typescript"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }

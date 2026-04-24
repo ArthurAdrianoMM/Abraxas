@@ -1,1 +1,4 @@
-//! Tauri commands exposed to the frontend. Wired in Fase 1.5 via `tauri-specta`.
+//! Tauri commands exposed to the frontend. Wired via `tauri-specta`.
+
+pub mod app;
+pub mod specta;
