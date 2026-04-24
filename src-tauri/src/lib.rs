@@ -10,10 +10,7 @@ pub fn run() {
         .setup(|app| {
             let guard = logging::init(app.handle())?;
             app.manage(guard);
-            tracing::info!(
-                version = env!("CARGO_PKG_VERSION"),
-                "abraxas starting"
-            );
+            tracing::info!(version = env!("CARGO_PKG_VERSION"), "abraxas starting");
             Ok(())
         })
         .run(tauri::generate_context!())

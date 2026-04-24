@@ -31,12 +31,8 @@ pub fn init(app: &AppHandle) -> Result<LogGuard, AppError> {
         .with_span_list(false)
         .with_writer(file_writer);
 
-    let console_layer = cfg!(debug_assertions).then(|| {
-        fmt::layer()
-            .compact()
-            .with_ansi(true)
-            .with_target(true)
-    });
+    let console_layer =
+        cfg!(debug_assertions).then(|| fmt::layer().compact().with_ansi(true).with_target(true));
 
     tracing_subscriber::registry()
         .with(filter)
