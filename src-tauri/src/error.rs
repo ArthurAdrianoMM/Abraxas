@@ -12,4 +12,10 @@ pub enum AppError {
 
     #[error("tracing subscriber already initialized: {0}")]
     TracingInit(#[from] tracing_subscriber::util::TryInitError),
+
+    #[error("database error: {0}")]
+    Db(#[from] sqlx::Error),
+
+    #[error("migration error: {0}")]
+    Migrate(#[from] sqlx::migrate::MigrateError),
 }

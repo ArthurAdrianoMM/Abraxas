@@ -1,0 +1,2 @@
+-- Initial schema baseline. Real tables land in Phase 5 (conversations, messages, app_settings).
+-- This empty migration reserves version 0001 in _sqlx_migrations so future migrations chain cleanly.

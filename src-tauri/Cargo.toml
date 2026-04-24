@@ -23,4 +23,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json",
 tracing-appender = "0.2"
 thiserror = "1"
 time = { version = "0.3", features = ["formatting", "macros"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-none", "sqlite", "migrate", "macros", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
+tempfile = "3"
 
