@@ -6,5 +6,8 @@
 use tauri_specta::{collect_commands, Builder};
 
 pub fn builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![super::app::app_info])
+    Builder::<tauri::Wry>::new().commands(collect_commands![
+        super::app::app_info,
+        super::hardware::detect_system,
+    ])
 }

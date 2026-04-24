@@ -28,6 +28,12 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 specta = { version = "2.0.0-rc.22", features = ["derive"] }
 specta-typescript = "0.0.11"
 tauri-specta = { version = "2.0.0-rc.22", features = ["derive", "typescript"] }
+sysinfo = "0.33"
+
+# `raw-cpuid` issues the x86 `CPUID` instruction, so it only builds on x86
+# targets. Gating it here keeps aarch64 (Apple Silicon, ARM Linux) building.
+[target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dependencies]
+raw-cpuid = "11"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }

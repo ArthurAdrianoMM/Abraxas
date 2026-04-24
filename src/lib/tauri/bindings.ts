@@ -7,6 +7,7 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	appInfo: () => typedError<AppInfo, CommandError>(__TAURI_INVOKE("app_info")),
+	detectSystem: () => __TAURI_INVOKE<SystemInfo>("detect_system"),
 };
 
 /* Types */
@@ -23,6 +24,38 @@ export type AppInfo = {
 export type CommandError = {
 	kind: string,
 	message: string,
+};
+
+export type CpuFeatures = {
+	avx2: boolean,
+	avx512f: boolean,
+};
+
+export type CpuInfo = {
+	vendor: string,
+	brand: string,
+	physical_cores: number,
+	logical_cores: number,
+	features: CpuFeatures,
+};
+
+export type MemoryInfo = {
+	total_bytes: number,
+	available_bytes: number,
+};
+
+export type OsFamily = "Windows" | "MacOs" | "Linux" | "Other";
+
+export type OsInfo = {
+	family: OsFamily,
+	version: string | null,
+	arch: string,
+};
+
+export type SystemInfo = {
+	os: OsInfo,
+	cpu: CpuInfo,
+	memory: MemoryInfo,
 };
 
 /* Tauri Specta runtime */
