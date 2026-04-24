@@ -9,5 +9,6 @@ pub fn builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         super::app::app_info,
         super::hardware::detect_system,
+        super::hardware::detect_gpu,
     ])
 }

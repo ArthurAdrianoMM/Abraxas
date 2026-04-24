@@ -8,6 +8,13 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 export const commands = {
 	appInfo: () => typedError<AppInfo, CommandError>(__TAURI_INVOKE("app_info")),
 	detectSystem: () => __TAURI_INVOKE<SystemInfo>("detect_system"),
+	/**
+	 *  GPU probe. Runs in `spawn_blocking` because NVML init and Vulkan instance
+	 *  creation can each take a few hundred ms on cold driver load, and we don't
+	 *  want to stall the Tauri IPC thread. `tauri::async_runtime` wraps tokio
+	 *  so we don't need a direct tokio dep.
+	 */
+	detectGpu: () => __TAURI_INVOKE<GpuBackend>("detect_gpu"),
 };
 
 /* Types */
@@ -26,6 +33,11 @@ export type CommandError = {
 	message: string,
 };
 
+export type ComputeCapability = {
+	major: number,
+	minor: number,
+};
+
 export type CpuFeatures = {
 	avx2: boolean,
 	avx512f: boolean,
@@ -38,6 +50,8 @@ export type CpuInfo = {
 	logical_cores: number,
 	features: CpuFeatures,
 };
+
+export type GpuBackend = { kind: "metal" } | { kind: "cuda"; name: string; vram_mb: number; compute_capability: ComputeCapability; uuid: string } | { kind: "vulkan"; vendor: VulkanVendor; vendor_id: number; name: string; vram_mb: number | null; device_type: VulkanDeviceType } | { kind: "none" };
 
 export type MemoryInfo = {
 	total_bytes: number,
@@ -57,6 +71,10 @@ export type SystemInfo = {
 	cpu: CpuInfo,
 	memory: MemoryInfo,
 };
+
+export type VulkanDeviceType = "discrete" | "integrated" | "virtual" | "cpu" | "other";
+
+export type VulkanVendor = "amd" | "intel" | "nvidia" | "other";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

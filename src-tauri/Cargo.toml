@@ -35,6 +35,14 @@ sysinfo = "0.33"
 [target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dependencies]
 raw-cpuid = "11"
 
+# GPU probing is only relevant off macOS (Metal is assumed via `cfg!(target_os)`).
+# `nvml-wrapper` dynamically loads `libnvidia-ml`; absent driver => clean error.
+# `ash` dynamically loads the Vulkan loader; absent loader => clean error.
+# Neither links system libs at build time, so CI runners need nothing extra.
+[target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
+nvml-wrapper = "0.10"
+ash = "0.38"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }
 tempfile = "3"

@@ -1,8 +1,8 @@
 //! Hardware detection and backend selection.
 //!
-//! Fase 2.1 ships `system` + `cpu_features`. `gpu` (2.2) and `selector` (2.3)
-//! are still stubs; they will plug into a top-level `HardwareReport` that
-//! composes `SystemInfo` with a `GpuInfo` and a chosen backend.
+//! Fase 2.1 ships `system` + `cpu_features`; Fase 2.2 adds `gpu`. `selector`
+//! (2.3) remains a stub — it will compose `SystemInfo` with `GpuBackend` to
+//! produce a chosen inference backend + justification.
 
 pub mod cpu_features;
 pub mod gpu;
