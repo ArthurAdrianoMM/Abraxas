@@ -11,7 +11,7 @@
 //! we short-circuit to `Metal` via `cfg!(target_os)` without linking the
 //! other probes.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use specta::Type;
 
 #[cfg(not(target_os = "macos"))]
@@ -19,17 +19,19 @@ mod nvml;
 #[cfg(not(target_os = "macos"))]
 mod vulkan;
 
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum GpuBackend {
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     Metal,
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     Cuda {
         name: String,
         vram_mb: u64,
         compute_capability: ComputeCapability,
         uuid: String,
     },
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     Vulkan {
         vendor: VulkanVendor,
         vendor_id: u32,
@@ -40,13 +42,14 @@ pub enum GpuBackend {
     None,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Type)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
 pub struct ComputeCapability {
     pub major: u32,
     pub minor: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum VulkanVendor {
     Amd,
@@ -55,7 +58,8 @@ pub enum VulkanVendor {
     Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum VulkanDeviceType {
     Discrete,
