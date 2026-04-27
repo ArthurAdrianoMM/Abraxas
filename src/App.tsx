@@ -2,9 +2,8 @@ import { useEffect, useState } from "react";
 import {
   commands,
   type AppInfo,
-  type BackendChoice,
   type GpuBackend,
-  type SystemInfo,
+  type HardwareDetection,
 } from "./lib/tauri/bindings";
 import "./App.css";
 
@@ -30,64 +29,42 @@ function describeGpu(gpu: GpuBackend): string {
 
 function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [appInfoError, setAppInfoError] = useState<string | null>(null);
 
-  const [system, setSystem] = useState<SystemInfo | null>(null);
-  const [detecting, setDetecting] = useState(false);
-  const [sysError, setSysError] = useState<string | null>(null);
-
-  const [gpu, setGpu] = useState<GpuBackend | null>(null);
-  const [detectingGpu, setDetectingGpu] = useState(false);
-  const [gpuError, setGpuError] = useState<string | null>(null);
-
-  const [choice, setChoice] = useState<BackendChoice | null>(null);
-  const [choiceError, setChoiceError] = useState<string | null>(null);
+  const [hw, setHw] = useState<HardwareDetection | null>(null);
+  const [hwLoading, setHwLoading] = useState(false);
+  const [hwError, setHwError] = useState<string | null>(null);
 
   useEffect(() => {
     commands.appInfo().then((result) => {
       if (result.status === "ok") setInfo(result.data);
-      else setError(`${result.error.kind}: ${result.error.message}`);
+      else setAppInfoError(`${result.error.kind}: ${result.error.message}`);
     });
   }, []);
 
+  async function runDetect(force: boolean) {
+    setHwLoading(true);
+    setHwError(null);
+    try {
+      const result = await commands.detectHardware(force);
+      if (result.status === "ok") setHw(result.data);
+      else setHwError(`${result.error.kind}: ${result.error.message}`);
+    } catch (e) {
+      setHwError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setHwLoading(false);
+    }
+  }
+
   useEffect(() => {
-    if (!system || !gpu) return;
-    setChoiceError(null);
-    commands
-      .selectBackend(system, gpu)
-      .then(setChoice)
-      .catch((e) => setChoiceError(e instanceof Error ? e.message : String(e)));
-  }, [system, gpu]);
-
-  async function handleDetect() {
-    setDetecting(true);
-    setSysError(null);
-    try {
-      setSystem(await commands.detectSystem());
-    } catch (e) {
-      setSysError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDetecting(false);
-    }
-  }
-
-  async function handleDetectGpu() {
-    setDetectingGpu(true);
-    setGpuError(null);
-    try {
-      setGpu(await commands.detectGpu());
-    } catch (e) {
-      setGpuError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDetectingGpu(false);
-    }
-  }
+    runDetect(false);
+  }, []);
 
   return (
     <main className="container">
       <h1>Abraxas</h1>
-      <p>Tauri v2 scaffold ready — Fase 1.5 complete.</p>
-      {error && <p role="alert">{error}</p>}
+      <p>Tauri v2 scaffold ready — Fase 2.4 complete.</p>
+      {appInfoError && <p role="alert">{appInfoError}</p>}
       {info && (
         <dl>
           <dt>Version</dt>
@@ -100,82 +77,82 @@ function App() {
       )}
 
       <section style={{ marginTop: "2rem" }}>
-        <button onClick={handleDetect} disabled={detecting}>
-          {detecting ? "Detecting..." : "Detect hardware"}
-        </button>
-        {sysError && <p role="alert">{sysError}</p>}
-        {system && (
-          <dl>
-            <dt>OS</dt>
-            <dd>
-              {system.os.family} ({system.os.arch})
-              {system.os.version ? ` — ${system.os.version}` : ""}
-            </dd>
-            <dt>CPU</dt>
-            <dd>
-              {system.cpu.brand || "(unknown)"}
-              {system.cpu.vendor ? ` — ${system.cpu.vendor}` : ""}
-            </dd>
-            <dt>Cores</dt>
-            <dd>
-              {system.cpu.physical_cores} physical / {system.cpu.logical_cores} logical
-            </dd>
-            <dt>Features</dt>
-            <dd>
-              AVX2: {system.cpu.features.avx2 ? "yes" : "no"} · AVX-512F:{" "}
-              {system.cpu.features.avx512f ? "yes" : "no"}
-            </dd>
-            <dt>Memory</dt>
-            <dd>
-              {formatBytes(system.memory.available_bytes)} available /{" "}
-              {formatBytes(system.memory.total_bytes)} total
-            </dd>
-          </dl>
-        )}
-      </section>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <button onClick={() => runDetect(false)} disabled={hwLoading}>
+            {hwLoading ? "Detecting..." : "Detect hardware"}
+          </button>
+          <button onClick={() => runDetect(true)} disabled={hwLoading}>
+            Re-detect (force)
+          </button>
+          {hw && (
+            <span style={{ fontSize: "0.875rem", opacity: 0.75 }}>
+              {hw.from_cache ? "Cached" : "Fresh"} · {hw.detected_at}
+            </span>
+          )}
+        </div>
+        {hwError && <p role="alert">{hwError}</p>}
+        {hw && (
+          <>
+            <h2 style={{ fontSize: "1rem", marginTop: "1rem", marginBottom: "0.25rem" }}>System</h2>
+            <dl>
+              <dt>OS</dt>
+              <dd>
+                {hw.system.os.family} ({hw.system.os.arch})
+                {hw.system.os.version ? ` — ${hw.system.os.version}` : ""}
+              </dd>
+              <dt>CPU</dt>
+              <dd>
+                {hw.system.cpu.brand || "(unknown)"}
+                {hw.system.cpu.vendor ? ` — ${hw.system.cpu.vendor}` : ""}
+              </dd>
+              <dt>Cores</dt>
+              <dd>
+                {hw.system.cpu.physical_cores} physical / {hw.system.cpu.logical_cores} logical
+              </dd>
+              <dt>Features</dt>
+              <dd>
+                AVX2: {hw.system.cpu.features.avx2 ? "yes" : "no"} · AVX-512F:{" "}
+                {hw.system.cpu.features.avx512f ? "yes" : "no"}
+              </dd>
+              <dt>Memory</dt>
+              <dd>
+                {formatBytes(hw.system.memory.available_bytes)} available /{" "}
+                {formatBytes(hw.system.memory.total_bytes)} total
+              </dd>
+            </dl>
 
-      <section style={{ marginTop: "2rem" }}>
-        <button onClick={handleDetectGpu} disabled={detectingGpu}>
-          {detectingGpu ? "Detecting..." : "Detect GPU"}
-        </button>
-        {gpuError && <p role="alert">{gpuError}</p>}
-        {gpu && (
-          <dl>
-            <dt>Backend</dt>
-            <dd>{gpu.kind}</dd>
-            <dt>Detected</dt>
-            <dd>{describeGpu(gpu)}</dd>
-            {gpu.kind === "cuda" && (
-              <>
-                <dt>UUID</dt>
-                <dd>{gpu.uuid || "(unavailable)"}</dd>
-              </>
-            )}
-            {gpu.kind === "vulkan" && (
-              <>
-                <dt>Vendor ID</dt>
-                <dd>0x{gpu.vendor_id.toString(16).toUpperCase().padStart(4, "0")}</dd>
-              </>
-            )}
-          </dl>
-        )}
-      </section>
+            <h2 style={{ fontSize: "1rem", marginTop: "1rem", marginBottom: "0.25rem" }}>GPU</h2>
+            <dl>
+              <dt>Backend</dt>
+              <dd>{hw.gpu.kind}</dd>
+              <dt>Detected</dt>
+              <dd>{describeGpu(hw.gpu)}</dd>
+              {hw.gpu.kind === "cuda" && (
+                <>
+                  <dt>UUID</dt>
+                  <dd>{hw.gpu.uuid || "(unavailable)"}</dd>
+                </>
+              )}
+              {hw.gpu.kind === "vulkan" && (
+                <>
+                  <dt>Vendor ID</dt>
+                  <dd>0x{hw.gpu.vendor_id.toString(16).toUpperCase().padStart(4, "0")}</dd>
+                </>
+              )}
+            </dl>
 
-      <section style={{ marginTop: "2rem" }}>
-        <h2 style={{ fontSize: "1.1rem", margin: 0 }}>Selected backend</h2>
-        {!system || !gpu ? (
-          <p>Run system + GPU detection above to compute the chosen backend.</p>
-        ) : choiceError ? (
-          <p role="alert">{choiceError}</p>
-        ) : choice ? (
-          <dl>
-            <dt>Backend</dt>
-            <dd>{choice.backend}</dd>
-            <dt>Reason</dt>
-            <dd>{choice.reason}</dd>
-          </dl>
-        ) : (
-          <p>Selecting...</p>
+            <h2 style={{ fontSize: "1rem", marginTop: "1rem", marginBottom: "0.25rem" }}>
+              Selected backend
+            </h2>
+            <dl>
+              <dt>Backend</dt>
+              <dd>{hw.choice.backend}</dd>
+              <dt>Reason</dt>
+              <dd>{hw.choice.reason}</dd>
+              <dt>Fingerprint</dt>
+              <dd style={{ fontFamily: "monospace", fontSize: "0.75rem" }}>{hw.fingerprint}</dd>
+            </dl>
+          </>
         )}
       </section>
     </main>

@@ -4,6 +4,7 @@
 //! (2.3) remains a stub — it will compose `SystemInfo` with `GpuBackend` to
 //! produce a chosen inference backend + justification.
 
+pub mod cache;
 pub mod cpu_features;
 pub mod gpu;
 pub mod selector;

@@ -11,5 +11,6 @@ pub fn builder() -> Builder<tauri::Wry> {
         super::hardware::detect_system,
         super::hardware::detect_gpu,
         super::hardware::select_backend,
+        super::hardware::detect_hardware,
     ])
 }

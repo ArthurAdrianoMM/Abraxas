@@ -16,13 +16,13 @@
 //! unused in the body — Fase 2.4+ will extend `reason` with RAM context
 //! and may add minimum-RAM gating. Stable signature now = no churn later.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use super::gpu::GpuBackend;
 use super::system::SystemInfo;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum InferenceBackend {
     Metal,
@@ -31,7 +31,7 @@ pub enum InferenceBackend {
     Cpu,
 }
 
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct BackendChoice {
     pub backend: InferenceBackend,
     pub reason: String,

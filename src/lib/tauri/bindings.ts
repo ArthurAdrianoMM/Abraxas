@@ -18,10 +18,19 @@ export const commands = {
 	/**
 	 *  Pure backend-selection command. Takes already-detected `SystemInfo` and
 	 *  `GpuBackend` from the frontend and returns the chosen inference backend
-	 *  plus a short justification. Detection itself stays in `detect_system` /
-	 *  `detect_gpu`; composing the three calls (with caching) is Fase 2.4.
+	 *  plus a short justification. Kept exposed for dev tools; the standard
+	 *  flow uses `detect_hardware` instead.
 	 */
 	selectBackend: (system: SystemInfo, gpu: GpuBackend) => __TAURI_INVOKE<BackendChoice>("select_backend", { system, gpu }),
+	/**
+	 *  Aggregate detection with a fingerprint-validated JSON cache. Returns
+	 *  the full (system, gpu, choice) triple. When `force` is false, a cached
+	 *  result is served if the host's CPU/RAM/OS fingerprint still matches;
+	 *  when true, fresh detection runs unconditionally and the cache file is
+	 *  overwritten. The blocking work (file I/O + GPU probe) is dispatched
+	 *  to `spawn_blocking` so the Tauri IPC thread stays free.
+	 */
+	detectHardware: (force: boolean) => typedError<HardwareDetection, CommandError>(__TAURI_INVOKE("detect_hardware", { force })),
 };
 
 /* Types */
@@ -64,6 +73,21 @@ export type CpuInfo = {
 };
 
 export type GpuBackend = { kind: "metal" } | { kind: "cuda"; name: string; vram_mb: number; compute_capability: ComputeCapability; uuid: string } | { kind: "vulkan"; vendor: VulkanVendor; vendor_id: number; name: string; vram_mb: number | null; device_type: VulkanDeviceType } | { kind: "none" };
+
+/**
+ *  Wire type returned to the frontend. `from_cache` lets the UI show
+ *  "Cached / Fresh"; `fingerprint` and `detected_at` are kept for debug
+ *  surface. Distinct from [`CachedDetection`] (the on-disk shape) so the
+ *  file format can evolve independently.
+ */
+export type HardwareDetection = {
+	system: SystemInfo,
+	gpu: GpuBackend,
+	choice: BackendChoice,
+	fingerprint: string,
+	detected_at: string,
+	from_cache: boolean,
+};
 
 export type InferenceBackend = "metal" | "cuda" | "vulkan" | "cpu";
 

@@ -29,6 +29,7 @@ specta = { version = "2.0.0-rc.22", features = ["derive"] }
 specta-typescript = "0.0.11"
 tauri-specta = { version = "2.0.0-rc.22", features = ["derive", "typescript"] }
 sysinfo = "0.33"
+sha2 = "0.10"
 
 # `raw-cpuid` issues the x86 `CPUID` instruction, so it only builds on x86
 # targets. Gating it here keeps aarch64 (Apple Silicon, ARM Linux) building.
