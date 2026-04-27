@@ -77,15 +77,14 @@ impl InferenceBackend for LlamaCppBackend {
         let backend = ensure_backend()?;
 
         let load_path = path.clone();
-        let model = async_runtime::spawn_blocking(
-            move || -> Result<Arc<LlamaModel>, InferenceError> {
+        let model =
+            async_runtime::spawn_blocking(move || -> Result<Arc<LlamaModel>, InferenceError> {
                 let params = LlamaModelParams::default();
                 let model = LlamaModel::load_from_file(&backend, &load_path, &params)?;
                 Ok(Arc::new(model))
-            },
-        )
-        .await
-        .expect("model-load task panicked")?;
+            })
+            .await
+            .expect("model-load task panicked")?;
 
         let loaded = LoadedModel {
             path: path.clone(),
@@ -114,10 +113,7 @@ impl InferenceBackend for LlamaCppBackend {
         Ok(())
     }
 
-    async fn generate_stream(
-        &self,
-        params: GenerateParams,
-    ) -> Result<TokenStream, InferenceError> {
+    async fn generate_stream(&self, params: GenerateParams) -> Result<TokenStream, InferenceError> {
         let model = {
             let guard = self.state.read().await;
             guard
@@ -144,10 +140,7 @@ impl InferenceBackend for LlamaCppBackend {
     fn is_loaded(&self) -> bool {
         // try_read so a status poll never blocks. "Currently loading" reads as
         // not-yet-loaded, which is the correct UX answer.
-        self.state
-            .try_read()
-            .map(|g| g.is_some())
-            .unwrap_or(false)
+        self.state.try_read().map(|g| g.is_some()).unwrap_or(false)
     }
 }
 
