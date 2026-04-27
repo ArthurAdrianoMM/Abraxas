@@ -46,6 +46,7 @@ pub enum StopReason {
     MaxTokens,
 }
 
+#[derive(Debug)]
 pub struct TokenStream {
     rx: Receiver<Result<TokenEvent, InferenceError>>,
 }
