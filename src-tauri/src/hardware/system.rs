@@ -5,27 +5,27 @@
 //! phases (2.2 GPU, 2.3 selector) read `SystemInfo` top-down without reaching
 //! into its internals, so the struct shape is the stable contract.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use specta::Type;
 use sysinfo::{CpuRefreshKind, System};
 
 use super::cpu_features;
 
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct SystemInfo {
     pub os: OsInfo,
     pub cpu: CpuInfo,
     pub memory: MemoryInfo,
 }
 
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct OsInfo {
     pub family: OsFamily,
     pub version: Option<String>,
     pub arch: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub enum OsFamily {
     Windows,
     MacOs,
@@ -33,7 +33,7 @@ pub enum OsFamily {
     Other,
 }
 
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct CpuInfo {
     pub vendor: String,
     pub brand: String,
@@ -42,13 +42,13 @@ pub struct CpuInfo {
     pub features: CpuFeatures,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub struct CpuFeatures {
     pub avx2: bool,
     pub avx512f: bool,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Type)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
 pub struct MemoryInfo {
     pub total_bytes: u64,
     pub available_bytes: u64,

@@ -15,6 +15,13 @@ export const commands = {
 	 *  so we don't need a direct tokio dep.
 	 */
 	detectGpu: () => __TAURI_INVOKE<GpuBackend>("detect_gpu"),
+	/**
+	 *  Pure backend-selection command. Takes already-detected `SystemInfo` and
+	 *  `GpuBackend` from the frontend and returns the chosen inference backend
+	 *  plus a short justification. Detection itself stays in `detect_system` /
+	 *  `detect_gpu`; composing the three calls (with caching) is Fase 2.4.
+	 */
+	selectBackend: (system: SystemInfo, gpu: GpuBackend) => __TAURI_INVOKE<BackendChoice>("select_backend", { system, gpu }),
 };
 
 /* Types */
@@ -22,6 +29,11 @@ export type AppInfo = {
 	version: string,
 	app_data_dir: string,
 	log_dir: string,
+};
+
+export type BackendChoice = {
+	backend: InferenceBackend,
+	reason: string,
 };
 
 /**
@@ -52,6 +64,8 @@ export type CpuInfo = {
 };
 
 export type GpuBackend = { kind: "metal" } | { kind: "cuda"; name: string; vram_mb: number; compute_capability: ComputeCapability; uuid: string } | { kind: "vulkan"; vendor: VulkanVendor; vendor_id: number; name: string; vram_mb: number | null; device_type: VulkanDeviceType } | { kind: "none" };
+
+export type InferenceBackend = "metal" | "cuda" | "vulkan" | "cpu";
 
 export type MemoryInfo = {
 	total_bytes: number,

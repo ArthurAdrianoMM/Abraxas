@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   commands,
   type AppInfo,
+  type BackendChoice,
   type GpuBackend,
   type SystemInfo,
 } from "./lib/tauri/bindings";
@@ -39,12 +40,24 @@ function App() {
   const [detectingGpu, setDetectingGpu] = useState(false);
   const [gpuError, setGpuError] = useState<string | null>(null);
 
+  const [choice, setChoice] = useState<BackendChoice | null>(null);
+  const [choiceError, setChoiceError] = useState<string | null>(null);
+
   useEffect(() => {
     commands.appInfo().then((result) => {
       if (result.status === "ok") setInfo(result.data);
       else setError(`${result.error.kind}: ${result.error.message}`);
     });
   }, []);
+
+  useEffect(() => {
+    if (!system || !gpu) return;
+    setChoiceError(null);
+    commands
+      .selectBackend(system, gpu)
+      .then(setChoice)
+      .catch((e) => setChoiceError(e instanceof Error ? e.message : String(e)));
+  }, [system, gpu]);
 
   async function handleDetect() {
     setDetecting(true);
@@ -145,6 +158,24 @@ function App() {
               </>
             )}
           </dl>
+        )}
+      </section>
+
+      <section style={{ marginTop: "2rem" }}>
+        <h2 style={{ fontSize: "1.1rem", margin: 0 }}>Selected backend</h2>
+        {!system || !gpu ? (
+          <p>Run system + GPU detection above to compute the chosen backend.</p>
+        ) : choiceError ? (
+          <p role="alert">{choiceError}</p>
+        ) : choice ? (
+          <dl>
+            <dt>Backend</dt>
+            <dd>{choice.backend}</dd>
+            <dt>Reason</dt>
+            <dd>{choice.reason}</dd>
+          </dl>
+        ) : (
+          <p>Selecting...</p>
         )}
       </section>
     </main>

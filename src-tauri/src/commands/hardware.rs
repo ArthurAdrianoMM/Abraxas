@@ -6,6 +6,7 @@
 //! these two, not replace them.
 
 use crate::hardware::gpu::{self, GpuBackend};
+use crate::hardware::selector::{self, BackendChoice};
 use crate::hardware::system::{self, SystemInfo};
 
 #[tauri::command]
@@ -37,4 +38,16 @@ pub async fn detect_gpu() -> GpuBackend {
         .unwrap_or(GpuBackend::None);
     tracing::info!(?gpu, "detect_gpu invoked");
     gpu
+}
+
+/// Pure backend-selection command. Takes already-detected `SystemInfo` and
+/// `GpuBackend` from the frontend and returns the chosen inference backend
+/// plus a short justification. Detection itself stays in `detect_system` /
+/// `detect_gpu`; composing the three calls (with caching) is Fase 2.4.
+#[tauri::command]
+#[specta::specta]
+pub async fn select_backend(system: SystemInfo, gpu: GpuBackend) -> BackendChoice {
+    let choice = selector::select_backend(&system, &gpu);
+    tracing::info!(backend = ?choice.backend, reason = %choice.reason, "select_backend invoked");
+    choice
 }
