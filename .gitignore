@@ -42,3 +42,4 @@ Thumbs.db
 /src-tauri/*.db
 *.sqlite
 *.sqlite-journal
+/models/*

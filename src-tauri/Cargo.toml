@@ -31,6 +31,25 @@ tauri-specta = { version = "2.0.0-rc.22", features = ["derive", "typescript"] }
 sysinfo = "0.33"
 sha2 = "0.10"
 
+# Phase 3.1: llama.cpp bindings (CPU-only by default — Metal/CUDA/Vulkan
+# feature gating lands in Fase 3.4).
+#
+# `default-features = false` drops the upstream `openmp` and
+# `android-shared-stdcxx` defaults. Reasons:
+#   - `openmp`: Apple's system clang doesn't ship `libomp`, so the macOS
+#     build would otherwise require `brew install libomp` on every dev
+#     machine and CI runner. Disabling it falls back to llama.cpp's
+#     internal `std::thread` pool — small CPU perf delta, big portability
+#     win. We can re-enable it per-target in 3.4 if it ever matters.
+#   - `android-shared-stdcxx`: Android-only, no effect on desktop.
+#
+# `encoding_rs` provides the stateful UTF-8 decoder passed to
+# `LlamaModel::token_to_piece`, which correctly stitches multi-byte
+# tokens that span byte boundaries (mirrors the upstream `examples/simple`
+# in llama-cpp-rs).
+llama-cpp-2 = { version = "0.1.145", default-features = false }
+encoding_rs = "0.8"
+
 # `raw-cpuid` issues the x86 `CPUID` instruction, so it only builds on x86
 # targets. Gating it here keeps aarch64 (Apple Silicon, ARM Linux) building.
 [target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dependencies]

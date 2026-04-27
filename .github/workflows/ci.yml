@@ -49,6 +49,10 @@ jobs:
 
       - name: Install Linux system dependencies
         if: matrix.os == 'ubuntu-latest'
+        # `libclang-dev` is required by `bindgen` (pulled in by
+        # `llama-cpp-sys-2`'s build script) to generate Rust FFI bindings
+        # from llama.cpp's C++ headers. Windows runners ship LLVM at
+        # `C:\Program Files\LLVM`; macOS picks up libclang from Xcode.
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -56,7 +60,8 @@ jobs:
             libgtk-3-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
-            libssl-dev
+            libssl-dev \
+            libclang-dev
 
       - uses: dtolnay/rust-toolchain@stable
         with:

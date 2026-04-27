@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod error;
 mod hardware;
+pub mod inference;
 mod logging;
 
 use tauri::Manager;
