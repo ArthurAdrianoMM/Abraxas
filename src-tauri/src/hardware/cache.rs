@@ -363,7 +363,10 @@ mod tests {
         write_cached(&path, &stale);
 
         let det = load_or_detect(&path);
-        assert!(!det.from_cache, "fingerprint mismatch should force re-detect");
+        assert!(
+            !det.from_cache,
+            "fingerprint mismatch should force re-detect"
+        );
         assert_ne!(det.fingerprint, "deadbeef");
     }
 
@@ -424,7 +427,10 @@ mod tests {
         write_cached(&path, &stale);
 
         let det = load_or_detect(&path);
-        assert!(det.from_cache, "fingerprint matches — should be a cache hit");
+        assert!(
+            det.from_cache,
+            "fingerprint matches — should be a cache hit"
+        );
         // The expensive bits come from cache:
         assert!(matches!(det.gpu, GpuBackend::Cuda { .. }));
         // But system is fresh, not the bogus cached one:

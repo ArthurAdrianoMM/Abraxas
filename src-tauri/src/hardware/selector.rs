@@ -70,9 +70,7 @@ pub fn select_backend(_system: &SystemInfo, gpu: &GpuBackend) -> BackendChoice {
 mod tests {
     use super::*;
     use crate::hardware::gpu::{ComputeCapability, VulkanDeviceType, VulkanVendor};
-    use crate::hardware::system::{
-        CpuFeatures, CpuInfo, MemoryInfo, OsFamily, OsInfo, SystemInfo,
-    };
+    use crate::hardware::system::{CpuFeatures, CpuInfo, MemoryInfo, OsFamily, OsInfo, SystemInfo};
 
     fn fake_system() -> SystemInfo {
         SystemInfo {
