@@ -13,6 +13,7 @@ name = "abraxas"
 version = "0.1.0"
 dependencies = [
  "ash",
+ "async-trait",
  "encoding_rs",
  "llama-cpp-2",
  "nvml-wrapper",

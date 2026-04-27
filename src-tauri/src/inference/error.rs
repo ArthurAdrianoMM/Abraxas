@@ -11,6 +11,9 @@ pub enum InferenceError {
     #[error("model file not found: {0}")]
     ModelNotFound(PathBuf),
 
+    #[error("no model is currently loaded")]
+    NoModelLoaded,
+
     #[error("llama backend error: {0}")]
     Backend(#[from] llama_cpp_2::LlamaCppError),
 

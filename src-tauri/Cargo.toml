@@ -19,6 +19,10 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Fase 3.2: `dyn InferenceBackend` is used by Fase 3.3's manager. Native
+# async-fn-in-trait is not object-safe with the standard signatures, so the
+# trait is annotated with `#[async_trait]`, which boxes futures internally.
+async-trait = "0.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "time"] }
 tracing-appender = "0.2"

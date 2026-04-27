@@ -1,4 +1,5 @@
-//! Phase 3.1 smoke test. Loads a GGUF model and streams tokens to stdout.
+//! Inference smoke test. Loads a GGUF model and streams tokens to stdout via
+//! the `InferenceBackend` trait (Fase 3.2).
 //!
 //! Usage:
 //!   cargo run --release --bin llama_smoke -- \
@@ -13,7 +14,9 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use abraxas_lib::inference::llama_cpp::{generate, GenerateOpts};
+use abraxas_lib::inference::{
+    GenerateParams, InferenceBackend, InferenceError, LlamaCppBackend, TokenEvent,
+};
 use tracing_subscriber::EnvFilter;
 
 const USAGE: &str = "usage: llama_smoke --model <path.gguf> --prompt <text> \
@@ -71,17 +74,25 @@ fn main() -> ExitCode {
     print!("{prompt}");
     let _ = std::io::stdout().flush();
 
-    let opts = GenerateOpts {
-        model_path: &model,
-        prompt: &prompt,
-        max_tokens,
-        n_ctx,
-        seed,
-    };
+    let mut params = GenerateParams::new(prompt);
+    params.max_tokens = max_tokens;
+    params.n_ctx = n_ctx;
+    params.seed = seed;
 
-    let result = generate(opts, |piece| {
-        print!("{piece}");
-        let _ = std::io::stdout().flush();
+    let result: Result<(), InferenceError> = tauri::async_runtime::block_on(async move {
+        let backend = LlamaCppBackend::new();
+        backend.load_model(&model).await?;
+        let mut stream = backend.generate_stream(params).await?;
+        while let Some(event) = stream.recv().await {
+            match event? {
+                TokenEvent::Chunk(s) => {
+                    print!("{s}");
+                    let _ = std::io::stdout().flush();
+                }
+                TokenEvent::End(_) => break,
+            }
+        }
+        Ok(())
     });
     println!();
 
