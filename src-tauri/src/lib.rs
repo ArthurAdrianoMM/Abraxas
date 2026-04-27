@@ -5,6 +5,8 @@ mod hardware;
 pub mod inference;
 mod logging;
 
+use std::sync::Arc;
+
 use tauri::Manager;
 
 /// Re-exported so the `src/bin/export_bindings.rs` binary can regenerate
@@ -30,6 +32,14 @@ pub fn run() {
             let db_path = data_dir.join("abraxas.sqlite");
             let db = tauri::async_runtime::block_on(db::Db::init(&db_path))?;
             app.manage(db);
+
+            // Fase 3.4 will branch this construction on cfg flags to pick a
+            // Metal/CUDA/Vulkan-built backend; Fase 3.5 consumes the manager
+            // through `State<Arc<ModelManager>>` in the chat commands.
+            let backend: Arc<dyn inference::InferenceBackend> =
+                Arc::new(inference::LlamaCppBackend::new());
+            let manager = Arc::new(inference::ModelManager::new(backend));
+            app.manage(manager);
 
             Ok(())
         })
