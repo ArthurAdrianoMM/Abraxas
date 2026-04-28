@@ -89,7 +89,14 @@ CUDA é escolhido sobre Vulkan em NVIDIA porque oferece 10-15% de performance su
 
 **Implicações de build:**
 
-O `llama-cpp-2` é compilado com features `cuda` e `vulkan` ligadas simultaneamente no build do Windows e Linux. Isso exige CUDA Toolkit instalado no runner do CI, aumenta o tempo de build em ~5-10 minutos e aumenta o tamanho do instalador final em 500MB-1GB. É um custo aceito em troca de um instalador único por OS que funciona automaticamente em qualquer hardware. macOS tem build próprio com feature `metal` ligada.
+Os backends de GPU são expostos como Cargo features opt-in (`cuda`, `vulkan`, `metal`) em vez de ficarem hardcoded por target. O default é `[]` — CPU puro, sem nenhum SDK exigido — pra que `cargo check` num clone fresco funcione mesmo sem CUDA Toolkit ou Vulkan SDK instalados localmente.
+
+Builds de produção / release ligam o combo completo via CI (`.github/workflows/ci.yml`):
+
+- **Windows + Linux**: `--features cuda,vulkan` — exige CUDA Toolkit (`CUDA_PATH`) e Vulkan SDK (`VULKAN_SDK`) no runner. Resulta em um único instalador por OS que escolhe o backend em runtime conforme o hardware. Aumenta o build em ~5-10 minutos e o tamanho final em 500MB-1GB. Custo aceito.
+- **macOS**: `--features metal` — usa frameworks Metal/MetalKit/Accelerate que vêm com Xcode. Sem dep extra.
+
+Devs locais não precisam ter todos os SDKs instalados. Quem tem só NVIDIA roda `cargo build --features cuda`; quem tem só AMD/Intel roda `cargo build --features vulkan`. Detalhes no [README.md](README.md) seção "Building from source".
 
 ### 2.5. Build e distribuição
 

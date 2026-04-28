@@ -99,20 +99,33 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # Fase 3.5: GPU backends are opt-in Cargo features so local devs without
+      # all the SDKs can build. CI always builds the production feature combo
+      # for the target OS so the shipped artifacts match what users get.
+      - name: Set GPU features for this OS
+        id: features
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            echo "flags=--features metal" >> "$GITHUB_OUTPUT"
+          else
+            echo "flags=--features cuda,vulkan" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Format check
         run: cargo fmt --all --check
 
       - name: Clippy
-        run: cargo clippy --all-targets --locked -- -D warnings
+        run: cargo clippy --all-targets --locked ${{ steps.features.outputs.flags }} -- -D warnings
 
       - name: Check
-        run: cargo check --all-targets --locked
+        run: cargo check --all-targets --locked ${{ steps.features.outputs.flags }}
 
       - name: Test
-        run: cargo test --locked
+        run: cargo test --locked ${{ steps.features.outputs.flags }}
 
       - name: Verify specta bindings are up to date
         if: matrix.os == 'ubuntu-latest'
         run: |
-          cargo run --locked --bin export_bindings
+          cargo run --locked --bin export_bindings ${{ steps.features.outputs.flags }}
           git diff --exit-code ../src/lib/tauri/bindings.ts

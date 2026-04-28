@@ -4,4 +4,41 @@ Local-first desktop chat app for open-source LLMs. Cross-platform (Windows, macO
 
 See [CLAUDE.md](CLAUDE.md) for the full project context: vision, stack, architecture decisions, roadmap.
 
-**Status:** Fase 1.1 — scaffold. Not yet usable.
+**Status:** Fase 3.5 — token streaming + cancellation in a temporary dev screen. Not yet usable as an end-user app.
+
+## Building from source
+
+GPU backends are opt-in Cargo features. Pick the one(s) your hardware supports — you don't need every SDK installed locally.
+
+| You have... | Build command | What you need installed |
+|---|---|---|
+| NVIDIA GPU | `cargo build --features cuda` | [CUDA Toolkit](https://developer.nvidia.com/cuda-downloads) (sets `CUDA_PATH`) |
+| AMD / Intel GPU | `cargo build --features vulkan` | [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/) (sets `VULKAN_SDK`) |
+| Apple Silicon | `cargo build --features metal` | Xcode (Metal frameworks ship with it) |
+| CPU only / fresh clone smoke test | `cargo build` | Nothing — CPU fallback works without SDKs |
+| Production-equivalent (Win/Linux) | `cargo build --features cuda,vulkan` | Both CUDA Toolkit and Vulkan SDK |
+
+Run all `cargo` commands from the `src-tauri/` directory, or pass `--manifest-path src-tauri/Cargo.toml`.
+
+After installing an SDK on Windows, **restart your shell** so the env var (`CUDA_PATH` / `VULKAN_SDK`) propagates.
+
+The shipped installers (downloaded from GitHub Releases) always include the full per-OS combo — end users never need to install anything.
+
+### Frontend
+
+```bash
+pnpm install
+pnpm tauri dev          # full app (requires the Rust feature flags above)
+pnpm exec tsc --noEmit  # frontend type check (no Rust build)
+```
+
+### Regenerating typed bindings
+
+After changing any `#[tauri::command]` or `#[derive(Event)]`:
+
+```bash
+cargo run --locked --bin export_bindings --features cuda,vulkan
+# or whichever feature combo you've been building with
+```
+
+This rewrites `src/lib/tauri/bindings.ts`. CI fails if the file drifts from the regenerated output.

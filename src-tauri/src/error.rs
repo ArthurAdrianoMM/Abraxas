@@ -18,6 +18,9 @@ pub enum AppError {
 
     #[error("migration error: {0}")]
     Migrate(#[from] sqlx::migrate::MigrateError),
+
+    #[error("inference error: {0}")]
+    Inference(#[from] crate::inference::InferenceError),
 }
 
 /// Frontend-facing error shape. Stable across `AppError` refactors so the TS
@@ -36,6 +39,7 @@ impl From<AppError> for CommandError {
             AppError::TracingInit(_) => "TracingInit",
             AppError::Db(_) => "Db",
             AppError::Migrate(_) => "Migrate",
+            AppError::Inference(_) => "Inference",
         };
         Self {
             kind: kind.to_owned(),

@@ -1,6 +1,7 @@
 mod commands;
 mod db;
 mod error;
+mod events;
 // `pub` so internal binaries (e.g., `bin/llama_smoke`) can run the same
 // detection + selection pipeline as the app. Not stable public API.
 pub mod hardware;
@@ -56,6 +57,8 @@ pub fn run() {
                 Arc::new(inference::LlamaCppBackend::new(gpu_layers));
             let manager = Arc::new(inference::ModelManager::new(backend));
             app.manage(manager);
+
+            app.manage(Arc::new(commands::chat::GenerationRegistry::default()));
 
             Ok(())
         })
