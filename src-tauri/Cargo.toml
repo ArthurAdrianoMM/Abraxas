@@ -35,23 +35,10 @@ tauri-specta = { version = "2.0.0-rc.22", features = ["derive", "typescript"] }
 sysinfo = "0.33"
 sha2 = "0.10"
 
-# Phase 3.1: llama.cpp bindings (CPU-only by default — Metal/CUDA/Vulkan
-# feature gating lands in Fase 3.4).
-#
-# `default-features = false` drops the upstream `openmp` and
-# `android-shared-stdcxx` defaults. Reasons:
-#   - `openmp`: Apple's system clang doesn't ship `libomp`, so the macOS
-#     build would otherwise require `brew install libomp` on every dev
-#     machine and CI runner. Disabling it falls back to llama.cpp's
-#     internal `std::thread` pool — small CPU perf delta, big portability
-#     win. We can re-enable it per-target in 3.4 if it ever matters.
-#   - `android-shared-stdcxx`: Android-only, no effect on desktop.
-#
 # `encoding_rs` provides the stateful UTF-8 decoder passed to
 # `LlamaModel::token_to_piece`, which correctly stitches multi-byte
 # tokens that span byte boundaries (mirrors the upstream `examples/simple`
 # in llama-cpp-rs).
-llama-cpp-2 = { version = "0.1.145", default-features = false }
 encoding_rs = "0.8"
 
 # `raw-cpuid` issues the x86 `CPUID` instruction, so it only builds on x86
@@ -59,11 +46,33 @@ encoding_rs = "0.8"
 [target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dependencies]
 raw-cpuid = "11"
 
+# Fase 3.4: `llama-cpp-2` is split per-target so each OS gets exactly the ggml
+# backends it needs compiled in.
+#   - macOS: `metal` (auto-linked Metal/MetalKit/Accelerate frameworks).
+#   - Windows/Linux: `cuda` + `vulkan` together, selected at runtime via
+#     `LlamaModelParams::with_n_gpu_layers` driven by `hardware::selector`.
+#
+# `default-features = false` is preserved on both entries to drop the upstream
+# `openmp` and `android-shared-stdcxx` defaults. Reasons:
+#   - `openmp`: Apple's system clang doesn't ship `libomp`, so a default build
+#     would require `brew install libomp` on every dev machine and CI runner.
+#     Falling back to llama.cpp's internal `std::thread` pool is a small CPU
+#     perf delta for a big portability win.
+#   - `android-shared-stdcxx`: Android-only, no effect on desktop.
+#
+# Build-time requirements (handled by CI; see .github/workflows/ci.yml):
+#   - Windows/Linux: CUDA Toolkit (CUDA_PATH) and Vulkan SDK (VULKAN_SDK env
+#     var, hard-required by llama-cpp-sys-2's build script on Windows).
+#   - macOS: Xcode-shipped Metal headers; nothing extra.
+[target.'cfg(target_os = "macos")'.dependencies]
+llama-cpp-2 = { version = "0.1.145", default-features = false, features = ["metal"] }
+
 # GPU probing is only relevant off macOS (Metal is assumed via `cfg!(target_os)`).
 # `nvml-wrapper` dynamically loads `libnvidia-ml`; absent driver => clean error.
 # `ash` dynamically loads the Vulkan loader; absent loader => clean error.
-# Neither links system libs at build time, so CI runners need nothing extra.
+# Neither links system libs at build time.
 [target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
+llama-cpp-2 = { version = "0.1.145", default-features = false, features = ["cuda", "vulkan"] }
 nvml-wrapper = "0.10"
 ash = "0.38"
 

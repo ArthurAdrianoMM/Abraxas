@@ -51,19 +51,33 @@ struct LoadedModel {
 
 pub struct LlamaCppBackend {
     state: Arc<RwLock<Option<LoadedModel>>>,
+    /// Number of layers to offload to GPU (Fase 3.4). `0` keeps inference on
+    /// CPU; any positive value lets llama.cpp offload up to that many layers
+    /// (it clamps to the model's actual layer count, so values like `999` mean
+    /// "all layers"). The caller — typically `lib.rs` after consulting
+    /// `hardware::selector` — owns the CPU-vs-GPU policy; this struct is just
+    /// the dumb consumer.
+    gpu_layers: u32,
 }
 
 impl LlamaCppBackend {
-    pub fn new() -> Self {
+    pub fn new(gpu_layers: u32) -> Self {
         Self {
             state: Arc::new(RwLock::new(None)),
+            gpu_layers,
         }
+    }
+
+    /// CPU-only constructor. Used by tests and by `lib.rs` when
+    /// `hardware::selector` returns `InferenceBackend::Cpu`.
+    pub fn new_cpu() -> Self {
+        Self::new(0)
     }
 }
 
 impl Default for LlamaCppBackend {
     fn default() -> Self {
-        Self::new()
+        Self::new_cpu()
     }
 }
 
@@ -77,9 +91,16 @@ impl InferenceBackend for LlamaCppBackend {
         let backend = ensure_backend()?;
 
         let load_path = path.clone();
+        let gpu_layers = self.gpu_layers;
         let model =
             async_runtime::spawn_blocking(move || -> Result<Arc<LlamaModel>, InferenceError> {
-                let params = LlamaModelParams::default();
+                // Fase 3.4: offload to GPU when the caller asked for it. With
+                // both CUDA and Vulkan compiled in (Windows/Linux), llama.cpp's
+                // ggml registry picks devices by registration order — typical
+                // single-GPU users land on the right backend naturally. Precise
+                // CUDA-vs-Vulkan filtering via `with_devices` is deferred until
+                // llama-cpp-2 exposes a stable device-enumeration API.
+                let params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
                 let model = LlamaModel::load_from_file(&backend, &load_path, &params)?;
                 Ok(Arc::new(model))
             })
@@ -209,7 +230,7 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn generate_without_loaded_model_errors() {
-        let backend = LlamaCppBackend::new();
+        let backend = LlamaCppBackend::new_cpu();
         let err = backend
             .generate_stream(GenerateParams::new("hi"))
             .await
@@ -219,17 +240,17 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn unload_without_loaded_model_is_ok() {
-        LlamaCppBackend::new().unload().await.unwrap();
+        LlamaCppBackend::new_cpu().unload().await.unwrap();
     }
 
     #[tokio::test(flavor = "current_thread")]
     async fn is_loaded_starts_false() {
-        assert!(!LlamaCppBackend::new().is_loaded());
+        assert!(!LlamaCppBackend::new_cpu().is_loaded());
     }
 
     #[tokio::test(flavor = "current_thread")]
     async fn load_missing_path_errors_before_initializing_backend() {
-        let backend = LlamaCppBackend::new();
+        let backend = LlamaCppBackend::new_cpu();
         let err = backend
             .load_model(Path::new("/definitely/does/not/exist.gguf"))
             .await

@@ -1,7 +1,9 @@
 mod commands;
 mod db;
 mod error;
-mod hardware;
+// `pub` so internal binaries (e.g., `bin/llama_smoke`) can run the same
+// detection + selection pipeline as the app. Not stable public API.
+pub mod hardware;
 pub mod inference;
 mod logging;
 
@@ -33,11 +35,25 @@ pub fn run() {
             let db = tauri::async_runtime::block_on(db::Db::init(&db_path))?;
             app.manage(db);
 
-            // Fase 3.4 will branch this construction on cfg flags to pick a
-            // Metal/CUDA/Vulkan-built backend; Fase 3.5 consumes the manager
-            // through `State<Arc<ModelManager>>` in the chat commands.
+            // Fase 3.4: detect hardware (cached after the first run via
+            // fingerprint) and translate the resulting `BackendChoice` into
+            // an `n_gpu_layers` value passed down to llama.cpp. CPU-only
+            // hardware → 0 (no offload); any GPU choice → 999 (offload all
+            // layers — llama.cpp clamps to the model's actual layer count).
+            // Fine-grained CUDA-vs-Vulkan filtering on hosts where both
+            // backends register is deferred; see `inference/llama_cpp.rs`.
+            let cache_path = data_dir.join("hardware_cache.json");
+            let detection = hardware::cache::load_or_detect(&cache_path);
+            tracing::info!(
+                backend = ?detection.choice.backend,
+                reason = %detection.choice.reason,
+                from_cache = detection.from_cache,
+                "selected inference backend",
+            );
+            let gpu_layers = inference_gpu_layers(detection.choice.backend);
+
             let backend: Arc<dyn inference::InferenceBackend> =
-                Arc::new(inference::LlamaCppBackend::new());
+                Arc::new(inference::LlamaCppBackend::new(gpu_layers));
             let manager = Arc::new(inference::ModelManager::new(backend));
             app.manage(manager);
 
@@ -45,4 +61,15 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Maps the hardware-detection backend choice to llama.cpp's `n_gpu_layers`
+/// load parameter. `999` is the upstream-recommended sentinel for "offload
+/// all layers" — llama.cpp clamps to the model's actual layer count.
+fn inference_gpu_layers(backend: hardware::selector::InferenceBackend) -> u32 {
+    use hardware::selector::InferenceBackend::*;
+    match backend {
+        Cpu => 0,
+        Metal | Cuda | Vulkan => 999,
+    }
 }

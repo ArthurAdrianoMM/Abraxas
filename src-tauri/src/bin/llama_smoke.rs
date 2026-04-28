@@ -5,22 +5,30 @@
 //!   cargo run --release --bin llama_smoke -- \
 //!     --model <path.gguf> \
 //!     --prompt "<text>" \
-//!     [--max-tokens N] [--n-ctx N] [--seed N]
+//!     [--max-tokens N] [--n-ctx N] [--seed N] \
+//!     [--gpu-layers N | --cpu]
 //!
 //! Lives in `src/bin/` (not `examples/` or `tests/`) for the same reason
 //! `export_bindings` does — see the doc comment at the top of that file.
+//!
+//! By default the smoke test mirrors the app: it runs hardware detection and
+//! offloads to GPU when one is available. `--cpu` forces CPU-only;
+//! `--gpu-layers N` overrides with an explicit layer count (useful to bisect
+//! "is offload working at all" versus "is the chosen backend the right one").
 
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use abraxas_lib::hardware;
 use abraxas_lib::inference::{
     GenerateParams, InferenceBackend, InferenceError, LlamaCppBackend, TokenEvent,
 };
 use tracing_subscriber::EnvFilter;
 
 const USAGE: &str = "usage: llama_smoke --model <path.gguf> --prompt <text> \
-                     [--max-tokens N] [--n-ctx N] [--seed N]";
+                     [--max-tokens N] [--n-ctx N] [--seed N] \
+                     [--gpu-layers N | --cpu]";
 
 fn main() -> ExitCode {
     tracing_subscriber::fmt()
@@ -34,6 +42,7 @@ fn main() -> ExitCode {
     let mut max_tokens: i32 = 128;
     let mut n_ctx: u32 = 2048;
     let mut seed: u32 = 1234;
+    let mut gpu_layers_override: Option<u32> = None;
 
     let mut it = args.iter();
     while let Some(arg) = it.next() {
@@ -58,6 +67,13 @@ fn main() -> ExitCode {
                     None => return usage_error("--seed requires an integer"),
                 }
             }
+            "--gpu-layers" => {
+                gpu_layers_override = match it.next().and_then(|s| s.parse().ok()) {
+                    Some(n) => Some(n),
+                    None => return usage_error("--gpu-layers requires an integer"),
+                }
+            }
+            "--cpu" => gpu_layers_override = Some(0),
             "-h" | "--help" => {
                 println!("{USAGE}");
                 return ExitCode::SUCCESS;
@@ -70,6 +86,30 @@ fn main() -> ExitCode {
         return usage_error("both --model and --prompt are required");
     };
 
+    // Mirror the app's startup pipeline so the smoke test exercises the full
+    // hardware → backend wiring (Fase 3.4). Skipped when `--gpu-layers` /
+    // `--cpu` is set so callers can force a specific configuration.
+    let gpu_layers = match gpu_layers_override {
+        Some(n) => {
+            tracing::info!(gpu_layers = n, "gpu-layers override from CLI");
+            n
+        }
+        None => {
+            let system = hardware::system::detect();
+            let gpu = hardware::gpu::detect();
+            let choice = hardware::selector::select_backend(&system, &gpu);
+            tracing::info!(
+                backend = ?choice.backend,
+                reason = %choice.reason,
+                "selected inference backend",
+            );
+            match choice.backend {
+                hardware::selector::InferenceBackend::Cpu => 0,
+                _ => 999,
+            }
+        }
+    };
+
     // Echo the prompt so the user sees full context as completion streams in.
     print!("{prompt}");
     let _ = std::io::stdout().flush();
@@ -80,7 +120,7 @@ fn main() -> ExitCode {
     params.seed = seed;
 
     let result: Result<(), InferenceError> = tauri::async_runtime::block_on(async move {
-        let backend = LlamaCppBackend::new();
+        let backend = LlamaCppBackend::new(gpu_layers);
         backend.load_model(&model).await?;
         let mut stream = backend.generate_stream(params).await?;
         while let Some(event) = stream.recv().await {

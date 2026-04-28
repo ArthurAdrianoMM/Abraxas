@@ -63,6 +63,34 @@ jobs:
             libssl-dev \
             libclang-dev
 
+      # Fase 3.4: CUDA Toolkit and Vulkan SDK are required at compile time on
+      # Windows + Linux because `llama-cpp-2` is built with `cuda` and `vulkan`
+      # features there (see src-tauri/Cargo.toml). The Vulkan branch of
+      # `llama-cpp-sys-2`'s build script hard-`expect`s `VULKAN_SDK` on Windows.
+      # macOS uses `metal` (Xcode-shipped frameworks); no extra install needed.
+      #
+      # Pinned versions:
+      #   - CUDA 12.6.0 — conservative pin matching llama.cpp's tested matrix
+      #     for `llama-cpp-sys-2` v0.1.145; CUDA 13.x is too new to assume.
+      #   - Vulkan SDK 1.3.290.0 — recent stable, widely available, supports
+      #     all GPU vendors we target.
+      - name: Install CUDA Toolkit
+        if: matrix.os != 'macos-latest'
+        uses: Jimver/cuda-toolkit@v0.2.21
+        with:
+          cuda: '12.6.0'
+          method: 'network'
+          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev"]'
+
+      - name: Install Vulkan SDK
+        if: matrix.os != 'macos-latest'
+        uses: jakoch/install-vulkan-sdk-action@v1
+        with:
+          vulkan_version: '1.3.290.0'
+          install_runtime: true
+          cache: true
+          stripdown: true
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
