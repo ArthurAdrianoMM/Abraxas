@@ -7,6 +7,7 @@ mod events;
 pub mod hardware;
 pub mod inference;
 mod logging;
+mod models;
 
 use std::sync::Arc;
 

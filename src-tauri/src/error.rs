@@ -21,6 +21,9 @@ pub enum AppError {
 
     #[error("inference error: {0}")]
     Inference(#[from] crate::inference::InferenceError),
+
+    #[error("catalog error: {0}")]
+    Catalog(#[from] crate::models::catalog::CatalogError),
 }
 
 /// Frontend-facing error shape. Stable across `AppError` refactors so the TS
@@ -40,6 +43,7 @@ impl From<AppError> for CommandError {
             AppError::Db(_) => "Db",
             AppError::Migrate(_) => "Migrate",
             AppError::Inference(_) => "Inference",
+            AppError::Catalog(_) => "Catalog",
         };
         Self {
             kind: kind.to_owned(),

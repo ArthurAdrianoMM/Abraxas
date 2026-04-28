@@ -35,6 +35,11 @@ tauri-specta = { version = "2.0.0-rc.22", features = ["derive", "typescript"] }
 sysinfo = "0.33"
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4", "serde"] }
+# Fase 4.1: catalog fetch over HTTPS. `rustls-tls` is preferred over the
+# default `native-tls` so Linux CI doesn't need OpenSSL headers and Windows
+# doesn't depend on Schannel quirks. No `stream` feature yet — that lands
+# with Fase 4.3's GGUF downloader.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 # `encoding_rs` provides the stateful UTF-8 decoder passed to
 # `LlamaModel::token_to_piece`, which correctly stitches multi-byte

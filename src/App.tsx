@@ -4,6 +4,7 @@ import {
   commands,
   events,
   type AppInfo,
+  type CatalogResponse,
   type CommandError,
   type GpuBackend,
   type HardwareDetection,
@@ -297,6 +298,60 @@ function formatErr(e: CommandError): string {
   return `${e.kind}: ${e.message}`;
 }
 
+function CatalogPanel() {
+  const [resp, setResp] = useState<CatalogResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function loadCatalog() {
+    setLoading(true);
+    setErr(null);
+    try {
+      const r = await commands.fetchCatalog();
+      if (r.status === "ok") setResp(r.data);
+      else setErr(formatErr(r.error));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+        <button onClick={loadCatalog} disabled={loading}>
+          {loading ? "Fetching..." : "Fetch catalog"}
+        </button>
+        {resp && (
+          <span style={{ fontSize: "0.875rem", opacity: 0.75 }}>
+            {resp.source === "network" ? "Network" : "Cache"} · generated{" "}
+            {resp.catalog.generated_at} · {resp.catalog.models.length} model(s)
+          </span>
+        )}
+      </div>
+      {err && <p role="alert">{err}</p>}
+      {resp && resp.catalog.models[0] && (
+        <pre
+          style={{
+            marginTop: "0.5rem",
+            padding: "0.5rem",
+            background: "rgba(127,127,127,0.08)",
+            border: "1px solid rgba(127,127,127,0.2)",
+            borderRadius: "4px",
+            maxHeight: "20rem",
+            overflow: "auto",
+            fontFamily: "monospace",
+            fontSize: "0.75rem",
+          }}
+        >
+          {JSON.stringify(resp.catalog.models[0], null, 2)}
+        </pre>
+      )}
+    </>
+  );
+}
+
 function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [appInfoError, setAppInfoError] = useState<string | null>(null);
@@ -330,6 +385,15 @@ function App() {
         </summary>
         <div style={{ marginTop: "0.75rem" }}>
           <HardwarePanel />
+        </div>
+      </details>
+
+      <details style={{ marginTop: "2rem" }}>
+        <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+          Catalog (Fase 4.1)
+        </summary>
+        <div style={{ marginTop: "0.75rem" }}>
+          <CatalogPanel />
         </div>
       </details>
 

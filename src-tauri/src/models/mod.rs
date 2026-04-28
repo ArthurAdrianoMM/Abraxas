@@ -1,1 +1,4 @@
-//! Model catalog, downloads, and on-disk registry. Real code lands in Fase 4.
+//! Model catalog, downloads, and on-disk registry.
+
+pub mod catalog;
+// `download` and `registry` remain stubs for Fase 4.3+.

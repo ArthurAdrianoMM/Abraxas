@@ -36,6 +36,7 @@ export const commands = {
 	devLoadModel: (path: string) => typedError<null, CommandError>(__TAURI_INVOKE("dev_load_model", { path })),
 	startGeneration: (prompt: string, maxTokens: number | null) => typedError<string, CommandError>(__TAURI_INVOKE("start_generation", { prompt, maxTokens })),
 	cancelGeneration: (generationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_generation", { generationId })),
+	fetchCatalog: () => typedError<CatalogResponse, CommandError>(__TAURI_INVOKE("fetch_catalog")),
 };
 
 /** Events */
@@ -54,6 +55,22 @@ export type BackendChoice = {
 	backend: InferenceBackend,
 	reason: string,
 };
+
+export type Catalog = {
+	schema_version: number,
+	generated_at: string,
+	models: ModelEntry[],
+};
+
+export type CatalogResponse = {
+	catalog: Catalog,
+	source: CatalogSource,
+	fetched_at: string,
+};
+
+export type CatalogSource = "network" | "cache";
+
+export type ChatTemplate = "Llama3" | "ChatML" | "Mistral" | "Gemma" | "Qwen" | "Phi3";
 
 /**
  *  Frontend-facing error shape. Stable across `AppError` refactors so the TS
@@ -106,6 +123,26 @@ export type InferenceBackend = "metal" | "cuda" | "vulkan" | "cpu";
 export type MemoryInfo = {
 	total_bytes: number,
 	available_bytes: number,
+};
+
+export type ModelEntry = {
+	id: string,
+	name: string,
+	publisher: string,
+	description: string,
+	license: string,
+	tags: string[],
+	url: string,
+	filename: string,
+	size_bytes: number,
+	sha256: string,
+	params_b: number,
+	quantization: string,
+	context_length: number,
+	chat_template: ChatTemplate,
+	min_ram_mb: number,
+	recommended_ram_mb: number,
+	min_vram_mb: number | null,
 };
 
 export type OsFamily = "Windows" | "MacOs" | "Linux" | "Other";
