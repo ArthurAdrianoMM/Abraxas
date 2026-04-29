@@ -74,13 +74,37 @@ jobs:
       #     for `llama-cpp-sys-2` v0.1.145; CUDA 13.x is too new to assume.
       #   - Vulkan SDK 1.3.290.0 — recent stable, widely available, supports
       #     all GPU vendors we target.
-      - name: Install CUDA Toolkit
-        if: matrix.os != 'macos-latest'
+      # CUDA install must be split per-OS because the Jimver action's
+      # sub-package names map differently on each platform:
+      #   - Windows: needs `visual_studio_integration` so MSBuild finds the
+      #     CUDA toolset (.props/.targets). Without it, llama.cpp's CMake
+      #     fails with "No CUDA toolset found" when enabling the CUDA
+      #     language for VS2022.
+      #   - Linux (Ubuntu 24.04): NVIDIA renamed cuBLAS debs to
+      #     `libcublas-12-6` / `libcublas-dev-12-6`. The action's
+      #     `cublas`/`cublas_dev` aliases still resolve to the old
+      #     `cuda-cublas-*` names and apt fails with "Unable to locate
+      #     package". Install nvcc+cudart via the action and pull cuBLAS
+      #     from apt directly.
+      - name: Install CUDA Toolkit (Windows)
+        if: matrix.os == 'windows-latest'
         uses: Jimver/cuda-toolkit@v0.2.21
         with:
           cuda: '12.6.0'
           method: 'network'
-          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev"]'
+          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
+
+      - name: Install CUDA Toolkit (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: Jimver/cuda-toolkit@v0.2.21
+        with:
+          cuda: '12.6.0'
+          method: 'network'
+          sub-packages: '["nvcc", "cudart"]'
+
+      - name: Install cuBLAS (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install -y libcublas-12-6 libcublas-dev-12-6
 
       - name: Install Vulkan SDK
         if: matrix.os != 'macos-latest'

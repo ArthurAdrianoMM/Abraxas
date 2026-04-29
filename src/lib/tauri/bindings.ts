@@ -37,6 +37,7 @@ export const commands = {
 	startGeneration: (prompt: string, maxTokens: number | null) => typedError<string, CommandError>(__TAURI_INVOKE("start_generation", { prompt, maxTokens })),
 	cancelGeneration: (generationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_generation", { generationId })),
 	fetchCatalog: () => typedError<CatalogResponse, CommandError>(__TAURI_INVOKE("fetch_catalog")),
+	fetchClassifiedCatalog: () => typedError<ClassifiedCatalogResponse, CommandError>(__TAURI_INVOKE("fetch_classified_catalog")),
 };
 
 /** Events */
@@ -69,6 +70,21 @@ export type CatalogResponse = {
 };
 
 export type CatalogSource = "network" | "cache";
+
+export type ClassifiedCatalogResponse = {
+	models: ClassifiedModel[],
+	source: CatalogSource,
+	fetched_at: string,
+	catalog_schema_version: number,
+};
+
+export type ClassifiedModel = {
+	model: ModelEntry,
+	tier: CompatibilityTier,
+	gpu_offload: boolean,
+};
+
+export type CompatibilityTier = "Recommended" | "Viable" | "Heavy" | "NotSupported";
 
 export type ChatTemplate = "Llama3" | "ChatML" | "Mistral" | "Gemma" | "Qwen" | "Phi3";
 

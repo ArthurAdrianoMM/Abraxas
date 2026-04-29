@@ -4,7 +4,7 @@ import {
   commands,
   events,
   type AppInfo,
-  type CatalogResponse,
+  type ClassifiedCatalogResponse,
   type CommandError,
   type GpuBackend,
   type HardwareDetection,
@@ -298,8 +298,15 @@ function formatErr(e: CommandError): string {
   return `${e.kind}: ${e.message}`;
 }
 
+const TIER_COLORS: Record<string, string> = {
+  Recommended: "#22c55e",
+  Viable: "#3b82f6",
+  Heavy: "#f59e0b",
+  NotSupported: "#ef4444",
+};
+
 function CatalogPanel() {
-  const [resp, setResp] = useState<CatalogResponse | null>(null);
+  const [resp, setResp] = useState<ClassifiedCatalogResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -307,7 +314,7 @@ function CatalogPanel() {
     setLoading(true);
     setErr(null);
     try {
-      const r = await commands.fetchCatalog();
+      const r = await commands.fetchClassifiedCatalog();
       if (r.status === "ok") setResp(r.data);
       else setErr(formatErr(r.error));
     } catch (e) {
@@ -325,29 +332,38 @@ function CatalogPanel() {
         </button>
         {resp && (
           <span style={{ fontSize: "0.875rem", opacity: 0.75 }}>
-            {resp.source === "network" ? "Network" : "Cache"} · generated{" "}
-            {resp.catalog.generated_at} · {resp.catalog.models.length} model(s)
+            {resp.source === "network" ? "Network" : "Cache"} · schema v{resp.catalog_schema_version} · {resp.models.length} model(s)
           </span>
         )}
       </div>
       {err && <p role="alert">{err}</p>}
-      {resp && resp.catalog.models[0] && (
-        <pre
+      {resp && resp.models.map((cm) => (
+        <div
+          key={cm.model.id}
           style={{
             marginTop: "0.5rem",
             padding: "0.5rem",
             background: "rgba(127,127,127,0.08)",
             border: "1px solid rgba(127,127,127,0.2)",
             borderRadius: "4px",
-            maxHeight: "20rem",
-            overflow: "auto",
             fontFamily: "monospace",
             fontSize: "0.75rem",
           }}
         >
-          {JSON.stringify(resp.catalog.models[0], null, 2)}
-        </pre>
-      )}
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.25rem" }}>
+            <strong>{cm.model.name}</strong>
+            <span style={{ color: TIER_COLORS[cm.tier] ?? "inherit", fontWeight: 600 }}>
+              {cm.tier}
+            </span>
+            {cm.gpu_offload && (
+              <span style={{ color: "#a855f7", fontWeight: 600 }}>GPU</span>
+            )}
+          </div>
+          <pre style={{ margin: 0, maxHeight: "12rem", overflow: "auto" }}>
+            {JSON.stringify(cm.model, null, 2)}
+          </pre>
+        </div>
+      ))}
     </>
   );
 }

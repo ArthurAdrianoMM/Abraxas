@@ -17,6 +17,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             super::chat::start_generation,
             super::chat::cancel_generation,
             super::models::fetch_catalog,
+            super::models::fetch_classified_catalog,
         ])
         .events(collect_events![crate::events::GenerationEvent])
 }
