@@ -12,11 +12,25 @@ use crate::inference::backend::StopReason;
 #[derive(Debug, Clone, Serialize, Type, Event)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum GenerationEvent {
-    Started { generation_id: String },
-    Token { generation_id: String, text: String },
-    End { generation_id: String, reason: StopReasonDto },
-    Failed { generation_id: String, kind: String, message: String },
-    Cancelled { generation_id: String },
+    Started {
+        generation_id: String,
+    },
+    Token {
+        generation_id: String,
+        text: String,
+    },
+    End {
+        generation_id: String,
+        reason: StopReasonDto,
+    },
+    Failed {
+        generation_id: String,
+        kind: String,
+        message: String,
+    },
+    Cancelled {
+        generation_id: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Type)]

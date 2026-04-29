@@ -126,7 +126,11 @@ pub async fn cancel_generation(
     generation_id: String,
 ) -> Result<(), CommandError> {
     let mut slot = registry.current.lock().await;
-    if slot.as_ref().map(|a| a.id == generation_id).unwrap_or(false) {
+    if slot
+        .as_ref()
+        .map(|a| a.id == generation_id)
+        .unwrap_or(false)
+    {
         let active = slot.take().expect("just checked");
         let _ = GenerationEvent::Cancelled {
             generation_id: active.id,

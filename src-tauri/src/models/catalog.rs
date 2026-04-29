@@ -109,7 +109,13 @@ impl From<serde_json::Error> for CatalogError {
 }
 
 pub async fn fetch_remote(client: &reqwest::Client, url: &str) -> Result<Catalog, CatalogError> {
-    let body = client.get(url).send().await?.error_for_status()?.text().await?;
+    let body = client
+        .get(url)
+        .send()
+        .await?
+        .error_for_status()?
+        .text()
+        .await?;
     let catalog: Catalog = serde_json::from_str(&body)?;
     validate(&catalog)?;
     Ok(catalog)
@@ -136,9 +142,7 @@ pub fn validate(c: &Catalog) -> Result<(), CatalogError> {
             )));
         }
         if !seen_ids.insert(&m.id) {
-            return Err(CatalogError::Validation(format!(
-                "{where_}: duplicate id"
-            )));
+            return Err(CatalogError::Validation(format!("{where_}: duplicate id")));
         }
 
         if m.name.is_empty() {
@@ -394,7 +398,10 @@ mod tests {
             }]
         }"#;
         let result: Result<Catalog, _> = serde_json::from_str(json);
-        assert!(result.is_err(), "unknown chat_template variant should fail to parse");
+        assert!(
+            result.is_err(),
+            "unknown chat_template variant should fail to parse"
+        );
     }
 
     #[test]
