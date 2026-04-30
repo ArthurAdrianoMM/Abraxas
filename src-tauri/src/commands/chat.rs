@@ -1,10 +1,8 @@
-//! Inference-related commands (Fase 3.5).
+//! Inference-related commands.
 //!
-//! Surfaces `start_generation` / `cancel_generation` to the frontend, plus a
-//! transient `dev_load_model` used by the temporary 3.5 dev panel. The dev
-//! command is replaced by Fase 4's catalog-driven load flow.
+//! Surfaces `start_generation` / `cancel_generation`. Model loading is
+//! catalog-driven via `commands::models::load_installed_model` (Fase 4).
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use tauri::{AppHandle, State};
@@ -25,20 +23,6 @@ pub struct GenerationRegistry {
 struct Active {
     id: String,
     handle: tauri::async_runtime::JoinHandle<()>,
-}
-
-/// **TEMPORARY**: removed in Fase 4 once the catalog/download flow ships.
-#[tauri::command]
-#[specta::specta]
-pub async fn dev_load_model(
-    manager: State<'_, Arc<ModelManager>>,
-    path: String,
-) -> Result<(), CommandError> {
-    manager
-        .load(PathBuf::from(path))
-        .await
-        .map_err(AppError::from)?;
-    Ok(())
 }
 
 #[tauri::command]

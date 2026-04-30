@@ -13,7 +13,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             super::hardware::detect_gpu,
             super::hardware::select_backend,
             super::hardware::detect_hardware,
-            super::chat::dev_load_model,
             super::chat::start_generation,
             super::chat::cancel_generation,
             super::models::fetch_catalog,
@@ -23,6 +22,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             super::models::list_installed_models,
             super::models::delete_model,
             super::models::is_model_installed,
+            super::models::load_installed_model,
         ])
         .events(collect_events![
             crate::events::GenerationEvent,

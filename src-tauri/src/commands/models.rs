@@ -6,17 +6,23 @@
 //! tier annotation on every model entry.
 //! Fase 4.3 adds `start_model_download` / `cancel_model_download`: resumable
 //! GGUF download with progress events. SHA256 verification lands in 4.4.
-//! Fase 4.5 adds `list_installed_models`, `delete_model`, `is_model_installed`.
+//! Fase 4.5 adds `list_installed_models`, `delete_model`, `is_model_installed`,
+//! and `load_installed_model` (catalog-driven replacement for the old
+//! transient `dev_load_model`).
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 
 use crate::db::Db;
 use crate::error::{AppError, CommandError};
 use crate::events::DownloadEvent;
 use crate::hardware::cache;
+use crate::inference::ModelManager;
 use crate::models::catalog::{
     self, CatalogResponse, CATALOG_CACHE_FILENAME, CATALOG_URL, FETCH_TIMEOUT,
 };
@@ -206,29 +212,9 @@ pub async fn start_model_download(
 
                 // Persist the registry row before emitting Completed so the
                 // frontend can call list_installed_models immediately on receipt.
-                let installed_at = {
-                    let secs = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs();
-                    // Minimal RFC-3339 UTC: "YYYY-MM-DDTHH:MM:SSZ"
-                    let s = secs % 60;
-                    let m = (secs / 60) % 60;
-                    let h = (secs / 3600) % 24;
-                    let days = secs / 86400; // days since 1970-01-01
-                    // Rata Die algorithm for calendar date from day count.
-                    let z = days + 719468;
-                    let era = z / 146097;
-                    let doe = z % 146097;
-                    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-                    let y = yoe + era * 400;
-                    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-                    let mp = (5 * doy + 2) / 153;
-                    let d = doy - (153 * mp + 2) / 5 + 1;
-                    let mo = if mp < 10 { mp + 3 } else { mp - 9 };
-                    let y = if mo <= 2 { y + 1 } else { y };
-                    format!("{y:04}-{mo:02}-{d:02}T{h:02}:{m:02}:{s:02}Z")
-                };
+                let installed_at = OffsetDateTime::now_utc()
+                    .format(&Rfc3339)
+                    .unwrap_or_else(|_| "1970-01-01T00:00:00Z".into());
                 let row = InstalledModel {
                     id: id.clone(),
                     filename: entry.filename.clone(),
@@ -329,6 +315,33 @@ pub async fn delete_model(
         .await
         .map_err(AppError::Db)?;
 
+    Ok(())
+}
+
+/// Load an installed model into the inference engine. Replaces the temporary
+/// `dev_load_model` from Fase 3.5 with a catalog-driven flow: the frontend
+/// passes a `model_id`, this resolves the on-disk path through the registry
+/// and hands it to `ModelManager::load`. The "one model loaded at a time"
+/// invariant from Fase 3.3 is preserved by the manager itself.
+#[tauri::command]
+#[specta::specta]
+pub async fn load_installed_model(
+    db: State<'_, Db>,
+    manager: State<'_, Arc<ModelManager>>,
+    model_id: String,
+) -> Result<(), CommandError> {
+    let row = registry::get(db.pool(), &model_id)
+        .await
+        .map_err(AppError::Db)?
+        .ok_or_else(|| CommandError {
+            kind: "Inference".into(),
+            message: format!("model {model_id:?} is not installed"),
+        })?;
+
+    manager
+        .load(PathBuf::from(row.path))
+        .await
+        .map_err(AppError::from)?;
     Ok(())
 }
 

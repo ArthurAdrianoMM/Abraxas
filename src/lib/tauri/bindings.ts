@@ -32,8 +32,6 @@ export const commands = {
 	 *  to `spawn_blocking` so the Tauri IPC thread stays free.
 	 */
 	detectHardware: (force: boolean) => typedError<HardwareDetection, CommandError>(__TAURI_INVOKE("detect_hardware", { force })),
-	// **TEMPORARY**: removed in Fase 4 once the catalog/download flow ships.
-	devLoadModel: (path: string) => typedError<null, CommandError>(__TAURI_INVOKE("dev_load_model", { path })),
 	startGeneration: (prompt: string, maxTokens: number | null) => typedError<string, CommandError>(__TAURI_INVOKE("start_generation", { prompt, maxTokens })),
 	cancelGeneration: (generationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_generation", { generationId })),
 	fetchCatalog: () => typedError<CatalogResponse, CommandError>(__TAURI_INVOKE("fetch_catalog")),
@@ -69,6 +67,14 @@ export const commands = {
 	 *  The frontend uses this to decide whether to show "Download" or "Load".
 	 */
 	isModelInstalled: (modelId: string) => typedError<boolean, CommandError>(__TAURI_INVOKE("is_model_installed", { modelId })),
+	/**
+	 *  Load an installed model into the inference engine. Replaces the temporary
+	 *  `dev_load_model` from Fase 3.5 with a catalog-driven flow: the frontend
+	 *  passes a `model_id`, this resolves the on-disk path through the registry
+	 *  and hands it to `ModelManager::load`. The "one model loaded at a time"
+	 *  invariant from Fase 3.3 is preserved by the manager itself.
+	 */
+	loadInstalledModel: (modelId: string) => typedError<null, CommandError>(__TAURI_INVOKE("load_installed_model", { modelId })),
 };
 
 /** Events */
