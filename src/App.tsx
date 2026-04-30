@@ -9,6 +9,7 @@ import {
   type DownloadEvent,
   type GpuBackend,
   type HardwareDetection,
+  type InstalledModel,
 } from "./lib/tauri/bindings";
 import "./App.css";
 
@@ -139,10 +140,25 @@ function HardwarePanel() {
 }
 
 function InferencePanel() {
-  const [modelPath, setModelPath] = useState("");
+  const [installed, setInstalled] = useState<InstalledModel[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
   const [modelLoaded, setModelLoaded] = useState(false);
   const [loadStatus, setLoadStatus] = useState<string>("no model loaded");
   const [loading, setLoading] = useState(false);
+
+  async function refreshInstalled() {
+    const r = await commands.listInstalledModels();
+    if (r.status === "ok") {
+      setInstalled(r.data);
+      if (r.data.length > 0 && !selectedId) {
+        setSelectedId(r.data[0].id);
+      }
+    }
+  }
+
+  useEffect(() => {
+    refreshInstalled();
+  }, []);
 
   const [prompt, setPrompt] = useState("");
   const [tokens, setTokens] = useState("");
@@ -197,13 +213,13 @@ function InferencePanel() {
   }, []);
 
   async function handleLoad() {
-    if (!modelPath.trim()) return;
+    if (!selectedId) return;
     setLoading(true);
     setLoadStatus("loading...");
-    const result = await commands.devLoadModel(modelPath);
+    const result = await commands.loadInstalledModel(selectedId);
     if (result.status === "ok") {
       setModelLoaded(true);
-      setLoadStatus(`loaded: ${modelPath}`);
+      setLoadStatus(`loaded: ${selectedId}`);
     } else {
       setModelLoaded(false);
       setLoadStatus(`load failed: ${formatErr(result.error)}`);
@@ -234,16 +250,23 @@ function InferencePanel() {
   return (
     <>
       <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-        <input
-          type="text"
-          placeholder="Path to a .gguf model file"
-          value={modelPath}
-          onChange={(e) => setModelPath(e.target.value)}
+        <select
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+          disabled={loading || installed.length === 0}
           style={{ flex: "1 1 24rem", minWidth: "20rem", fontFamily: "monospace" }}
-          spellCheck={false}
-          disabled={loading}
-        />
-        <button onClick={handleLoad} disabled={loading || !modelPath.trim()}>
+        >
+          {installed.length === 0 && <option value="">(no installed models — download one first)</option>}
+          {installed.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.id} — {m.filename}
+            </option>
+          ))}
+        </select>
+        <button onClick={refreshInstalled} disabled={loading} title="Refresh list">
+          ↻
+        </button>
+        <button onClick={handleLoad} disabled={loading || !selectedId}>
           {loading ? "Loading..." : "Load model"}
         </button>
       </div>
