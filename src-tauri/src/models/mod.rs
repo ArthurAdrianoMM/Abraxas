@@ -4,4 +4,4 @@ pub mod catalog;
 pub mod compatibility;
 pub mod download;
 pub mod download_manager;
-// `registry` remains a stub for Fase 4.5.
+pub mod registry;

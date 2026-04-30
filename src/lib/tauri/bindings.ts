@@ -37,17 +37,44 @@ export const commands = {
 	startGeneration: (prompt: string, maxTokens: number | null) => typedError<string, CommandError>(__TAURI_INVOKE("start_generation", { prompt, maxTokens })),
 	cancelGeneration: (generationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_generation", { generationId })),
 	fetchCatalog: () => typedError<CatalogResponse, CommandError>(__TAURI_INVOKE("fetch_catalog")),
+	/**
+	 *  Fetch the model catalog and annotate every entry with a `CompatibilityTier`
+	 *  derived from the detected hardware. Hardware is read from the fingerprint
+	 *  cache (Fase 2.4) so this command stays fast on repeated calls.
+	 */
 	fetchClassifiedCatalog: () => typedError<ClassifiedCatalogResponse, CommandError>(__TAURI_INVOKE("fetch_classified_catalog")),
-	/** Start a resumable download; progress arrives via DownloadEvent. */
-	startModelDownload: (model_id: string) => typedError<null, CommandError>(__TAURI_INVOKE("start_model_download", { model_id })),
-	/** Cancel an in-flight download; .part file is preserved for resume. */
-	cancelModelDownload: (model_id: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_model_download", { model_id })),
+	/**
+	 *  Start a resumable download of `model_id`. Returns immediately; the
+	 *  background task drives the download and reports progress through
+	 *  `DownloadEvent`s. Rejects a second concurrent invocation with a
+	 *  `Download::AlreadyInProgress`-style error.
+	 */
+	startModelDownload: (modelId: string) => typedError<null, CommandError>(__TAURI_INVOKE("start_model_download", { modelId })),
+	/**
+	 *  Signal cancellation of an in-flight download. The background task emits
+	 *  `Cancelled` once it observes the flag and stops; the `.part` file is
+	 *  retained on disk so a subsequent `start_model_download` resumes from
+	 *  where it left off.
+	 */
+	cancelModelDownload: (modelId: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_model_download", { modelId })),
+	// Return all models currently recorded in the installed-models registry.
+	listInstalledModels: () => typedError<InstalledModel[], CommandError>(__TAURI_INVOKE("list_installed_models")),
+	/**
+	 *  Delete an installed model: removes the file from disk, then the DB row.
+	 *  Safe to call even if the file is already gone — the DB row is always removed.
+	 */
+	deleteModel: (modelId: string) => typedError<null, CommandError>(__TAURI_INVOKE("delete_model", { modelId })),
+	/**
+	 *  Fast check: is `model_id` present in the installed-models registry?
+	 *  The frontend uses this to decide whether to show "Download" or "Load".
+	 */
+	isModelInstalled: (modelId: string) => typedError<boolean, CommandError>(__TAURI_INVOKE("is_model_installed", { modelId })),
 };
 
 /** Events */
 export const events = {
-	generationEvent: makeEvent<GenerationEvent>("generation-event"),
 	downloadEvent: makeEvent<DownloadEvent>("download-event"),
+	generationEvent: makeEvent<GenerationEvent>("generation-event"),
 };
 
 /* Types */
@@ -76,6 +103,12 @@ export type CatalogResponse = {
 
 export type CatalogSource = "network" | "cache";
 
+export type ChatTemplate = "Llama3" | "ChatML" | "Mistral" | "Gemma" | "Qwen" | "Phi3";
+
+/**
+ *  Catalog + compatibility info returned to the frontend by
+ *  `fetch_classified_catalog`.
+ */
 export type ClassifiedCatalogResponse = {
 	models: ClassifiedModel[],
 	source: CatalogSource,
@@ -83,15 +116,16 @@ export type ClassifiedCatalogResponse = {
 	catalog_schema_version: number,
 };
 
+// A catalog entry annotated with compatibility for the current machine.
 export type ClassifiedModel = {
 	model: ModelEntry,
 	tier: CompatibilityTier,
+	/**
+	 *  True when the detected GPU has enough VRAM (or is Apple Silicon unified
+	 *  memory) to offload the model layers. False means CPU-only execution.
+	 */
 	gpu_offload: boolean,
 };
-
-export type CompatibilityTier = "Recommended" | "Viable" | "Heavy" | "NotSupported";
-
-export type ChatTemplate = "Llama3" | "ChatML" | "Mistral" | "Gemma" | "Qwen" | "Phi3";
 
 /**
  *  Frontend-facing error shape. Stable across `AppError` refactors so the TS
@@ -101,6 +135,22 @@ export type CommandError = {
 	kind: string,
 	message: string,
 };
+
+/**
+ *  How well the detected hardware can run a given model.
+ * 
+ *  Tiers are ordered from best to worst; `PartialOrd`/`Ord` let callers sort
+ *  by tier without matching exhaustively.
+ */
+export type CompatibilityTier = 
+// System RAM ≥ `recommended_ram_mb`. Expected smooth performance.
+"Recommended" | 
+// System RAM ≥ `min_ram_mb` but below recommended. Runs but may be slow.
+"Viable" | 
+// System RAM ≥ 75 % of `min_ram_mb`. May work with heavy swapping.
+"Heavy" | 
+// System RAM < 75 % of `min_ram_mb`. Likely OOM.
+"NotSupported";
 
 export type ComputeCapability = {
 	major: number,
@@ -120,13 +170,13 @@ export type CpuInfo = {
 	features: CpuFeatures,
 };
 
-export type DownloadEvent =
-	| { type: "started"; model_id: string; total_bytes: number }
-	| { type: "progress"; model_id: string; downloaded_bytes: number; total_bytes: number }
-	| { type: "verifying"; model_id: string; hashed_bytes: number; total_bytes: number }
-	| { type: "completed"; model_id: string; final_path: string }
-	| { type: "failed"; model_id: string; kind: string; message: string }
-	| { type: "cancelled"; model_id: string };
+/**
+ *  Model-download progress (Fase 4.3/4.4). Keyed by `model_id` so multiple
+ *  future concurrent downloads (post-MVP) don't need a separate channel.
+ */
+export type DownloadEvent = { type: "started"; model_id: string; total_bytes: number } | { type: "progress"; model_id: string; downloaded_bytes: number; total_bytes: number } | 
+// Emitted during SHA256 verification after the download completes.
+{ type: "verifying"; model_id: string; hashed_bytes: number; total_bytes: number } | { type: "completed"; model_id: string; final_path: string } | { type: "failed"; model_id: string; kind: string; message: string } | { type: "cancelled"; model_id: string };
 
 export type GenerationEvent = { type: "started"; generation_id: string } | { type: "token"; generation_id: string; text: string } | { type: "end"; generation_id: string; reason: StopReasonDto } | { type: "failed"; generation_id: string; kind: string; message: string } | { type: "cancelled"; generation_id: string };
 
@@ -148,6 +198,19 @@ export type HardwareDetection = {
 };
 
 export type InferenceBackend = "metal" | "cuda" | "vulkan" | "cpu";
+
+/**
+ *  One row in the `installed_models` table. Returned directly to the frontend
+ *  via Tauri commands, so it must be serializable and have a specta type.
+ */
+export type InstalledModel = {
+	id: string,
+	filename: string,
+	path: string,
+	size_bytes: number,
+	sha256: string,
+	installed_at: string,
+};
 
 export type MemoryInfo = {
 	total_bytes: number,

@@ -1,4 +1,4 @@
-//! Model-catalog and download commands.
+//! Model-catalog, download, and registry commands.
 //!
 //! Fase 4.1 exposes `fetch_catalog`: hits the GitHub Pages catalog, validates
 //! and caches it, falls back to the on-disk cache if the network is down.
@@ -6,12 +6,14 @@
 //! tier annotation on every model entry.
 //! Fase 4.3 adds `start_model_download` / `cancel_model_download`: resumable
 //! GGUF download with progress events. SHA256 verification lands in 4.4.
+//! Fase 4.5 adds `list_installed_models`, `delete_model`, `is_model_installed`.
 
 use std::sync::Arc;
 
 use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
+use crate::db::Db;
 use crate::error::{AppError, CommandError};
 use crate::events::DownloadEvent;
 use crate::hardware::cache;
@@ -21,6 +23,7 @@ use crate::models::catalog::{
 use crate::models::compatibility::{self, ClassifiedCatalogResponse};
 use crate::models::download::{self, DownloadError};
 use crate::models::download_manager::DownloadManager;
+use crate::models::registry::{self, InstalledModel};
 
 const MODELS_DIR: &str = "models";
 
@@ -107,6 +110,7 @@ pub async fn start_model_download(
     app: AppHandle,
     manager: State<'_, Arc<DownloadManager>>,
     http: State<'_, reqwest::Client>,
+    db: State<'_, Db>,
     model_id: String,
 ) -> Result<(), CommandError> {
     // Look up the catalog entry. The classified-catalog flow primes the cache
@@ -152,6 +156,8 @@ pub async fn start_model_download(
     let manager_h = Arc::clone(&manager);
     let http = (*http).clone();
     let id_for_task = model_id.clone();
+    // Clone the pool so the background task owns its reference.
+    let pool = db.pool().clone();
 
     let _ = DownloadEvent::Started {
         model_id: model_id.clone(),
@@ -196,9 +202,48 @@ pub async fn start_model_download(
 
         match result {
             Ok(outcome) => {
+                let final_path = outcome.final_path.to_string_lossy().into_owned();
+
+                // Persist the registry row before emitting Completed so the
+                // frontend can call list_installed_models immediately on receipt.
+                let installed_at = {
+                    let secs = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    // Minimal RFC-3339 UTC: "YYYY-MM-DDTHH:MM:SSZ"
+                    let s = secs % 60;
+                    let m = (secs / 60) % 60;
+                    let h = (secs / 3600) % 24;
+                    let days = secs / 86400; // days since 1970-01-01
+                    // Rata Die algorithm for calendar date from day count.
+                    let z = days + 719468;
+                    let era = z / 146097;
+                    let doe = z % 146097;
+                    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+                    let y = yoe + era * 400;
+                    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+                    let mp = (5 * doy + 2) / 153;
+                    let d = doy - (153 * mp + 2) / 5 + 1;
+                    let mo = if mp < 10 { mp + 3 } else { mp - 9 };
+                    let y = if mo <= 2 { y + 1 } else { y };
+                    format!("{y:04}-{mo:02}-{d:02}T{h:02}:{m:02}:{s:02}Z")
+                };
+                let row = InstalledModel {
+                    id: id.clone(),
+                    filename: entry.filename.clone(),
+                    path: final_path.clone(),
+                    size_bytes: outcome.bytes_written as i64,
+                    sha256: entry.sha256.clone(),
+                    installed_at,
+                };
+                if let Err(e) = registry::insert(&pool, &row).await {
+                    tracing::error!(error = %e, model_id = %id, "failed to insert installed_models row");
+                }
+
                 let _ = DownloadEvent::Completed {
                     model_id: id.clone(),
-                    final_path: outcome.final_path.to_string_lossy().into_owned(),
+                    final_path,
                 }
                 .emit(&app);
             }
@@ -247,4 +292,55 @@ pub async fn cancel_model_download(
 ) -> Result<(), CommandError> {
     manager.cancel(&model_id);
     Ok(())
+}
+
+/// Return all models currently recorded in the installed-models registry.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_installed_models(db: State<'_, Db>) -> Result<Vec<InstalledModel>, CommandError> {
+    registry::list(db.pool())
+        .await
+        .map_err(|e| AppError::Db(e).into())
+}
+
+/// Delete an installed model: removes the file from disk, then the DB row.
+/// Safe to call even if the file is already gone — the DB row is always removed.
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_model(
+    db: State<'_, Db>,
+    model_id: String,
+) -> Result<(), CommandError> {
+    // Resolve the path before touching the filesystem.
+    let row = registry::get(db.pool(), &model_id)
+        .await
+        .map_err(AppError::Db)?;
+
+    if let Some(row) = row {
+        if let Err(e) = tokio::fs::remove_file(&row.path).await {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                return Err(AppError::Io(e).into());
+            }
+        }
+        tracing::info!(model_id = %model_id, path = %row.path, "model file deleted");
+    }
+
+    registry::remove(db.pool(), &model_id)
+        .await
+        .map_err(AppError::Db)?;
+
+    Ok(())
+}
+
+/// Fast check: is `model_id` present in the installed-models registry?
+/// The frontend uses this to decide whether to show "Download" or "Load".
+#[tauri::command]
+#[specta::specta]
+pub async fn is_model_installed(
+    db: State<'_, Db>,
+    model_id: String,
+) -> Result<bool, CommandError> {
+    registry::exists(db.pool(), &model_id)
+        .await
+        .map_err(|e| AppError::Db(e).into())
 }

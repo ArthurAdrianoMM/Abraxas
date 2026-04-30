@@ -75,7 +75,7 @@ mod tests {
             .fetch_one(db.pool())
             .await
             .expect("count _sqlx_migrations");
-        assert_eq!(count, 1, "first init should apply exactly 1 migration");
+        assert!(count >= 1, "first init should apply at least 1 migration");
         drop(db);
 
         let db2 = Db::init(&db_path).await.expect("second Db::init failed");
@@ -84,7 +84,7 @@ mod tests {
             .await
             .expect("count _sqlx_migrations on second init");
         assert_eq!(
-            count_again, 1,
+            count_again, count,
             "re-opening an existing db must not re-apply migrations"
         );
     }

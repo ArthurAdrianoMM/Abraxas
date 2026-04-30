@@ -20,6 +20,9 @@ pub fn builder() -> Builder<tauri::Wry> {
             super::models::fetch_classified_catalog,
             super::models::start_model_download,
             super::models::cancel_model_download,
+            super::models::list_installed_models,
+            super::models::delete_model,
+            super::models::is_model_installed,
         ])
         .events(collect_events![
             crate::events::GenerationEvent,

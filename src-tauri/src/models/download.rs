@@ -127,7 +127,7 @@ async fn verify_sha256(
         }
     })
     .await
-    .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "sha256 task panicked").into())?
+    .map_err(|_| DownloadError::Io(std::io::Error::other("sha256 task panicked")))?
 }
 
 /// Download `entry.url` into `models_dir`, resuming if a `.part` file already

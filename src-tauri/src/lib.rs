@@ -35,6 +35,16 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?;
             let db_path = data_dir.join("abraxas.sqlite");
             let db = tauri::async_runtime::block_on(db::Db::init(&db_path))?;
+            let removed = tauri::async_runtime::block_on(
+                models::registry::reconcile(db.pool()),
+            )
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "registry reconcile failed");
+                0
+            });
+            if removed > 0 {
+                tracing::info!(removed, "reconcile removed stale installed_models rows");
+            }
             app.manage(db);
 
             // Fase 3.4: detect hardware (cached after the first run via
