@@ -38,11 +38,16 @@ export const commands = {
 	cancelGeneration: (generationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_generation", { generationId })),
 	fetchCatalog: () => typedError<CatalogResponse, CommandError>(__TAURI_INVOKE("fetch_catalog")),
 	fetchClassifiedCatalog: () => typedError<ClassifiedCatalogResponse, CommandError>(__TAURI_INVOKE("fetch_classified_catalog")),
+	/** Start a resumable download; progress arrives via DownloadEvent. */
+	startModelDownload: (model_id: string) => typedError<null, CommandError>(__TAURI_INVOKE("start_model_download", { model_id })),
+	/** Cancel an in-flight download; .part file is preserved for resume. */
+	cancelModelDownload: (model_id: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_model_download", { model_id })),
 };
 
 /** Events */
 export const events = {
 	generationEvent: makeEvent<GenerationEvent>("generation-event"),
+	downloadEvent: makeEvent<DownloadEvent>("download-event"),
 };
 
 /* Types */
@@ -114,6 +119,14 @@ export type CpuInfo = {
 	logical_cores: number,
 	features: CpuFeatures,
 };
+
+export type DownloadEvent =
+	| { type: "started"; model_id: string; total_bytes: number }
+	| { type: "progress"; model_id: string; downloaded_bytes: number; total_bytes: number }
+	| { type: "verifying"; model_id: string; hashed_bytes: number; total_bytes: number }
+	| { type: "completed"; model_id: string; final_path: string }
+	| { type: "failed"; model_id: string; kind: string; message: string }
+	| { type: "cancelled"; model_id: string };
 
 export type GenerationEvent = { type: "started"; generation_id: string } | { type: "token"; generation_id: string; text: string } | { type: "end"; generation_id: string; reason: StopReasonDto } | { type: "failed"; generation_id: string; kind: string; message: string } | { type: "cancelled"; generation_id: string };
 

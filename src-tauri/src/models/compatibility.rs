@@ -76,7 +76,11 @@ pub fn classify_model(entry: &ModelEntry, hw: &HardwareDetection) -> ClassifiedM
 
 /// Classify every model in a catalog, preserving catalog order.
 pub fn classify_catalog(catalog: &Catalog, hw: &HardwareDetection) -> Vec<ClassifiedModel> {
-    catalog.models.iter().map(|m| classify_model(m, hw)).collect()
+    catalog
+        .models
+        .iter()
+        .map(|m| classify_model(m, hw))
+        .collect()
 }
 
 fn gpu_offload_available(gpu: &GpuBackend, min_vram_mb: Option<u64>) -> bool {
@@ -88,7 +92,12 @@ fn gpu_offload_available(gpu: &GpuBackend, min_vram_mb: Option<u64>) -> bool {
         // CUDA: offload iff detected VRAM meets the requirement.
         (GpuBackend::Cuda { vram_mb, .. }, Some(req)) => *vram_mb >= req,
         // Vulkan: offload iff VRAM is reported and meets the requirement.
-        (GpuBackend::Vulkan { vram_mb: Some(v), .. }, Some(req)) => *v >= req,
+        (
+            GpuBackend::Vulkan {
+                vram_mb: Some(v), ..
+            },
+            Some(req),
+        ) => *v >= req,
         // Vulkan with unknown VRAM or no GPU at all.
         _ => false,
     }
@@ -118,7 +127,10 @@ mod tests {
                     brand: "Test CPU".into(),
                     physical_cores: 4,
                     logical_cores: 8,
-                    features: CpuFeatures { avx2: true, avx512f: false },
+                    features: CpuFeatures {
+                        avx2: true,
+                        avx512f: false,
+                    },
                 },
                 memory: MemoryInfo {
                     total_bytes: total_ram_mb * 1024 * 1024,
@@ -185,7 +197,10 @@ mod tests {
 
     #[test]
     fn metal_gpu_offload_always_true() {
-        let classified = classify_model(&model(2048, 4096, Some(4096)), &hw(16384, GpuBackend::Metal));
+        let classified = classify_model(
+            &model(2048, 4096, Some(4096)),
+            &hw(16384, GpuBackend::Metal),
+        );
         assert!(classified.gpu_offload);
     }
 

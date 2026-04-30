@@ -173,8 +173,26 @@ pub async fn start_model_download(
             .emit(&progress_app);
         };
 
-        let result =
-            download::download_model(&http, &entry, &models_dir, cancel.clone(), on_progress).await;
+        let verify_app = app.clone();
+        let verify_id = id.clone();
+        let on_verify_progress = move |hashed: u64, total: u64| {
+            let _ = DownloadEvent::Verifying {
+                model_id: verify_id.clone(),
+                hashed_bytes: hashed,
+                total_bytes: total,
+            }
+            .emit(&verify_app);
+        };
+
+        let result = download::download_model(
+            &http,
+            &entry,
+            &models_dir,
+            cancel.clone(),
+            on_progress,
+            on_verify_progress,
+        )
+        .await;
 
         match result {
             Ok(outcome) => {
@@ -187,6 +205,17 @@ pub async fn start_model_download(
             Err(DownloadError::Cancelled) => {
                 let _ = DownloadEvent::Cancelled {
                     model_id: id.clone(),
+                }
+                .emit(&app);
+            }
+            Err(DownloadError::ChecksumMismatch { .. }) => {
+                tracing::warn!(model_id = %id, "model checksum mismatch — file deleted");
+                let _ = DownloadEvent::Failed {
+                    model_id: id.clone(),
+                    kind: "ChecksumMismatch".into(),
+                    message:
+                        "Integrity check failed: downloaded file is corrupted. Please try again."
+                            .into(),
                 }
                 .emit(&app);
             }

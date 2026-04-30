@@ -1,20 +1,22 @@
-//! Resumable model download (Fase 4.3).
+//! Resumable model download with SHA256 integrity verification (Fase 4.3/4.4).
 //!
 //! Streams a GGUF from the catalog `url` to `<models_dir>/<filename>.part`,
-//! resuming via HTTP `Range` requests when a partial file already exists, and
-//! renames to `<filename>` on success. Survives connection drops and app
-//! restarts because resume state is the on-disk `.part` size — no sidecar
-//! manifest, no DB row.
+//! resuming via HTTP `Range` requests when a partial file already exists.
+//! After streaming completes, the `.part` file is SHA256-hashed against the
+//! catalog checksum; on match it is renamed to `<filename>`, on mismatch it
+//! is deleted and `DownloadError::ChecksumMismatch` is returned.
 //!
-//! SHA256 verification is intentionally NOT done here. Fase 4.4 will hash the
-//! finished file and delete it on mismatch. This keeps 4.3 a single concern.
+//! Only a file at `<filename>` (without `.part`) has passed integrity; callers
+//! (registry, inference loader) can trust it without re-verifying.
 
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use futures_util::StreamExt;
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 use tokio::fs::{self, OpenOptions};
 use tokio::io::AsyncWriteExt;
@@ -36,6 +38,8 @@ pub enum DownloadError {
     Cancelled,
     #[error("downloaded {got} bytes but catalog declares {expected}")]
     SizeMismatch { expected: u64, got: u64 },
+    #[error("checksum mismatch: expected {expected}, got {got}")]
+    ChecksumMismatch { expected: String, got: String },
 }
 
 impl From<reqwest::Error> for DownloadError {
@@ -67,18 +71,84 @@ impl CancelFlag {
     }
 }
 
+/// Hash `path` with SHA256 in a blocking thread, comparing against
+/// `expected_hex` (case-insensitive). `on_progress(hashed, total)` fires at
+/// most every `PROGRESS_INTERVAL` or every `PROGRESS_BYTES` read. Honors
+/// `cancel` between buffer reads; returns `Cancelled` without deleting the
+/// file (caller decides).
+async fn verify_sha256(
+    path: PathBuf,
+    expected_hex: &str,
+    total: u64,
+    cancel: CancelFlag,
+    on_progress: impl Fn(u64, u64) + Send + 'static,
+) -> Result<(), DownloadError> {
+    let expected = expected_hex.to_ascii_lowercase();
+
+    tokio::task::spawn_blocking(move || {
+        let file = std::fs::File::open(&path)?;
+        let mut reader = BufReader::with_capacity(64 * 1024, file);
+        let mut hasher = Sha256::new();
+        let mut hashed: u64 = 0;
+        let mut buf = vec![0u8; 64 * 1024];
+        let mut last_emit = Instant::now();
+        let mut bytes_since_emit: u64 = 0;
+
+        loop {
+            if cancel.is_cancelled() {
+                return Err(DownloadError::Cancelled);
+            }
+            let n = reader.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            hasher.update(&buf[..n]);
+            hashed += n as u64;
+            bytes_since_emit += n as u64;
+
+            if bytes_since_emit >= PROGRESS_BYTES || last_emit.elapsed() >= PROGRESS_INTERVAL {
+                on_progress(hashed, total);
+                last_emit = Instant::now();
+                bytes_since_emit = 0;
+            }
+        }
+
+        on_progress(hashed, total);
+
+        let got: String = hasher
+            .finalize()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        if got.eq_ignore_ascii_case(&expected) {
+            Ok(())
+        } else {
+            Err(DownloadError::ChecksumMismatch { expected, got })
+        }
+    })
+    .await
+    .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "sha256 task panicked").into())?
+}
+
 /// Download `entry.url` into `models_dir`, resuming if a `.part` file already
-/// exists. `on_progress(downloaded, total)` is called at most every
-/// `PROGRESS_INTERVAL` or every `PROGRESS_BYTES` written, whichever first.
-pub async fn download_model<F>(
+/// exists. After the stream completes the `.part` is SHA256-verified; on
+/// mismatch it is deleted and `ChecksumMismatch` is returned.
+///
+/// `on_progress(downloaded, total)` fires during the download phase;
+/// `on_verify_progress(hashed, total)` fires during the verification phase.
+/// Both fire at most every `PROGRESS_INTERVAL` or `PROGRESS_BYTES`, whichever
+/// comes first.
+pub async fn download_model<F, G>(
     client: &reqwest::Client,
     entry: &ModelEntry,
     models_dir: &Path,
     cancel: CancelFlag,
     on_progress: F,
+    on_verify_progress: G,
 ) -> Result<DownloadOutcome, DownloadError>
 where
     F: Fn(u64, u64) + Send,
+    G: Fn(u64, u64) + Send + 'static,
 {
     fs::create_dir_all(models_dir).await?;
     let part_path = models_dir.join(format!("{}.part", entry.filename));
@@ -111,9 +181,25 @@ where
         existing = 0;
     }
 
-    // Optimistic: `.part` already matches the expected size. Promote and exit.
+    // Optimistic: `.part` already matches the expected size. Verify before
+    // promoting — a truncated-then-padded .part would pass the size check but
+    // fail the hash.
     if existing == entry.size_bytes {
         on_progress(existing, entry.size_bytes);
+        if let Err(e) = verify_sha256(
+            part_path.clone(),
+            &entry.sha256,
+            entry.size_bytes,
+            cancel.clone(),
+            on_verify_progress,
+        )
+        .await
+        {
+            if !matches!(e, DownloadError::Cancelled) {
+                fs::remove_file(&part_path).await.ok();
+            }
+            return Err(e);
+        }
         fs::rename(&part_path, &final_path).await?;
         return Ok(DownloadOutcome {
             final_path,
@@ -183,6 +269,22 @@ where
     }
 
     on_progress(downloaded, total);
+
+    if let Err(e) = verify_sha256(
+        part_path.clone(),
+        &entry.sha256,
+        total,
+        cancel,
+        on_verify_progress,
+    )
+    .await
+    {
+        if !matches!(e, DownloadError::Cancelled) {
+            fs::remove_file(&part_path).await.ok();
+        }
+        return Err(e);
+    }
+
     fs::rename(&part_path, &final_path).await?;
 
     Ok(DownloadOutcome {
@@ -211,7 +313,13 @@ mod tests {
         assert!(f.is_cancelled());
     }
 
-    fn make_entry(port: u16, name: &str, size: u64) -> ModelEntry {
+    fn sha256_hex(data: &[u8]) -> String {
+        let mut h = Sha256::new();
+        h.update(data);
+        h.finalize().iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    fn make_entry(port: u16, name: &str, size: u64, sha256: &str) -> ModelEntry {
         ModelEntry {
             id: "test".into(),
             name: "Test".into(),
@@ -222,7 +330,7 @@ mod tests {
             url: format!("http://127.0.0.1:{port}/{name}"),
             filename: name.into(),
             size_bytes: size,
-            sha256: "a".repeat(64),
+            sha256: sha256.into(),
             params_b: 1.0,
             quantization: "Q4".into(),
             context_length: 2048,
@@ -358,7 +466,7 @@ mod tests {
         opts.delay_per_chunk_ms.store(1, Ordering::SeqCst);
         let port = spawn_server(body.clone(), opts.clone()).await;
         let dir = tempfile::tempdir().unwrap();
-        let entry = make_entry(port, "model.gguf", body.len() as u64);
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &sha256_hex(&body));
 
         let progress = Arc::new(StdMutex::new(Vec::<(u64, u64)>::new()));
         let p2 = progress.clone();
@@ -372,6 +480,7 @@ mod tests {
             dir.path(),
             CancelFlag::new(),
             on_progress,
+            |_, _| {},
         )
         .await
         .unwrap();
@@ -398,7 +507,7 @@ mod tests {
         let opts = ServerOpts::default();
         let port = spawn_server(body.clone(), opts.clone()).await;
         let dir = tempfile::tempdir().unwrap();
-        let entry = make_entry(port, "model.gguf", body.len() as u64);
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &sha256_hex(&body));
 
         let half = body.len() / 2;
         std::fs::write(dir.path().join("model.gguf.part"), &body[..half]).unwrap();
@@ -408,6 +517,7 @@ mod tests {
             &entry,
             dir.path(),
             CancelFlag::new(),
+            |_, _| {},
             |_, _| {},
         )
         .await
@@ -427,7 +537,7 @@ mod tests {
         let opts = ServerOpts::default();
         let port = spawn_server(body.clone(), opts.clone()).await;
         let dir = tempfile::tempdir().unwrap();
-        let entry = make_entry(port, "model.gguf", body.len() as u64);
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &sha256_hex(&body));
 
         let part_path = dir.path().join("model.gguf.part");
         std::fs::write(&part_path, &body).unwrap();
@@ -437,6 +547,7 @@ mod tests {
             &entry,
             dir.path(),
             CancelFlag::new(),
+            |_, _| {},
             |_, _| {},
         )
         .await
@@ -454,7 +565,8 @@ mod tests {
         let opts = ServerOpts::default();
         let port = spawn_server(body.clone(), opts.clone()).await;
         let dir = tempfile::tempdir().unwrap();
-        let entry = make_entry(port, "model.gguf", body.len() as u64);
+        // sha256 irrelevant: returns early when final file exists, no verify
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &"a".repeat(64));
 
         std::fs::write(dir.path().join("model.gguf"), &body).unwrap();
 
@@ -463,6 +575,7 @@ mod tests {
             &entry,
             dir.path(),
             CancelFlag::new(),
+            |_, _| {},
             |_, _| {},
         )
         .await
@@ -478,7 +591,7 @@ mod tests {
         let opts = ServerOpts::default();
         let port = spawn_server(body.clone(), opts.clone()).await;
         let dir = tempfile::tempdir().unwrap();
-        let entry = make_entry(port, "model.gguf", body.len() as u64);
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &sha256_hex(&body));
 
         std::fs::write(
             dir.path().join("model.gguf.part"),
@@ -491,6 +604,7 @@ mod tests {
             &entry,
             dir.path(),
             CancelFlag::new(),
+            |_, _| {},
             |_, _| {},
         )
         .await
@@ -507,7 +621,7 @@ mod tests {
         opts.ignore_range.store(true, Ordering::SeqCst);
         let port = spawn_server(body.clone(), opts.clone()).await;
         let dir = tempfile::tempdir().unwrap();
-        let entry = make_entry(port, "model.gguf", body.len() as u64);
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &sha256_hex(&body));
 
         let half = body.len() / 2;
         std::fs::write(dir.path().join("model.gguf.part"), &body[..half]).unwrap();
@@ -517,6 +631,7 @@ mod tests {
             &entry,
             dir.path(),
             CancelFlag::new(),
+            |_, _| {},
             |_, _| {},
         )
         .await
@@ -533,7 +648,8 @@ mod tests {
         opts.delay_per_chunk_ms.store(20, Ordering::SeqCst);
         let port = spawn_server(body.clone(), opts.clone()).await;
         let dir = tempfile::tempdir().unwrap();
-        let entry = make_entry(port, "model.gguf", body.len() as u64);
+        // sha256 irrelevant: download cancelled before verification
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &"a".repeat(64));
 
         let cancel = CancelFlag::new();
         let cancel_h = cancel.clone();
@@ -542,9 +658,16 @@ mod tests {
             cancel_h.cancel();
         });
 
-        let err = download_model(&http_client(), &entry, dir.path(), cancel, |_, _| {})
-            .await
-            .unwrap_err();
+        let err = download_model(
+            &http_client(),
+            &entry,
+            dir.path(),
+            cancel,
+            |_, _| {},
+            |_, _| {},
+        )
+        .await
+        .unwrap_err();
 
         assert!(matches!(err, DownloadError::Cancelled), "got {err:?}");
         let part_path = dir.path().join("model.gguf.part");
@@ -561,13 +684,15 @@ mod tests {
         opts.truncate_after.store(2 * 1024, Ordering::SeqCst);
         let port = spawn_server(body.clone(), opts.clone()).await;
         let dir = tempfile::tempdir().unwrap();
-        let entry = make_entry(port, "model.gguf", body.len() as u64);
+        // sha256 irrelevant: download fails before verification
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &"a".repeat(64));
 
         let err = download_model(
             &http_client(),
             &entry,
             dir.path(),
             CancelFlag::new(),
+            |_, _| {},
             |_, _| {},
         )
         .await
@@ -592,13 +717,14 @@ mod tests {
         opts.delay_per_chunk_ms.store(1, Ordering::SeqCst);
         let port = spawn_server(body.clone(), opts.clone()).await;
         let dir = tempfile::tempdir().unwrap();
-        let entry = make_entry(port, "model.gguf", body.len() as u64);
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &sha256_hex(&body));
 
         let _ = download_model(
             &http_client(),
             &entry,
             dir.path(),
             CancelFlag::new(),
+            |_, _| {},
             |_, _| {},
         )
         .await;
@@ -615,6 +741,7 @@ mod tests {
             dir.path(),
             CancelFlag::new(),
             |_, _| {},
+            |_, _| {},
         )
         .await
         .expect("second attempt completes");
@@ -629,16 +756,207 @@ mod tests {
     #[tokio::test]
     async fn unreachable_server_surfaces_http_error() {
         let dir = tempfile::tempdir().unwrap();
-        let entry = make_entry(1, "missing.gguf", 1024);
+        let entry = make_entry(1, "missing.gguf", 1024, &"a".repeat(64));
         let err = download_model(
             &http_client(),
             &entry,
             dir.path(),
             CancelFlag::new(),
             |_, _| {},
+            |_, _| {},
         )
         .await
         .unwrap_err();
         assert!(matches!(err, DownloadError::Http(_)), "got {err:?}");
+    }
+
+    // --- Fase 4.4: SHA256 integrity tests ---
+
+    #[tokio::test]
+    async fn checksum_mismatch_deletes_part_and_returns_error() {
+        let body = make_body(16 * 1024);
+        let opts = ServerOpts::default();
+        let port = spawn_server(body.clone(), opts.clone()).await;
+        let dir = tempfile::tempdir().unwrap();
+        // Wrong hash — 64 hex 'a's will never match real content
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &"a".repeat(64));
+
+        let err = download_model(
+            &http_client(),
+            &entry,
+            dir.path(),
+            CancelFlag::new(),
+            |_, _| {},
+            |_, _| {},
+        )
+        .await
+        .unwrap_err();
+
+        assert!(
+            matches!(err, DownloadError::ChecksumMismatch { .. }),
+            "expected ChecksumMismatch, got {err:?}"
+        );
+        // .part deleted on mismatch; final file never created
+        assert!(!dir.path().join("model.gguf.part").exists());
+        assert!(!dir.path().join("model.gguf").exists());
+    }
+
+    #[tokio::test]
+    async fn checksum_mismatch_reports_expected_and_actual_hashes() {
+        let body = make_body(8 * 1024);
+        let opts = ServerOpts::default();
+        let port = spawn_server(body.clone(), opts.clone()).await;
+        let dir = tempfile::tempdir().unwrap();
+        let expected_in_catalog = "b".repeat(64);
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &expected_in_catalog);
+
+        let err = download_model(
+            &http_client(),
+            &entry,
+            dir.path(),
+            CancelFlag::new(),
+            |_, _| {},
+            |_, _| {},
+        )
+        .await
+        .unwrap_err();
+
+        if let DownloadError::ChecksumMismatch { expected, got } = err {
+            assert_eq!(expected, expected_in_catalog);
+            assert_eq!(got, sha256_hex(&body));
+        } else {
+            panic!("expected ChecksumMismatch, got {err:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn checksum_uppercase_catalog_matches_lowercase_digest() {
+        let body = make_body(8 * 1024);
+        let opts = ServerOpts::default();
+        let port = spawn_server(body.clone(), opts.clone()).await;
+        let dir = tempfile::tempdir().unwrap();
+        // Catalog stores uppercase (as enforced by catalog validation)
+        let uppercase_hash = sha256_hex(&body).to_ascii_uppercase();
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &uppercase_hash);
+
+        download_model(
+            &http_client(),
+            &entry,
+            dir.path(),
+            CancelFlag::new(),
+            |_, _| {},
+            |_, _| {},
+        )
+        .await
+        .expect("uppercase hash should match lowercase digest");
+
+        assert!(dir.path().join("model.gguf").exists());
+    }
+
+    #[tokio::test]
+    async fn verify_progress_callback_fires_monotonically() {
+        let body = make_body(64 * 1024);
+        let opts = ServerOpts::default();
+        let port = spawn_server(body.clone(), opts.clone()).await;
+        let dir = tempfile::tempdir().unwrap();
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &sha256_hex(&body));
+
+        let verify_calls = Arc::new(StdMutex::new(Vec::<(u64, u64)>::new()));
+        let vc2 = verify_calls.clone();
+
+        download_model(
+            &http_client(),
+            &entry,
+            dir.path(),
+            CancelFlag::new(),
+            |_, _| {},
+            move |hashed, total| {
+                vc2.lock().unwrap().push((hashed, total));
+            },
+        )
+        .await
+        .unwrap();
+
+        let calls = verify_calls.lock().unwrap().clone();
+        assert!(
+            !calls.is_empty(),
+            "verify progress should fire at least once"
+        );
+        let total = body.len() as u64;
+        // Last call must report full file hashed
+        assert_eq!(calls.last().unwrap(), &(total, total));
+        // Monotonically increasing hashed bytes
+        assert!(calls.windows(2).all(|w| w[0].0 <= w[1].0));
+        // total_bytes consistent
+        assert!(calls.iter().all(|(_, t)| *t == total));
+    }
+
+    #[tokio::test]
+    async fn optimistic_complete_part_with_wrong_hash_deletes_part() {
+        let body = make_body(8 * 1024);
+        let opts = ServerOpts::default();
+        let port = spawn_server(body.clone(), opts.clone()).await;
+        let dir = tempfile::tempdir().unwrap();
+        // Wrong hash so optimistic branch fails verification
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &"c".repeat(64));
+
+        let part_path = dir.path().join("model.gguf.part");
+        std::fs::write(&part_path, &body).unwrap();
+
+        let err = download_model(
+            &http_client(),
+            &entry,
+            dir.path(),
+            CancelFlag::new(),
+            |_, _| {},
+            |_, _| {},
+        )
+        .await
+        .unwrap_err();
+
+        assert!(
+            matches!(err, DownloadError::ChecksumMismatch { .. }),
+            "got {err:?}"
+        );
+        // .part deleted even in optimistic path
+        assert!(!part_path.exists());
+        assert!(!dir.path().join("model.gguf").exists());
+        // No HTTP traffic — optimistic branch short-circuits
+        assert_eq!(opts.request_count.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn cancel_during_verify_keeps_part_for_resume() {
+        // Use a large enough body that hashing takes non-zero time. The cancel
+        // flag is set synchronously before calling download_model, simulating a
+        // cancel that arrives just as verification starts.
+        let body = make_body(8 * 1024 * 1024); // 8 MiB
+        let opts = ServerOpts::default();
+        let port = spawn_server(body.clone(), opts.clone()).await;
+        let dir = tempfile::tempdir().unwrap();
+        let entry = make_entry(port, "model.gguf", body.len() as u64, &sha256_hex(&body));
+
+        // Write full .part so we exercise the optimistic branch (no HTTP).
+        let part_path = dir.path().join("model.gguf.part");
+        std::fs::write(&part_path, &body).unwrap();
+
+        let cancel = CancelFlag::new();
+        cancel.cancel(); // cancelled before download_model even starts
+
+        let err = download_model(
+            &http_client(),
+            &entry,
+            dir.path(),
+            cancel,
+            |_, _| {},
+            |_, _| {},
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(err, DownloadError::Cancelled), "got {err:?}");
+        // .part retained on cancel so the user can resume
+        assert!(part_path.exists());
+        assert!(!dir.path().join("model.gguf").exists());
     }
 }

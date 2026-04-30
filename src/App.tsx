@@ -6,6 +6,7 @@ import {
   type AppInfo,
   type ClassifiedCatalogResponse,
   type CommandError,
+  type DownloadEvent,
   type GpuBackend,
   type HardwareDetection,
 } from "./lib/tauri/bindings";
@@ -298,6 +299,211 @@ function formatErr(e: CommandError): string {
   return `${e.kind}: ${e.message}`;
 }
 
+type DownloadPhase =
+  | { kind: "idle" }
+  | { kind: "downloading"; downloaded: number; total: number }
+  | { kind: "verifying"; hashed: number; total: number }
+  | { kind: "done"; final_path: string }
+  | { kind: "failed"; message: string }
+  | { kind: "cancelled" };
+
+function pct(a: number, b: number): string {
+  if (b === 0) return "0%";
+  return `${Math.round((a / b) * 100)}%`;
+}
+
+function DownloadPanel() {
+  const [catalog, setCatalog] = useState<ClassifiedCatalogResponse | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogErr, setCatalogErr] = useState<string | null>(null);
+
+  // keyed by model_id
+  const [phases, setPhases] = useState<Record<string, DownloadPhase>>({});
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  function setPhase(model_id: string, phase: DownloadPhase) {
+    setPhases((p) => ({ ...p, [model_id]: phase }));
+  }
+
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    let cancelled = false;
+
+    events.downloadEvent
+      .listen((event) => {
+        const p: DownloadEvent = event.payload;
+        switch (p.type) {
+          case "started":
+            setPhase(p.model_id, { kind: "downloading", downloaded: 0, total: p.total_bytes });
+            setActiveId(p.model_id);
+            break;
+          case "progress":
+            setPhase(p.model_id, { kind: "downloading", downloaded: p.downloaded_bytes, total: p.total_bytes });
+            break;
+          case "verifying":
+            setPhase(p.model_id, { kind: "verifying", hashed: p.hashed_bytes, total: p.total_bytes });
+            break;
+          case "completed":
+            setPhase(p.model_id, { kind: "done", final_path: p.final_path });
+            setActiveId(null);
+            break;
+          case "failed":
+            setPhase(p.model_id, { kind: "failed", message: `${p.kind}: ${p.message}` });
+            setActiveId(null);
+            break;
+          case "cancelled":
+            setPhase(p.model_id, { kind: "cancelled" });
+            setActiveId(null);
+            break;
+        }
+      })
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      });
+
+    return () => {
+      cancelled = true;
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+  async function loadCatalog() {
+    setCatalogLoading(true);
+    setCatalogErr(null);
+    try {
+      const r = await commands.fetchClassifiedCatalog();
+      if (r.status === "ok") setCatalog(r.data);
+      else setCatalogErr(formatErr(r.error));
+    } catch (e) {
+      setCatalogErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCatalogLoading(false);
+    }
+  }
+
+  async function startDownload(model_id: string) {
+    // Set activeId immediately so other Download buttons disable before
+    // the DownloadEvent::Started event arrives from the backend.
+    setActiveId(model_id);
+    setPhase(model_id, { kind: "downloading", downloaded: 0, total: 0 });
+    const r = await commands.startModelDownload(model_id);
+    if (r.status === "error") {
+      setPhase(model_id, { kind: "failed", message: formatErr(r.error) });
+      setActiveId(null);
+    }
+  }
+
+  async function cancelDownload(model_id: string) {
+    const r = await commands.cancelModelDownload(model_id);
+    if (r.status === "error") {
+      console.error("cancel failed:", formatErr(r.error));
+    }
+  }
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+        <button onClick={loadCatalog} disabled={catalogLoading}>
+          {catalogLoading ? "Fetching..." : "Fetch catalog"}
+        </button>
+        {catalog && (
+          <span style={{ fontSize: "0.875rem", opacity: 0.75 }}>
+            {catalog.models.length} model(s)
+          </span>
+        )}
+      </div>
+      {catalogErr && <p role="alert">{catalogErr}</p>}
+      {catalog &&
+        catalog.models.map((cm) => {
+          const phase: DownloadPhase = phases[cm.model.id] ?? { kind: "idle" };
+          const isActive = activeId === cm.model.id;
+
+          return (
+            <div
+              key={cm.model.id}
+              style={{
+                marginTop: "0.5rem",
+                padding: "0.5rem",
+                background: "rgba(127,127,127,0.08)",
+                border: "1px solid rgba(127,127,127,0.2)",
+                borderRadius: "4px",
+                fontSize: "0.875rem",
+              }}
+            >
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                <strong>{cm.model.name}</strong>
+                <span style={{ opacity: 0.6 }}>
+                  {(cm.model.size_bytes / 1_073_741_824).toFixed(2)} GB · {cm.tier}
+                </span>
+
+                {phase.kind === "idle" && (
+                  <button
+                    disabled={activeId !== null}
+                    onClick={() => startDownload(cm.model.id)}
+                  >
+                    Download
+                  </button>
+                )}
+                {(phase.kind === "downloading" || phase.kind === "verifying") && isActive && (
+                  <button onClick={() => cancelDownload(cm.model.id)}>Cancel</button>
+                )}
+                {phase.kind === "done" && (
+                  <span style={{ color: "#22c55e", fontWeight: 600 }}>✓ Downloaded</span>
+                )}
+                {phase.kind === "cancelled" && (
+                  <button onClick={() => startDownload(cm.model.id)} disabled={activeId !== null}>
+                    Resume
+                  </button>
+                )}
+              </div>
+
+              {phase.kind === "downloading" && phase.total > 0 && (
+                <div style={{ marginTop: "0.35rem" }}>
+                  <div style={{ fontSize: "0.75rem", opacity: 0.75, marginBottom: "0.2rem" }}>
+                    Downloading {pct(phase.downloaded, phase.total)} (
+                    {(phase.downloaded / 1_048_576).toFixed(1)} /{" "}
+                    {(phase.total / 1_048_576).toFixed(1)} MB)
+                  </div>
+                  <progress value={phase.downloaded} max={phase.total} style={{ width: "100%" }} />
+                </div>
+              )}
+
+              {phase.kind === "verifying" && (
+                <div style={{ marginTop: "0.35rem" }}>
+                  <div style={{ fontSize: "0.75rem", opacity: 0.75, marginBottom: "0.2rem" }}>
+                    Verifying SHA-256 {pct(phase.hashed, phase.total)} (
+                    {(phase.hashed / 1_048_576).toFixed(1)} /{" "}
+                    {(phase.total / 1_048_576).toFixed(1)} MB)
+                  </div>
+                  <progress value={phase.hashed} max={phase.total} style={{ width: "100%" }} />
+                </div>
+              )}
+
+              {phase.kind === "done" && (
+                <div style={{ marginTop: "0.35rem", fontSize: "0.75rem", opacity: 0.6, fontFamily: "monospace" }}>
+                  {phase.final_path}
+                </div>
+              )}
+
+              {phase.kind === "failed" && (
+                <p role="alert" style={{ marginTop: "0.35rem", fontSize: "0.75rem" }}>
+                  {phase.message}
+                </p>
+              )}
+
+              {phase.kind === "cancelled" && (
+                <div style={{ marginTop: "0.35rem", fontSize: "0.75rem", opacity: 0.6 }}>
+                  Cancelled — .part file preserved for resume
+                </div>
+              )}
+            </div>
+          );
+        })}
+    </>
+  );
+}
+
 const TIER_COLORS: Record<string, string> = {
   Recommended: "#22c55e",
   Viable: "#3b82f6",
@@ -410,6 +616,15 @@ function App() {
         </summary>
         <div style={{ marginTop: "0.75rem" }}>
           <CatalogPanel />
+        </div>
+      </details>
+
+      <details style={{ marginTop: "2rem" }}>
+        <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+          Download (Fase 4.3 / 4.4 — progress + SHA-256 verify)
+        </summary>
+        <div style={{ marginTop: "0.75rem" }}>
+          <DownloadPanel />
         </div>
       </details>
 

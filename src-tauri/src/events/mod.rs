@@ -49,7 +49,7 @@ impl From<StopReason> for StopReasonDto {
     }
 }
 
-/// Model-download progress (Fase 4.3). Keyed by `model_id` so multiple
+/// Model-download progress (Fase 4.3/4.4). Keyed by `model_id` so multiple
 /// future concurrent downloads (post-MVP) don't need a separate channel.
 #[derive(Debug, Clone, Serialize, Type, Event)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -61,6 +61,12 @@ pub enum DownloadEvent {
     Progress {
         model_id: String,
         downloaded_bytes: u64,
+        total_bytes: u64,
+    },
+    /// Emitted during SHA256 verification after the download completes.
+    Verifying {
+        model_id: String,
+        hashed_bytes: u64,
         total_bytes: u64,
     },
     Completed {
