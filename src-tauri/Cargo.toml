@@ -37,9 +37,16 @@ sha2 = "0.10"
 uuid = { version = "1", features = ["v4", "serde"] }
 # Fase 4.1: catalog fetch over HTTPS. `rustls-tls` is preferred over the
 # default `native-tls` so Linux CI doesn't need OpenSSL headers and Windows
-# doesn't depend on Schannel quirks. No `stream` feature yet — that lands
-# with Fase 4.3's GGUF downloader.
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# doesn't depend on Schannel quirks. Fase 4.3 enables `stream` for chunked
+# GGUF downloads via `Response::bytes_stream`.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+
+# Fase 4.3: chunked file I/O during model downloads. Tauri pulls tokio in
+# transitively; declaring it as a direct dep with explicit features avoids
+# relying on the transitive feature set.
+tokio = { version = "1", features = ["fs", "io-util", "sync", "time", "rt", "macros"] }
+# StreamExt for `reqwest::Response::bytes_stream` consumption.
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 
 # `encoding_rs` provides the stateful UTF-8 decoder passed to
 # `LlamaModel::token_to_piece`, which correctly stitches multi-byte
@@ -88,6 +95,10 @@ vulkan = ["llama-cpp-2/vulkan"]
 metal = ["llama-cpp-2/metal"]
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt"] }
+# The main `tokio` dep already enables fs/io-util/sync/time/rt/macros; tests
+# additionally need `net` (TCP listener for the in-process HTTP test server)
+# and `rt-multi-thread` (multi-threaded `#[tokio::test]` runtime). Cargo
+# unions features, so the production build does not pull `net` in.
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "net"] }
 tempfile = "3"
 

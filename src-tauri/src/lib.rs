@@ -61,6 +61,20 @@ pub fn run() {
 
             app.manage(Arc::new(commands::chat::GenerationRegistry::default()));
 
+            // Fase 4.3: shared reqwest client for long-running downloads.
+            // No overall `.timeout()` — multi-GB GGUF downloads can run for
+            // hours on slow connections. Only `.connect_timeout()` is set so
+            // dead servers fail fast. `fetch_catalog` keeps its own short-
+            // timeout client; refactoring is out of scope here.
+            let http = reqwest::Client::builder()
+                .user_agent(concat!("abraxas/", env!("CARGO_PKG_VERSION")))
+                .connect_timeout(std::time::Duration::from_secs(15))
+                .build()
+                .expect("reqwest client build");
+            app.manage(http);
+
+            app.manage(Arc::new(models::download_manager::DownloadManager::new()));
+
             Ok(())
         })
         .run(tauri::generate_context!())

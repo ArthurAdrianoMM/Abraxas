@@ -48,3 +48,31 @@ impl From<StopReason> for StopReasonDto {
         }
     }
 }
+
+/// Model-download progress (Fase 4.3). Keyed by `model_id` so multiple
+/// future concurrent downloads (post-MVP) don't need a separate channel.
+#[derive(Debug, Clone, Serialize, Type, Event)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum DownloadEvent {
+    Started {
+        model_id: String,
+        total_bytes: u64,
+    },
+    Progress {
+        model_id: String,
+        downloaded_bytes: u64,
+        total_bytes: u64,
+    },
+    Completed {
+        model_id: String,
+        final_path: String,
+    },
+    Failed {
+        model_id: String,
+        kind: String,
+        message: String,
+    },
+    Cancelled {
+        model_id: String,
+    },
+}

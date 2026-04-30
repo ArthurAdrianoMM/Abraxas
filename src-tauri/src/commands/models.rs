@@ -4,16 +4,25 @@
 //! and caches it, falls back to the on-disk cache if the network is down.
 //! Fase 4.2 adds `fetch_classified_catalog`: same fetch + hardware-compatibility
 //! tier annotation on every model entry.
-//! Download/install commands land with Fase 4.3+.
+//! Fase 4.3 adds `start_model_download` / `cancel_model_download`: resumable
+//! GGUF download with progress events. SHA256 verification lands in 4.4.
 
-use tauri::{AppHandle, Manager};
+use std::sync::Arc;
+
+use tauri::{AppHandle, Manager, State};
+use tauri_specta::Event;
 
 use crate::error::{AppError, CommandError};
+use crate::events::DownloadEvent;
 use crate::hardware::cache;
 use crate::models::catalog::{
     self, CatalogResponse, CATALOG_CACHE_FILENAME, CATALOG_URL, FETCH_TIMEOUT,
 };
 use crate::models::compatibility::{self, ClassifiedCatalogResponse};
+use crate::models::download::{self, DownloadError};
+use crate::models::download_manager::DownloadManager;
+
+const MODELS_DIR: &str = "models";
 
 #[tauri::command]
 #[specta::specta]
@@ -86,4 +95,127 @@ pub async fn fetch_classified_catalog(
         fetched_at: catalog_resp.fetched_at,
         catalog_schema_version: catalog_resp.catalog.schema_version,
     })
+}
+
+/// Start a resumable download of `model_id`. Returns immediately; the
+/// background task drives the download and reports progress through
+/// `DownloadEvent`s. Rejects a second concurrent invocation with a
+/// `Download::AlreadyInProgress`-style error.
+#[tauri::command]
+#[specta::specta]
+pub async fn start_model_download(
+    app: AppHandle,
+    manager: State<'_, Arc<DownloadManager>>,
+    http: State<'_, reqwest::Client>,
+    model_id: String,
+) -> Result<(), CommandError> {
+    // Look up the catalog entry. The classified-catalog flow primes the cache
+    // before the user can pick a model, so reading the cache here is enough.
+    // If the cache is missing for any reason, surface a clear error rather
+    // than silently re-fetching — that behavior belongs in the catalog flow.
+    let cache_path = app
+        .path()
+        .app_data_dir()
+        .map_err(AppError::from)?
+        .join(CATALOG_CACHE_FILENAME);
+    let catalog = catalog::read_cache(&cache_path)
+        .map_err(AppError::Catalog)?
+        .ok_or_else(|| CommandError {
+            kind: "Catalog".into(),
+            message: "no catalog cache available; fetch the catalog first".into(),
+        })?;
+    let entry = catalog
+        .models
+        .iter()
+        .find(|m| m.id == model_id)
+        .cloned()
+        .ok_or_else(|| CommandError {
+            kind: "Download".into(),
+            message: format!("unknown model id {model_id:?}"),
+        })?;
+
+    let cancel = manager.start(&model_id).ok_or_else(|| CommandError {
+        kind: "Download".into(),
+        message: format!(
+            "another download is already in progress: {}",
+            manager.active_id().unwrap_or_default()
+        ),
+    })?;
+
+    let models_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(AppError::from)?
+        .join(MODELS_DIR);
+
+    let app_h = app.clone();
+    let manager_h = Arc::clone(&manager);
+    let http = (*http).clone();
+    let id_for_task = model_id.clone();
+
+    let _ = DownloadEvent::Started {
+        model_id: model_id.clone(),
+        total_bytes: entry.size_bytes,
+    }
+    .emit(&app);
+
+    tokio::spawn(async move {
+        let id = id_for_task;
+        let app = app_h;
+        let progress_app = app.clone();
+        let progress_id = id.clone();
+        let on_progress = move |downloaded: u64, total: u64| {
+            let _ = DownloadEvent::Progress {
+                model_id: progress_id.clone(),
+                downloaded_bytes: downloaded,
+                total_bytes: total,
+            }
+            .emit(&progress_app);
+        };
+
+        let result =
+            download::download_model(&http, &entry, &models_dir, cancel.clone(), on_progress).await;
+
+        match result {
+            Ok(outcome) => {
+                let _ = DownloadEvent::Completed {
+                    model_id: id.clone(),
+                    final_path: outcome.final_path.to_string_lossy().into_owned(),
+                }
+                .emit(&app);
+            }
+            Err(DownloadError::Cancelled) => {
+                let _ = DownloadEvent::Cancelled {
+                    model_id: id.clone(),
+                }
+                .emit(&app);
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, model_id = %id, "model download failed");
+                let _ = DownloadEvent::Failed {
+                    model_id: id.clone(),
+                    kind: "Download".into(),
+                    message: e.to_string(),
+                }
+                .emit(&app);
+            }
+        }
+        manager_h.finish(&id);
+    });
+
+    Ok(())
+}
+
+/// Signal cancellation of an in-flight download. The background task emits
+/// `Cancelled` once it observes the flag and stops; the `.part` file is
+/// retained on disk so a subsequent `start_model_download` resumes from
+/// where it left off.
+#[tauri::command]
+#[specta::specta]
+pub async fn cancel_model_download(
+    manager: State<'_, Arc<DownloadManager>>,
+    model_id: String,
+) -> Result<(), CommandError> {
+    manager.cancel(&model_id);
+    Ok(())
 }
