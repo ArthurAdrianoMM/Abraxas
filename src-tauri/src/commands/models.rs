@@ -347,6 +347,7 @@ pub async fn delete_model(
 #[tauri::command]
 #[specta::specta]
 pub async fn load_installed_model(
+    app: AppHandle,
     db: State<'_, Db>,
     manager: State<'_, Arc<ModelManager>>,
     model_id: String,
@@ -359,8 +360,27 @@ pub async fn load_installed_model(
             message: format!("model {model_id:?} is not installed"),
         })?;
 
+    // Resolve the catalog entry so the manager binds this load to a chat
+    // template and a context length. The catalog cache is primed on the
+    // first classified-catalog fetch; if it's missing we still load the
+    // model — the chat command will surface a clearer error than a panic.
+    let cache_path = app
+        .path()
+        .app_data_dir()
+        .map_err(AppError::from)?
+        .join(CATALOG_CACHE_FILENAME);
+    let (chat_template, context_length) = match catalog::read_cache(&cache_path) {
+        Ok(Some(cat)) => cat
+            .models
+            .into_iter()
+            .find(|m| m.id == model_id)
+            .map(|m| (Some(m.chat_template), Some(m.context_length)))
+            .unwrap_or((None, None)),
+        _ => (None, None),
+    };
+
     manager
-        .load(PathBuf::from(row.path))
+        .load_with(PathBuf::from(row.path), chat_template, context_length)
         .await
         .map_err(AppError::from)?;
     Ok(())

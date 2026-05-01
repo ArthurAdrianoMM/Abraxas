@@ -1,17 +1,44 @@
-//! Inference-related commands.
+//! Inference commands for Phase 5.1.
 //!
-//! Surfaces `start_generation` / `cancel_generation`. Model loading is
-//! catalog-driven via `commands::models::load_installed_model` (Fase 4).
+//! `start_generation` accepts a structured chat history and the per-call
+//! generation options, looks up the chat template + context budget bound to
+//! the currently-loaded model (set by `load_installed_model`), truncates
+//! history to fit the context window, renders the prompt with the
+//! family-correct chat template, and streams tokens back via
+//! `GenerationEvent`s.
+//!
+//! The single-flight `GenerationRegistry` enforces "one generation in
+//! flight at a time" — aligned with the "one model loaded at a time"
+//! invariant from Fase 3.3.
+//!
+//! Conversation persistence (Fase 5.2) is intentionally not handled here:
+//! this command is the wire between an arbitrary message list and the
+//! inference engine. The DB-backed conversation flow will assemble the
+//! message list from `messages` table rows and call this command — at
+//! which point we'll add a `conversation_id` parameter for telemetry.
 
 use std::sync::Arc;
 
 use tauri::{AppHandle, State};
 use tauri_specta::Event;
 
+use crate::chat::templates::{
+    bos_policy_for, render_chat_template_with_options, ChatMessage, RenderOptions,
+};
+use crate::chat::{truncate_to_fit, ChatGenerationOptions};
 use crate::error::{AppError, CommandError};
 use crate::events::GenerationEvent;
 use crate::inference::backend::{GenerateParams, TokenEvent};
 use crate::inference::ModelManager;
+
+/// Default reservation for the completion when the catalog provides a
+/// context length but the caller didn't pin `max_completion_tokens`.
+const DEFAULT_COMPLETION_BUDGET: u32 = 512;
+
+/// Hard cap on `n_ctx` used when the loaded model has no catalog-declared
+/// context length (legacy / dev loads). Matches the previous `GenerateParams`
+/// default and keeps memory bounded.
+const FALLBACK_N_CTX: u32 = 2048;
 
 /// Holds the single in-flight generation. Aligns with the
 /// "one model loaded at a time" invariant from Fase 3.3.
@@ -31,9 +58,16 @@ pub async fn start_generation(
     app: AppHandle,
     manager: State<'_, Arc<ModelManager>>,
     registry: State<'_, Arc<GenerationRegistry>>,
-    prompt: String,
-    max_tokens: Option<i32>,
+    messages: Vec<ChatMessage>,
+    options: Option<ChatGenerationOptions>,
 ) -> Result<String, CommandError> {
+    if messages.is_empty() {
+        return Err(CommandError {
+            kind: "Inference".into(),
+            message: "cannot start generation with an empty message list".into(),
+        });
+    }
+
     let mut slot = registry.current.lock().await;
     if slot.is_some() {
         return Err(CommandError {
@@ -42,10 +76,49 @@ pub async fn start_generation(
         });
     }
 
-    let mut params = GenerateParams::new(prompt);
-    if let Some(n) = max_tokens {
-        params.max_tokens = n;
-    }
+    // Resolve what's loaded — without a model, there's no template either.
+    let loaded = manager.current().await.ok_or_else(|| CommandError {
+        kind: "Inference".into(),
+        message: "no model is loaded; call load_installed_model first".into(),
+    })?;
+    let template = loaded.chat_template.ok_or_else(|| CommandError {
+        kind: "Inference".into(),
+        message: "loaded model has no associated chat template; reload via load_installed_model"
+            .into(),
+    })?;
+
+    let options = options.unwrap_or_default();
+    let sampling = options.sampling.unwrap_or_default();
+
+    // Context budget: cap n_ctx by the catalog's declared model max so we
+    // never request a window the model wasn't trained for.
+    let n_ctx = loaded.context_length.unwrap_or(FALLBACK_N_CTX);
+    let completion_budget = options
+        .max_completion_tokens
+        .map(|n| n.max(1) as u32)
+        .unwrap_or(DEFAULT_COMPLETION_BUDGET)
+        .min(n_ctx.saturating_sub(1));
+
+    let truncated = truncate_to_fit(&messages, n_ctx, completion_budget);
+    let prompt = render_chat_template_with_options(template, &truncated, RenderOptions::default())
+        .map_err(|e| CommandError {
+            kind: "Template".into(),
+            message: e.to_string(),
+        })?;
+
+    // `max_tokens` in `GenerateParams` is total positions (prompt + completion).
+    // We don't know prompt token count exactly without tokenizing, so let the
+    // backend stop on EOG or after the completion budget — convert the budget
+    // to a generous absolute ceiling capped at n_ctx.
+    let max_tokens = n_ctx as i32;
+
+    let params = GenerateParams {
+        prompt,
+        max_tokens,
+        n_ctx,
+        bos_policy: bos_policy_for(template),
+        sampling,
+    };
 
     let mut stream = manager.generate(params).await.map_err(AppError::from)?;
     let id = uuid::Uuid::new_v4().to_string();
@@ -57,7 +130,12 @@ pub async fn start_generation(
     let app_h = app.clone();
     let id_h = id.clone();
     let registry_h: Arc<GenerationRegistry> = Arc::clone(&registry);
+    let completion_cap = completion_budget as usize;
     let handle = tauri::async_runtime::spawn(async move {
+        // Track the number of tokens we've emitted so we honor the
+        // user-provided completion budget. The backend's `max_tokens`
+        // is a coarse total-position ceiling, not a completion-only one.
+        let mut emitted_tokens: usize = 0;
         loop {
             match stream.recv().await {
                 Some(Ok(TokenEvent::Chunk(text))) => {
@@ -66,6 +144,17 @@ pub async fn start_generation(
                         text,
                     }
                     .emit(&app_h);
+                    emitted_tokens += 1;
+                    if emitted_tokens >= completion_cap {
+                        let _ = GenerationEvent::End {
+                            generation_id: id_h.clone(),
+                            reason: crate::inference::backend::StopReason::MaxTokens.into(),
+                        }
+                        .emit(&app_h);
+                        // Drop the stream; the backend exits on closed channel.
+                        drop(stream);
+                        break;
+                    }
                 }
                 Some(Ok(TokenEvent::End(stop))) => {
                     let _ = GenerationEvent::End {

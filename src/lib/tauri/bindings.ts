@@ -32,7 +32,7 @@ export const commands = {
 	 *  to `spawn_blocking` so the Tauri IPC thread stays free.
 	 */
 	detectHardware: (force: boolean) => typedError<HardwareDetection, CommandError>(__TAURI_INVOKE("detect_hardware", { force })),
-	startGeneration: (prompt: string, maxTokens: number | null) => typedError<string, CommandError>(__TAURI_INVOKE("start_generation", { prompt, maxTokens })),
+	startGeneration: (messages: ChatMessage[], options: ChatGenerationOptions | null) => typedError<string, CommandError>(__TAURI_INVOKE("start_generation", { messages, options })),
 	cancelGeneration: (generationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_generation", { generationId })),
 	fetchCatalog: () => typedError<CatalogResponse, CommandError>(__TAURI_INVOKE("fetch_catalog")),
 	/**
@@ -117,6 +117,25 @@ export type CatalogSource = "network" | "cache";
 
 export type ChatTemplate = "Llama3" | "ChatML" | "Mistral" | "Gemma" | "Gemma4" | "Qwen" | "Qwen3" | "Phi3" | "DeepSeek" | "Llama2" | "CommandR" | "GLM4";
 
+export type ChatGenerationOptions = {
+	/**
+	 *  Maximum number of completion tokens to emit. `None` defers to a
+	 *  backend default.
+	 */
+	max_completion_tokens: number | null,
+	/**
+	 *  Sampling parameters. `None` uses `SamplingParams::default()`.
+	 */
+	sampling: SamplingParams | null,
+};
+
+export type ChatMessage = {
+	role: ChatRole,
+	content: string,
+};
+
+export type ChatRole = "system" | "user" | "assistant" | "tool";
+
 /**
  *  Catalog + compatibility info returned to the frontend by
  *  `fetch_classified_catalog`.
@@ -151,17 +170,17 @@ export type CommandError = {
 
 /**
  *  How well the detected hardware can run a given model.
- * 
+ *
  *  Tiers are ordered from best to worst; `PartialOrd`/`Ord` let callers sort
  *  by tier without matching exhaustively.
  */
-export type CompatibilityTier = 
+export type CompatibilityTier =
 // System RAM ≥ `recommended_ram_mb`. Expected smooth performance.
-"Recommended" | 
+"Recommended" |
 // System RAM ≥ `min_ram_mb` but below recommended. Runs but may be slow.
-"Viable" | 
+"Viable" |
 // System RAM ≥ 75 % of `min_ram_mb`. May work with heavy swapping.
-"Heavy" | 
+"Heavy" |
 // System RAM < 75 % of `min_ram_mb`. Likely OOM.
 "NotSupported";
 
@@ -187,7 +206,7 @@ export type CpuInfo = {
  *  Model-download progress (Fase 4.3/4.4). Keyed by `model_id` so multiple
  *  future concurrent downloads (post-MVP) don't need a separate channel.
  */
-export type DownloadEvent = { type: "started"; model_id: string; total_bytes: number } | { type: "progress"; model_id: string; downloaded_bytes: number; total_bytes: number } | 
+export type DownloadEvent = { type: "started"; model_id: string; total_bytes: number } | { type: "progress"; model_id: string; downloaded_bytes: number; total_bytes: number } |
 // Emitted during SHA256 verification after the download completes.
 { type: "verifying"; model_id: string; hashed_bytes: number; total_bytes: number } | { type: "completed"; model_id: string; final_path: string } | { type: "failed"; model_id: string; kind: string; message: string } | { type: "cancelled"; model_id: string };
 
@@ -258,6 +277,35 @@ export type OsInfo = {
 	arch: string,
 };
 
+export type SamplingParams = {
+	/**
+	 *  0.0 = greedy decoding (deterministic). Otherwise scales the logits
+	 *  before sampling. llama.cpp default is 0.8.
+	 */
+	temperature: number,
+	/**
+	 *  Nucleus sampling cutoff. 1.0 = disabled.
+	 */
+	top_p: number,
+	/**
+	 *  Top-k cutoff. 0 = disabled.
+	 */
+	top_k: number,
+	/**
+	 *  Repetition penalty. 1.0 = disabled.
+	 */
+	repeat_penalty: number,
+	/**
+	 *  How many recent tokens the repeat penalty considers. 0 = disabled,
+	 *  negative = full context.
+	 */
+	repeat_last_n: number,
+	/**
+	 *  RNG seed for `dist`-stage sampling.
+	 */
+	seed: number,
+};
+
 export type StopReasonDto = "eog" | "max_tokens";
 
 export type SystemInfo = {
@@ -295,4 +343,3 @@ function makeEvent<T>(name: string) {
 
     return Object.assign(fn, base);
 }
-

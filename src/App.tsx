@@ -278,7 +278,14 @@ function InferencePanel() {
     if (!prompt.trim() || !modelLoaded) return;
     setTokens("");
     setStatus("starting...");
-    const result = await commands.startGeneration(prompt, 256);
+    // Phase 5.1 dev shim: send a single-user-message conversation so the
+    // backend renders it through the loaded model's chat template. Phase 5.2
+    // will replace this with the persisted conversation history.
+    const messages = [{ role: "user" as const, content: prompt }];
+    const result = await commands.startGeneration(messages, {
+      max_completion_tokens: 256,
+      sampling: null,
+    });
     if (result.status === "ok") {
       setCurrentId(result.data);
     } else {
