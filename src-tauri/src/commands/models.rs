@@ -370,10 +370,7 @@ pub async fn load_installed_model(
 /// The frontend uses this to decide whether to show "Download" or "Load".
 #[tauri::command]
 #[specta::specta]
-pub async fn is_model_installed(
-    db: State<'_, Db>,
-    model_id: String,
-) -> Result<bool, CommandError> {
+pub async fn is_model_installed(db: State<'_, Db>, model_id: String) -> Result<bool, CommandError> {
     registry::exists(db.pool(), &model_id)
         .await
         .map_err(|e| AppError::Db(e).into())

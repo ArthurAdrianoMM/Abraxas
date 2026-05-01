@@ -73,11 +73,10 @@ pub async fn get(pool: &SqlitePool, id: &str) -> Result<Option<InstalledModel>, 
 }
 
 pub async fn exists(pool: &SqlitePool, id: &str) -> Result<bool, sqlx::Error> {
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM installed_models WHERE id = ?1")
-            .bind(id)
-            .fetch_one(pool)
-            .await?;
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM installed_models WHERE id = ?1")
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
     Ok(count > 0)
 }
 
@@ -112,11 +111,10 @@ mod tests {
     use std::str::FromStr;
 
     async fn test_pool() -> SqlitePool {
-        let pool = SqlitePool::connect_with(
-            SqliteConnectOptions::from_str("sqlite::memory:").unwrap(),
-        )
-        .await
-        .unwrap();
+        let pool =
+            SqlitePool::connect_with(SqliteConnectOptions::from_str("sqlite::memory:").unwrap())
+                .await
+                .unwrap();
         sqlx::query(
             "CREATE TABLE installed_models (
                 id            TEXT PRIMARY KEY,
