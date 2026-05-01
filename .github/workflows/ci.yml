@@ -35,6 +35,13 @@ jobs:
         run: pnpm build
 
   rust:
+    # Fast lane: fmt, clippy, check, test on all 3 OS using the CPU-only
+    # default feature set. The CUDA + Vulkan compile is a ~30 min nvcc job
+    # that recompiles on every cache miss (the GitHub cache service is
+    # flaky on Windows; "Failed to restore: Cache service responded with
+    # 400" was seen in practice). Tests don't exercise GPU code paths, so
+    # forcing every PR to wait on full GPU compile is pure overhead.
+    # The dedicated `gpu-build` job below validates the GPU feature combo.
     name: Rust (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -63,17 +70,78 @@ jobs:
             libssl-dev \
             libclang-dev
 
-      # Fase 3.4: CUDA Toolkit and Vulkan SDK are required at compile time on
-      # Windows + Linux because `llama-cpp-2` is built with `cuda` and `vulkan`
-      # features there (see src-tauri/Cargo.toml). The Vulkan branch of
-      # `llama-cpp-sys-2`'s build script hard-`expect`s `VULKAN_SDK` on Windows.
-      # macOS uses `metal` (Xcode-shipped frameworks); no extra install needed.
-      #
-      # Pinned versions:
-      #   - CUDA 12.6.0 — conservative pin matching llama.cpp's tested matrix
-      #     for `llama-cpp-sys-2` v0.1.145; CUDA 13.x is too new to assume.
-      #   - Vulkan SDK 1.3.290.0 — recent stable, widely available, supports
-      #     all GPU vendors we target.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # macOS keeps `metal` because the frameworks ship with Xcode (no extra
+      # install, negligible build cost). Linux/Windows use no GPU features
+      # here — that's what the `gpu-build` job covers.
+      - name: Set features for this OS
+        id: features
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            echo "flags=--features metal" >> "$GITHUB_OUTPUT"
+          else
+            echo "flags=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Format check
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked ${{ steps.features.outputs.flags }} -- -D warnings
+
+      - name: Test
+        run: cargo test --locked ${{ steps.features.outputs.flags }}
+
+      - name: Verify specta bindings are up to date
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo run --locked --bin export_bindings ${{ steps.features.outputs.flags }}
+          git diff --exit-code ../src/lib/tauri/bindings.ts
+
+  gpu-build:
+    # Validates the production feature combo (`cuda,vulkan`) compiles on
+    # Windows + Linux. Runs `cargo check` only — no clippy, no tests — to
+    # avoid duplicating work the `rust` job already did with CPU features.
+    #
+    # `CMAKE_CUDA_ARCHITECTURES=75` builds kernels for a single SM (Turing)
+    # instead of llama.cpp's default fat-binary set covering ~6 archs. This
+    # cuts nvcc time roughly 5-10x. Production release builds (separate
+    # workflow, not here) should use the full arch list so end-user GPUs
+    # of any generation are supported; CI just needs to prove it links.
+    name: GPU build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: src-tauri
+    env:
+      CMAKE_CUDA_ARCHITECTURES: '75'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libclang-dev
+
       # CUDA install must be split per-OS because the Jimver action's
       # sub-package names map differently on each platform:
       #   - Windows: needs `visual_studio_integration` so MSBuild finds the
@@ -107,7 +175,6 @@ jobs:
         run: sudo apt-get install -y libcublas-12-6 libcublas-dev-12-6
 
       - name: Install Vulkan SDK
-        if: matrix.os != 'macos-latest'
         uses: jakoch/install-vulkan-sdk-action@v1
         with:
           vulkan_version: '1.3.290.0'
@@ -116,40 +183,13 @@ jobs:
           stripdown: true
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          # Distinct key prefix from the `rust` job — the build artifacts
+          # are incompatible (different feature set, different CUDA env).
+          prefix-key: gpu-build
 
-      # Fase 3.5: GPU backends are opt-in Cargo features so local devs without
-      # all the SDKs can build. CI always builds the production feature combo
-      # for the target OS so the shipped artifacts match what users get.
-      - name: Set GPU features for this OS
-        id: features
-        shell: bash
-        run: |
-          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            echo "flags=--features metal" >> "$GITHUB_OUTPUT"
-          else
-            echo "flags=--features cuda,vulkan" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Format check
-        run: cargo fmt --all --check
-
-      - name: Clippy
-        run: cargo clippy --all-targets --locked ${{ steps.features.outputs.flags }} -- -D warnings
-
-      - name: Check
-        run: cargo check --all-targets --locked ${{ steps.features.outputs.flags }}
-
-      - name: Test
-        run: cargo test --locked ${{ steps.features.outputs.flags }}
-
-      - name: Verify specta bindings are up to date
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          cargo run --locked --bin export_bindings ${{ steps.features.outputs.flags }}
-          git diff --exit-code ../src/lib/tauri/bindings.ts
+      - name: Check (cuda,vulkan)
+        run: cargo check --locked --features cuda,vulkan
