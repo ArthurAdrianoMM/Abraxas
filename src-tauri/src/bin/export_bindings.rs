@@ -9,13 +9,62 @@
 
 use specta_typescript::Typescript;
 
+const BINDINGS_PATH: &str = "../src/lib/tauri/bindings.ts";
+
 fn main() {
     abraxas_lib::__specta_builder()
         .export(
             Typescript::default().header("// @ts-nocheck\n"),
-            "../src/lib/tauri/bindings.ts",
+            BINDINGS_PATH,
         )
         .expect("failed to export specta bindings");
 
+    normalize_bindings_file(BINDINGS_PATH).expect("failed to normalize specta bindings");
+
     println!("bindings written to src/lib/tauri/bindings.ts");
+}
+
+fn normalize_bindings_file(path: &str) -> std::io::Result<()> {
+    let contents = std::fs::read_to_string(path)?;
+    let normalized = normalize_generated_typescript(&contents);
+
+    if normalized != contents {
+        std::fs::write(path, normalized)?;
+    }
+
+    Ok(())
+}
+
+fn normalize_generated_typescript(source: &str) -> String {
+    let mut normalized = String::with_capacity(source.len());
+
+    for line in source.split_inclusive('\n') {
+        let line_without_lf = line.strip_suffix('\n').unwrap_or(line);
+        let line_content = line_without_lf
+            .strip_suffix('\r')
+            .unwrap_or(line_without_lf);
+
+        normalized.push_str(line_content.trim_end_matches([' ', '\t']));
+
+        if line.ends_with('\n') {
+            normalized.push('\n');
+        }
+    }
+
+    normalized
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_generated_typescript;
+
+    #[test]
+    fn strips_trailing_whitespace_and_normalizes_crlf() {
+        let source = "const value = 1;  \r\n * \nlet next = true;\t";
+
+        assert_eq!(
+            normalize_generated_typescript(source),
+            "const value = 1;\n *\nlet next = true;"
+        );
+    }
 }
