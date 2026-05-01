@@ -5,13 +5,43 @@
 //! incompatible sub-templates, expose explicit options or return a documented
 //! placeholder error instead of silently mapping it to a nearby format.
 
-#![allow(dead_code)]
-
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use thiserror::Error;
 
 use crate::models::catalog::ChatTemplate;
+
+/// Whether a rendered prompt already contains the model's BOS token.
+///
+/// Templates that emit a literal BOS marker (Llama3 `<|begin_of_text|>`,
+/// Llama2/Mistral `<s>`, DeepSeek `<｜begin▁of▁sentence｜>`, GLM4 `[gMASK]<sop>`)
+/// must NOT have BOS re-added at tokenization time, otherwise the model sees
+/// two BOS tokens and quality degrades silently. Templates that don't emit BOS
+/// rely on the tokenizer to prepend it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BosPolicy {
+    /// Tokenizer should add BOS — template did not emit one.
+    Always,
+    /// Template already includes BOS — tokenizer must not add another.
+    Never,
+}
+
+pub fn bos_policy_for(template: ChatTemplate) -> BosPolicy {
+    match template {
+        ChatTemplate::Llama3
+        | ChatTemplate::Llama2
+        | ChatTemplate::Mistral
+        | ChatTemplate::DeepSeek
+        | ChatTemplate::GLM4 => BosPolicy::Never,
+        ChatTemplate::ChatML
+        | ChatTemplate::Qwen
+        | ChatTemplate::Qwen3
+        | ChatTemplate::Phi3
+        | ChatTemplate::Gemma
+        | ChatTemplate::Gemma4
+        | ChatTemplate::CommandR => BosPolicy::Always,
+    }
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -77,6 +107,8 @@ pub enum TemplateError {
         template: ChatTemplate,
         reason: &'static str,
     },
+    #[error("cannot render an empty conversation")]
+    EmptyMessages,
 }
 
 pub fn render_chat_template(
@@ -91,6 +123,9 @@ pub fn render_chat_template_with_options(
     messages: &[ChatMessage],
     options: RenderOptions,
 ) -> Result<String, TemplateError> {
+    if messages.is_empty() {
+        return Err(TemplateError::EmptyMessages);
+    }
     match template {
         ChatTemplate::ChatML => render_chatml(messages, options.add_generation_prompt),
         ChatTemplate::Qwen => render_chatml(messages, options.add_generation_prompt),
@@ -98,11 +133,12 @@ pub fn render_chat_template_with_options(
         ChatTemplate::Llama3 => render_llama3(messages, options.add_generation_prompt),
         ChatTemplate::Llama2 => render_llama2(messages, options.add_generation_prompt),
         ChatTemplate::Mistral => render_mistral(messages, options.add_generation_prompt),
-        ChatTemplate::Gemma => render_gemma(messages, options.add_generation_prompt),
-        ChatTemplate::Gemma4 => Err(TemplateError::Unimplemented {
-            template,
-            reason: "TODO: confirm the Gemma4 tokenizer chat_template before emitting prompts",
-        }),
+        // Gemma 2 and Gemma 3 share the same text chat-template structure
+        // (`<start_of_turn>{role}\n...<end_of_turn>`). Gemma3-only image tokens
+        // are out of scope for this app (text-only chat per CLAUDE.md §1.3).
+        ChatTemplate::Gemma | ChatTemplate::Gemma4 => {
+            render_gemma(messages, options.add_generation_prompt)
+        }
         ChatTemplate::Phi3 => render_phi3(messages, options.add_generation_prompt),
         ChatTemplate::DeepSeek => render_deepseek(messages, options),
         ChatTemplate::CommandR => render_command_r(messages, options.add_generation_prompt),
@@ -249,35 +285,31 @@ fn render_gemma(
     messages: &[ChatMessage],
     add_generation_prompt: bool,
 ) -> Result<String, TemplateError> {
-    let mut system = Vec::new();
+    // Gemma has no native system role — system content is prepended to the
+    // next user turn. Late system messages (after a user has already spoken)
+    // are merged into the *next* user turn so settings changes mid-conversation
+    // don't silently abort generation. If no user turn follows, the system
+    // content is dropped — matching the canonical template's behavior.
+    let mut pending_system: Vec<&str> = Vec::new();
     let mut out = String::new();
-    let mut pending_system = true;
 
     for message in messages {
         match message.role {
-            ChatRole::System if pending_system => system.push(message.content.as_str()),
-            ChatRole::System => {
-                return Err(TemplateError::UnsupportedRole {
-                    template: ChatTemplate::Gemma,
-                    role: ChatRole::System,
-                })
-            }
+            ChatRole::System => pending_system.push(message.content.as_str()),
             ChatRole::User => {
                 out.push_str("<start_of_turn>user\n");
-                if !system.is_empty() {
-                    out.push_str(&system.join("\n\n"));
+                if !pending_system.is_empty() {
+                    out.push_str(&pending_system.join("\n\n"));
                     out.push_str("\n\n");
-                    system.clear();
+                    pending_system.clear();
                 }
                 out.push_str(&message.content);
                 out.push_str("<end_of_turn>\n");
-                pending_system = false;
             }
             ChatRole::Assistant => {
                 out.push_str("<start_of_turn>model\n");
                 out.push_str(&message.content);
                 out.push_str("<end_of_turn>\n");
-                pending_system = false;
             }
             ChatRole::Tool => {
                 return Err(TemplateError::UnsupportedRole {
@@ -327,6 +359,12 @@ fn render_deepseek(
     messages: &[ChatMessage],
     options: RenderOptions,
 ) -> Result<String, TemplateError> {
+    // Per the official DeepSeek tokenizer chat_template, historical assistant
+    // turns store only the post-think content — `<think>...</think>` blocks
+    // are stripped from history and never replayed. The thinking marker is
+    // emitted only at generation start, controlling the *upcoming* turn:
+    //   - thinking on  → `<｜Assistant｜><think>` (model continues reasoning)
+    //   - thinking off → `<｜Assistant｜></think>` (forces empty think block)
     let mut out = String::from("<｜begin▁of▁sentence｜>");
     for message in messages {
         match message.role {
@@ -336,7 +374,7 @@ fn render_deepseek(
                 out.push_str(&message.content);
             }
             ChatRole::Assistant => {
-                out.push_str("<｜Assistant｜></think>");
+                out.push_str("<｜Assistant｜>");
                 out.push_str(&message.content);
                 out.push_str("<｜end▁of▁sentence｜>");
             }
@@ -503,14 +541,48 @@ mod tests {
     }
 
     #[test]
-    fn gemma4_placeholder_is_explicit() {
+    fn gemma4_renders_same_as_gemma() {
+        // Gemma 2 and Gemma 3 share the same text chat-template structure;
+        // image tokens are out of scope.
         assert_eq!(
-            render_chat_template(ChatTemplate::Gemma4, &sample_messages()).unwrap_err(),
-            TemplateError::Unimplemented {
-                template: ChatTemplate::Gemma4,
-                reason: "TODO: confirm the Gemma4 tokenizer chat_template before emitting prompts",
-            }
+            render_chat_template(ChatTemplate::Gemma4, &sample_messages()).unwrap(),
+            render_chat_template(ChatTemplate::Gemma, &sample_messages()).unwrap(),
         );
+    }
+
+    #[test]
+    fn gemma_merges_late_system_into_next_user() {
+        let messages = vec![
+            ChatMessage::new(ChatRole::User, "first"),
+            ChatMessage::new(ChatRole::Assistant, "ok"),
+            ChatMessage::new(ChatRole::System, "be terse"),
+            ChatMessage::new(ChatRole::User, "second"),
+        ];
+        let prompt = render_chat_template(ChatTemplate::Gemma, &messages).unwrap();
+        assert!(
+            prompt.contains("<start_of_turn>user\nbe terse\n\nsecond<end_of_turn>"),
+            "late system should be merged into next user turn, got:\n{prompt}"
+        );
+    }
+
+    #[test]
+    fn empty_messages_rejected() {
+        assert_eq!(
+            render_chat_template(ChatTemplate::ChatML, &[]).unwrap_err(),
+            TemplateError::EmptyMessages,
+        );
+    }
+
+    #[test]
+    fn bos_policy_matches_template_emissions() {
+        assert_eq!(bos_policy_for(ChatTemplate::Llama3), BosPolicy::Never);
+        assert_eq!(bos_policy_for(ChatTemplate::Llama2), BosPolicy::Never);
+        assert_eq!(bos_policy_for(ChatTemplate::Mistral), BosPolicy::Never);
+        assert_eq!(bos_policy_for(ChatTemplate::DeepSeek), BosPolicy::Never);
+        assert_eq!(bos_policy_for(ChatTemplate::GLM4), BosPolicy::Never);
+        assert_eq!(bos_policy_for(ChatTemplate::ChatML), BosPolicy::Always);
+        assert_eq!(bos_policy_for(ChatTemplate::Gemma), BosPolicy::Always);
+        assert_eq!(bos_policy_for(ChatTemplate::Phi3), BosPolicy::Always);
     }
 
     #[test]
@@ -525,7 +597,7 @@ mod tests {
     fn renders_deepseek_non_thinking() {
         assert_eq!(
             render_chat_template(ChatTemplate::DeepSeek, &sample_messages()).unwrap(),
-            "<｜begin▁of▁sentence｜>You are concise.<｜User｜>Hello<｜Assistant｜></think>Hi<｜end▁of▁sentence｜><｜User｜>Bye<｜Assistant｜></think>"
+            "<｜begin▁of▁sentence｜>You are concise.<｜User｜>Hello<｜Assistant｜>Hi<｜end▁of▁sentence｜><｜User｜>Bye<｜Assistant｜></think>"
         );
     }
 
@@ -542,7 +614,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             prompt,
-            "<｜begin▁of▁sentence｜>You are concise.<｜User｜>Hello<｜Assistant｜></think>Hi<｜end▁of▁sentence｜><｜User｜>Bye<｜Assistant｜><think>"
+            "<｜begin▁of▁sentence｜>You are concise.<｜User｜>Hello<｜Assistant｜>Hi<｜end▁of▁sentence｜><｜User｜>Bye<｜Assistant｜><think>"
         );
     }
 
