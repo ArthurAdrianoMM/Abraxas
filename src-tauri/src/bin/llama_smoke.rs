@@ -114,7 +114,7 @@ fn main() -> ExitCode {
     let mut params = GenerateParams::new(prompt);
     params.max_tokens = max_tokens;
     params.n_ctx = n_ctx;
-    params.seed = seed;
+    params.sampling.seed = seed;
 
     let result: Result<(), InferenceError> = tauri::async_runtime::block_on(async move {
         let backend = match gpu_layers_override {

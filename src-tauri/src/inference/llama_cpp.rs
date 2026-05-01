@@ -21,6 +21,7 @@ use llama_cpp_2::model::{AddBos, LlamaModel};
 use llama_cpp_2::sampling::LlamaSampler;
 use tauri::async_runtime::{self, RwLock};
 
+use crate::chat::templates::BosPolicy;
 use crate::inference::backend::{
     GenerateParams, InferenceBackend, StopReason, TokenEvent, TokenStream,
 };
@@ -243,7 +244,15 @@ where
     let ctx_params = LlamaContextParams::default().with_n_ctx(NonZeroU32::new(params.n_ctx));
     let mut ctx = model.new_context(backend, ctx_params)?;
 
-    let tokens = model.str_to_token(&params.prompt, AddBos::Always)?;
+    // Templates that emit a literal BOS marker (Llama3 `<|begin_of_text|>`,
+    // Llama2/Mistral `<s>`, DeepSeek/GLM4 equivalents) MUST tokenize without
+    // the tokenizer re-adding BOS — otherwise the model sees two BOS tokens
+    // and quality degrades silently. See `chat::templates::bos_policy_for`.
+    let add_bos = match params.bos_policy {
+        BosPolicy::Always => AddBos::Always,
+        BosPolicy::Never => AddBos::Never,
+    };
+    let tokens = model.str_to_token(&params.prompt, add_bos)?;
     let prompt_len = tokens.len();
 
     let mut batch = LlamaBatch::new(512, 1);
@@ -253,13 +262,14 @@ where
     }
     ctx.decode(&mut batch)?;
 
-    let mut sampler =
-        LlamaSampler::chain_simple([LlamaSampler::dist(params.seed), LlamaSampler::greedy()]);
+    let mut sampler = build_sampler(&params.sampling);
     let mut decoder = encoding_rs::UTF_8.new_decoder();
     let mut n_cur = batch.n_tokens();
     let mut stop = StopReason::MaxTokens;
 
-    while n_cur <= params.max_tokens {
+    // `max_tokens` is the total position budget (prompt + completion). Stop
+    // before emitting a token that would push position count past the budget.
+    while n_cur < params.max_tokens {
         let token = sampler.sample(&ctx, batch.n_tokens() - 1);
         sampler.accept(token);
 
@@ -282,6 +292,37 @@ where
 
     let _ = emit(TokenEvent::End(stop));
     Ok(())
+}
+
+/// Build a sampler chain matching llama.cpp's standard pipeline:
+///   penalties → top-k → top-p → temperature → dist (final picker).
+/// `temperature == 0` collapses the chain to repetition-aware greedy.
+fn build_sampler(s: &crate::chat::SamplingParams) -> LlamaSampler {
+    let mut stages: Vec<LlamaSampler> = Vec::new();
+
+    if s.repeat_penalty > 1.0 && s.repeat_last_n != 0 {
+        stages.push(LlamaSampler::penalties(
+            s.repeat_last_n,
+            s.repeat_penalty,
+            0.0, // frequency_penalty
+            0.0, // presence_penalty
+        ));
+    }
+
+    if s.temperature <= 0.0 {
+        stages.push(LlamaSampler::greedy());
+        return LlamaSampler::chain_simple(stages);
+    }
+
+    if s.top_k > 0 {
+        stages.push(LlamaSampler::top_k(s.top_k));
+    }
+    if s.top_p > 0.0 && s.top_p < 1.0 {
+        stages.push(LlamaSampler::top_p(s.top_p, 1));
+    }
+    stages.push(LlamaSampler::temp(s.temperature));
+    stages.push(LlamaSampler::dist(s.seed));
+    LlamaSampler::chain_simple(stages)
 }
 
 #[cfg(test)]

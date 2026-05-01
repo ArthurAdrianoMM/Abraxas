@@ -10,16 +10,23 @@ use std::path::Path;
 use async_trait::async_trait;
 use tauri::async_runtime::Receiver;
 
+use crate::chat::templates::BosPolicy;
+use crate::chat::SamplingParams;
 use crate::inference::InferenceError;
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct GenerateParams {
     pub prompt: String,
-    /// Total positions (prompt + completion); matches Fase 3.1 `n_len` semantics.
+    /// Total positions (prompt + completion). Generation stops once the
+    /// next token to emit would push position count to `max_tokens`.
     pub max_tokens: i32,
     pub n_ctx: u32,
-    pub seed: u32,
+    /// Whether the prompt already contains the model's BOS token. Templates
+    /// that emit BOS literally (Llama3, Llama2/Mistral, DeepSeek, GLM4) must
+    /// set this to `Never` to avoid double-BOS at tokenization time.
+    pub bos_policy: BosPolicy,
+    pub sampling: SamplingParams,
 }
 
 impl GenerateParams {
@@ -28,7 +35,8 @@ impl GenerateParams {
             prompt: prompt.into(),
             max_tokens: 128,
             n_ctx: 2048,
-            seed: 1234,
+            bos_policy: BosPolicy::Always,
+            sampling: SamplingParams::default(),
         }
     }
 }
