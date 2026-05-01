@@ -59,7 +59,13 @@ export const commands = {
 	listInstalledModels: () => typedError<InstalledModel[], CommandError>(__TAURI_INVOKE("list_installed_models")),
 	/**
 	 *  Delete an installed model: removes the file from disk, then the DB row.
-	 *  Safe to call even if the file is already gone — the DB row is always removed.
+	 *
+	 *  Returns `ModelLoaded` error if the model is currently loaded in the
+	 *  inference engine — deleting the file while it is loaded would leave the
+	 *  backend pointing at a missing path; the caller must unload first.
+	 *
+	 *  If the file is already gone from disk the DB row is still removed — this
+	 *  handles the case where the user deleted the file externally.
 	 */
 	deleteModel: (modelId: string) => typedError<null, CommandError>(__TAURI_INVOKE("delete_model", { modelId })),
 	/**
@@ -109,7 +115,7 @@ export type CatalogResponse = {
 
 export type CatalogSource = "network" | "cache";
 
-export type ChatTemplate = "Llama3" | "ChatML" | "Mistral" | "Gemma" | "Qwen" | "Phi3";
+export type ChatTemplate = "Llama3" | "ChatML" | "Mistral" | "Gemma" | "Gemma4" | "Qwen" | "Qwen3" | "Phi3" | "DeepSeek" | "Llama2" | "CommandR" | "GLM4";
 
 /**
  *  Catalog + compatibility info returned to the frontend by
@@ -127,8 +133,9 @@ export type ClassifiedModel = {
 	model: ModelEntry,
 	tier: CompatibilityTier,
 	/**
-	 *  True when the detected GPU has enough VRAM (or is Apple Silicon unified
-	 *  memory) to offload the model layers. False means CPU-only execution.
+	 *  True when a usable GPU backend exists for model offload. This means the
+	 *  loader can try full or partial offload; it does not guarantee full VRAM
+	 *  residency.
 	 */
 	gpu_offload: boolean,
 };
