@@ -143,16 +143,17 @@ function InferencePanel() {
   const [installed, setInstalled] = useState<InstalledModel[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [modelLoaded, setModelLoaded] = useState(false);
+  const [loadedModelId, setLoadedModelId] = useState<string | null>(null);
   const [loadStatus, setLoadStatus] = useState<string>("no model loaded");
   const [loading, setLoading] = useState(false);
+  const [deleteStatus, setDeleteStatus] = useState<string | null>(null);
 
   async function refreshInstalled() {
     const r = await commands.listInstalledModels();
     if (r.status === "ok") {
       setInstalled(r.data);
-      if (r.data.length > 0 && !selectedId) {
-        setSelectedId(r.data[0].id);
-      }
+      // Auto-select first model if nothing is selected yet.
+      setSelectedId((prev) => prev || (r.data.length > 0 ? r.data[0].id : ""));
     }
   }
 
@@ -240,12 +241,37 @@ function InferencePanel() {
     const result = await commands.loadInstalledModel(selectedId);
     if (result.status === "ok") {
       setModelLoaded(true);
+      setLoadedModelId(selectedId);
       setLoadStatus(`loaded: ${selectedId}`);
     } else {
       setModelLoaded(false);
+      setLoadedModelId(null);
       setLoadStatus(`load failed: ${formatErr(result.error)}`);
     }
     setLoading(false);
+  }
+
+  // BUG-4: delete the selected installed model from disk and the registry.
+  async function handleDelete() {
+    if (!selectedId) return;
+    setDeleteStatus("deleting...");
+    const result = await commands.deleteModel(selectedId);
+    if (result.status === "ok") {
+      setDeleteStatus(null);
+      // If we just deleted the loaded model, reset inference state.
+      if (selectedId === loadedModelId) {
+        setModelLoaded(false);
+        setLoadedModelId(null);
+        setLoadStatus("no model loaded");
+        setTokens("");
+        setStatus("idle");
+      }
+      // Refresh list; auto-select will pick the next available model.
+      setSelectedId("");
+      await refreshInstalled();
+    } else {
+      setDeleteStatus(`delete failed: ${formatErr(result.error)}`);
+    }
   }
 
   async function handleGenerate() {
@@ -290,8 +316,19 @@ function InferencePanel() {
         <button onClick={handleLoad} disabled={loading || !selectedId}>
           {loading ? "Loading..." : "Load model"}
         </button>
+        <button
+          onClick={handleDelete}
+          disabled={loading || !selectedId || selectedId === loadedModelId}
+          title={selectedId === loadedModelId ? "Unload the model before deleting" : "Delete model from disk"}
+          style={{ color: "#ef4444" }}
+        >
+          Delete
+        </button>
       </div>
       <p style={{ fontSize: "0.875rem", opacity: 0.75, marginTop: "0.25rem" }}>{loadStatus}</p>
+      {deleteStatus && (
+        <p role="alert" style={{ fontSize: "0.875rem", marginTop: "0.25rem" }}>{deleteStatus}</p>
+      )}
 
       <div style={{ marginTop: "1rem" }}>
         <textarea
@@ -654,7 +691,7 @@ function App() {
   return (
     <main className="container">
       <h1>Abraxas</h1>
-      <p>Tauri v2 scaffold — Fase 3.5 (token streaming + cancel).</p>
+      <p>Tauri v2 scaffold — Fase 4.5 (model registry + delete).</p>
       {appInfoError && <p role="alert">{appInfoError}</p>}
       {info && (
         <dl>
