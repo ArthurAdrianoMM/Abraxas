@@ -19,11 +19,9 @@ use crate::error::AppError;
 
 /// Wraps the pooled connection to the app's SQLite database.
 ///
-/// Held in Tauri state from startup. The field and `pool()` accessor become
-/// live consumers once Phase 1.5 wires typed commands.
-pub struct Db(#[allow(dead_code)] SqlitePool);
+/// Held in Tauri state from startup.
+pub struct Db(SqlitePool);
 
-#[allow(dead_code)]
 impl Db {
     /// Open (creating if missing) the database at `db_path` and apply any
     /// pending migrations. The parent directory is created if it doesn't exist.
