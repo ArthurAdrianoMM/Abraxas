@@ -416,9 +416,31 @@ function DownloadPanel() {
     setCatalogLoading(true);
     setCatalogErr(null);
     try {
-      const r = await commands.fetchClassifiedCatalog();
-      if (r.status === "ok") setCatalog(r.data);
-      else setCatalogErr(formatErr(r.error));
+      // BUG-2: fetch catalog and installed models concurrently so already-installed
+      // models show "✓ Downloaded" immediately instead of "Download" after restart.
+      const [catalogResult, installedResult] = await Promise.all([
+        commands.fetchClassifiedCatalog(),
+        commands.listInstalledModels(),
+      ]);
+
+      if (catalogResult.status !== "ok") {
+        setCatalogErr(formatErr(catalogResult.error));
+        return;
+      }
+      setCatalog(catalogResult.data);
+
+      if (installedResult.status === "ok") {
+        setPhases((prev) => {
+          const next = { ...prev };
+          for (const model of installedResult.data) {
+            // Only seed idle entries — don't overwrite an active download phase.
+            if (!next[model.id] || next[model.id].kind === "idle") {
+              next[model.id] = { kind: "done", final_path: model.path };
+            }
+          }
+          return next;
+        });
+      }
     } catch (e) {
       setCatalogErr(e instanceof Error ? e.message : String(e));
     } finally {
