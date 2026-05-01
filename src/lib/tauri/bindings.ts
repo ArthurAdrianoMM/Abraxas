@@ -32,7 +32,15 @@ export const commands = {
 	 *  to `spawn_blocking` so the Tauri IPC thread stays free.
 	 */
 	detectHardware: (force: boolean) => typedError<HardwareDetection, CommandError>(__TAURI_INVOKE("detect_hardware", { force })),
-	startGeneration: (messages: ChatMessage[], options: ChatGenerationOptions | null) => typedError<string, CommandError>(__TAURI_INVOKE("start_generation", { messages, options })),
+	startGeneration: (messages: ChatMessage[], options: {
+    /**
+     *  Maximum number of completion tokens to emit. `None` defers to a
+     *  backend default.
+     */
+    max_completion_tokens: number | null,
+    // Sampling parameters. `None` uses `SamplingParams::default()`.
+    sampling: SamplingParams | null,
+} | null) => typedError<string, CommandError>(__TAURI_INVOKE("start_generation", { messages, options })),
 	cancelGeneration: (generationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_generation", { generationId })),
 	fetchCatalog: () => typedError<CatalogResponse, CommandError>(__TAURI_INVOKE("fetch_catalog")),
 	/**
@@ -115,17 +123,13 @@ export type CatalogResponse = {
 
 export type CatalogSource = "network" | "cache";
 
-export type ChatTemplate = "Llama3" | "ChatML" | "Mistral" | "Gemma" | "Gemma4" | "Qwen" | "Qwen3" | "Phi3" | "DeepSeek" | "Llama2" | "CommandR" | "GLM4";
-
 export type ChatGenerationOptions = {
 	/**
 	 *  Maximum number of completion tokens to emit. `None` defers to a
 	 *  backend default.
 	 */
 	max_completion_tokens: number | null,
-	/**
-	 *  Sampling parameters. `None` uses `SamplingParams::default()`.
-	 */
+	// Sampling parameters. `None` uses `SamplingParams::default()`.
 	sampling: SamplingParams | null,
 };
 
@@ -135,6 +139,8 @@ export type ChatMessage = {
 };
 
 export type ChatRole = "system" | "user" | "assistant" | "tool";
+
+export type ChatTemplate = "Llama3" | "ChatML" | "Mistral" | "Gemma" | "Gemma4" | "Qwen" | "Qwen3" | "Phi3" | "DeepSeek" | "Llama2" | "CommandR" | "GLM4";
 
 /**
  *  Catalog + compatibility info returned to the frontend by
@@ -283,26 +289,18 @@ export type SamplingParams = {
 	 *  before sampling. llama.cpp default is 0.8.
 	 */
 	temperature: number,
-	/**
-	 *  Nucleus sampling cutoff. 1.0 = disabled.
-	 */
+	// Nucleus sampling cutoff. 1.0 = disabled.
 	top_p: number,
-	/**
-	 *  Top-k cutoff. 0 = disabled.
-	 */
+	// Top-k cutoff. 0 = disabled.
 	top_k: number,
-	/**
-	 *  Repetition penalty. 1.0 = disabled.
-	 */
+	// Repetition penalty. 1.0 = disabled.
 	repeat_penalty: number,
 	/**
 	 *  How many recent tokens the repeat penalty considers. 0 = disabled,
 	 *  negative = full context.
 	 */
 	repeat_last_n: number,
-	/**
-	 *  RNG seed for `dist`-stage sampling.
-	 */
+	// RNG seed for `dist`-stage sampling.
 	seed: number,
 };
 
@@ -343,3 +341,4 @@ function makeEvent<T>(name: string) {
 
     return Object.assign(fn, base);
 }
+
