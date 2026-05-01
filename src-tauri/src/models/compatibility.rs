@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::hardware::cache::HardwareDetection;
-use crate::hardware::gpu::GpuBackend;
+use crate::hardware::gpu::{GpuBackend, VulkanDeviceType};
 use crate::models::catalog::{Catalog, ModelEntry};
 
 /// How well the detected hardware can run a given model.
@@ -33,8 +33,9 @@ pub enum CompatibilityTier {
 pub struct ClassifiedModel {
     pub model: ModelEntry,
     pub tier: CompatibilityTier,
-    /// True when the detected GPU has enough VRAM (or is Apple Silicon unified
-    /// memory) to offload the model layers. False means CPU-only execution.
+    /// True when a usable GPU backend exists for model offload. This means the
+    /// loader can try full or partial offload; it does not guarantee full VRAM
+    /// residency.
     pub gpu_offload: bool,
 }
 
@@ -83,23 +84,18 @@ pub fn classify_catalog(catalog: &Catalog, hw: &HardwareDetection) -> Vec<Classi
         .collect()
 }
 
-fn gpu_offload_available(gpu: &GpuBackend, min_vram_mb: Option<u64>) -> bool {
-    match (gpu, min_vram_mb) {
+fn gpu_offload_available(gpu: &GpuBackend, _min_vram_mb: Option<u64>) -> bool {
+    match gpu {
         // Apple Silicon: unified memory — always capable of GPU offload.
-        (GpuBackend::Metal, _) => true,
-        // Model has no VRAM requirement — CPU-only model, offload not applicable.
-        (_, None) => false,
-        // CUDA: offload iff detected VRAM meets the requirement.
-        (GpuBackend::Cuda { vram_mb, .. }, Some(req)) => *vram_mb >= req,
-        // Vulkan: offload iff VRAM is reported and meets the requirement.
-        (
-            GpuBackend::Vulkan {
-                vram_mb: Some(v), ..
-            },
-            Some(req),
-        ) => *v >= req,
-        // Vulkan with unknown VRAM or no GPU at all.
-        _ => false,
+        GpuBackend::Metal => true,
+        // CUDA can attempt full or partial offload; runtime fallback decides
+        // how many layers actually fit.
+        GpuBackend::Cuda { .. } => true,
+        // Vulkan can report CPU devices through the loader; those are not GPU
+        // offload targets. Real GPU device types can attempt partial offload
+        // even when VRAM is unknown.
+        GpuBackend::Vulkan { device_type, .. } => *device_type != VulkanDeviceType::Cpu,
+        GpuBackend::None => false,
     }
 }
 
@@ -224,9 +220,10 @@ mod tests {
             compute_capability: ComputeCapability { major: 6, minor: 1 },
             uuid: "GPU-test".into(),
         };
-        // VRAM too small → gpu_offload false, but RAM fine → Recommended
+        // RAM still controls model viability; the runtime can try partial GPU
+        // offload even when full VRAM residency is unlikely.
         let classified = classify_model(&model(4096, 8192, Some(6144)), &hw(16384, gpu));
-        assert!(!classified.gpu_offload);
+        assert!(classified.gpu_offload);
         assert_eq!(classified.tier, CompatibilityTier::Recommended);
     }
 
@@ -244,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn vulkan_no_vram_info() {
+    fn vulkan_unknown_vram_can_still_try_partial_offload() {
         let gpu = GpuBackend::Vulkan {
             vendor: VulkanVendor::Intel,
             vendor_id: 0x8086,
@@ -253,18 +250,43 @@ mod tests {
             device_type: VulkanDeviceType::Integrated,
         };
         let classified = classify_model(&model(4096, 8192, Some(4096)), &hw(16384, gpu));
-        assert!(!classified.gpu_offload);
+        assert!(classified.gpu_offload);
     }
 
     #[test]
-    fn no_vram_requirement_offload_false() {
+    fn cuda_without_explicit_vram_requirement_can_offload() {
         let gpu = GpuBackend::Cuda {
             name: "RTX 4090".into(),
             vram_mb: 24576,
             compute_capability: ComputeCapability { major: 8, minor: 9 },
             uuid: "GPU-test".into(),
         };
-        // min_vram_mb = None means CPU-only model; gpu_offload irrelevant → false
+        let classified = classify_model(&model(4096, 8192, None), &hw(16384, gpu));
+        assert!(classified.gpu_offload);
+    }
+
+    #[test]
+    fn vulkan_without_explicit_vram_requirement_can_offload() {
+        let gpu = GpuBackend::Vulkan {
+            vendor: VulkanVendor::Amd,
+            vendor_id: 0x1002,
+            name: "RX 7600".into(),
+            vram_mb: Some(8192),
+            device_type: VulkanDeviceType::Discrete,
+        };
+        let classified = classify_model(&model(4096, 8192, None), &hw(16384, gpu));
+        assert!(classified.gpu_offload);
+    }
+
+    #[test]
+    fn vulkan_cpu_device_cannot_offload() {
+        let gpu = GpuBackend::Vulkan {
+            vendor: VulkanVendor::Other,
+            vendor_id: 0,
+            name: "Software Vulkan".into(),
+            vram_mb: None,
+            device_type: VulkanDeviceType::Cpu,
+        };
         let classified = classify_model(&model(4096, 8192, None), &hw(16384, gpu));
         assert!(!classified.gpu_offload);
     }

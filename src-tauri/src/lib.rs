@@ -46,13 +46,9 @@ pub fn run() {
             }
             app.manage(db);
 
-            // Fase 3.4: detect hardware (cached after the first run via
-            // fingerprint) and translate the resulting `BackendChoice` into
-            // an `n_gpu_layers` value passed down to llama.cpp. CPU-only
-            // hardware → 0 (no offload); any GPU choice → 999 (offload all
-            // layers — llama.cpp clamps to the model's actual layer count).
-            // Fine-grained CUDA-vs-Vulkan filtering on hosts where both
-            // backends register is deferred; see `inference/llama_cpp.rs`.
+            // Detect hardware once, then let the inference backend apply the
+            // load policy: CPU-only when no GPU exists, GPU-first with partial
+            // offload fallback for Metal/CUDA/Vulkan.
             let cache_path = data_dir.join("hardware_cache.json");
             let detection = hardware::cache::load_or_detect(&cache_path);
             tracing::info!(
@@ -61,10 +57,8 @@ pub fn run() {
                 from_cache = detection.from_cache,
                 "selected inference backend",
             );
-            let gpu_layers = inference_gpu_layers(detection.choice.backend);
-
             let backend: Arc<dyn inference::InferenceBackend> =
-                Arc::new(inference::LlamaCppBackend::new(gpu_layers));
+                Arc::new(inference_backend_for(detection.choice.backend));
             let manager = Arc::new(inference::ModelManager::new(backend));
             app.manage(manager);
 
@@ -90,13 +84,12 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-/// Maps the hardware-detection backend choice to llama.cpp's `n_gpu_layers`
-/// load parameter. `999` is the upstream-recommended sentinel for "offload
-/// all layers" — llama.cpp clamps to the model's actual layer count.
-fn inference_gpu_layers(backend: hardware::selector::InferenceBackend) -> u32 {
+fn inference_backend_for(
+    backend: hardware::selector::InferenceBackend,
+) -> inference::LlamaCppBackend {
     use hardware::selector::InferenceBackend::*;
     match backend {
-        Cpu => 0,
-        Metal | Cuda | Vulkan => 999,
+        Cpu => inference::LlamaCppBackend::new_cpu(),
+        Metal | Cuda | Vulkan => inference::LlamaCppBackend::new_auto_gpu(),
     }
 }

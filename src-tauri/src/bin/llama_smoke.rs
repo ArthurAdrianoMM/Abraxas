@@ -12,7 +12,7 @@
 //! `export_bindings` does — see the doc comment at the top of that file.
 //!
 //! By default the smoke test mirrors the app: it runs hardware detection and
-//! offloads to GPU when one is available. `--cpu` forces CPU-only;
+//! uses GPU-first auto fallback when one is available. `--cpu` forces CPU-only;
 //! `--gpu-layers N` overrides with an explicit layer count (useful to bisect
 //! "is offload working at all" versus "is the chosen backend the right one").
 
@@ -89,10 +89,10 @@ fn main() -> ExitCode {
     // Mirror the app's startup pipeline so the smoke test exercises the full
     // hardware → backend wiring (Fase 3.4). Skipped when `--gpu-layers` /
     // `--cpu` is set so callers can force a specific configuration.
-    let gpu_layers = match gpu_layers_override {
+    let use_auto_gpu = match gpu_layers_override {
         Some(n) => {
             tracing::info!(gpu_layers = n, "gpu-layers override from CLI");
-            n
+            false
         }
         None => {
             let system = hardware::system::detect();
@@ -103,10 +103,7 @@ fn main() -> ExitCode {
                 reason = %choice.reason,
                 "selected inference backend",
             );
-            match choice.backend {
-                hardware::selector::InferenceBackend::Cpu => 0,
-                _ => 999,
-            }
+            !matches!(choice.backend, hardware::selector::InferenceBackend::Cpu)
         }
     };
 
@@ -120,7 +117,12 @@ fn main() -> ExitCode {
     params.seed = seed;
 
     let result: Result<(), InferenceError> = tauri::async_runtime::block_on(async move {
-        let backend = LlamaCppBackend::new(gpu_layers);
+        let backend = match gpu_layers_override {
+            Some(0) => LlamaCppBackend::new_cpu(),
+            Some(n) => LlamaCppBackend::new(n),
+            None if use_auto_gpu => LlamaCppBackend::new_auto_gpu(),
+            None => LlamaCppBackend::new_cpu(),
+        };
         backend.load_model(&model).await?;
         let mut stream = backend.generate_stream(params).await?;
         while let Some(event) = stream.recv().await {

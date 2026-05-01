@@ -47,31 +47,58 @@ fn ensure_backend() -> Result<Arc<LlamaBackend>, InferenceError> {
 struct LoadedModel {
     path: PathBuf,
     model: Arc<LlamaModel>,
+    gpu_layers: u32,
+}
+
+const FULL_GPU_OFFLOAD_LAYERS: u32 = 999;
+const AUTO_GPU_FALLBACK_LAYERS: [u32; 5] = [FULL_GPU_OFFLOAD_LAYERS, 32, 16, 8, 0];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OffloadPolicy {
+    CpuOnly,
+    FixedGpuLayers(u32),
+    AutoGpuFallback,
+}
+
+impl OffloadPolicy {
+    fn attempts(self) -> Vec<u32> {
+        match self {
+            OffloadPolicy::CpuOnly => vec![0],
+            OffloadPolicy::FixedGpuLayers(n) => vec![n],
+            OffloadPolicy::AutoGpuFallback => AUTO_GPU_FALLBACK_LAYERS.to_vec(),
+        }
+    }
 }
 
 pub struct LlamaCppBackend {
     state: Arc<RwLock<Option<LoadedModel>>>,
-    /// Number of layers to offload to GPU (Fase 3.4). `0` keeps inference on
-    /// CPU; any positive value lets llama.cpp offload up to that many layers
-    /// (it clamps to the model's actual layer count, so values like `999` mean
-    /// "all layers"). The caller — typically `lib.rs` after consulting
-    /// `hardware::selector` — owns the CPU-vs-GPU policy; this struct is just
-    /// the dumb consumer.
-    gpu_layers: u32,
+    offload_policy: OffloadPolicy,
 }
 
 impl LlamaCppBackend {
+    /// Fixed-layer constructor kept for smoke tests and callers that need an
+    /// exact llama.cpp `n_gpu_layers` value. `0` means CPU-only.
     pub fn new(gpu_layers: u32) -> Self {
+        Self::with_offload_policy(OffloadPolicy::FixedGpuLayers(gpu_layers))
+    }
+
+    pub fn with_offload_policy(offload_policy: OffloadPolicy) -> Self {
         Self {
             state: Arc::new(RwLock::new(None)),
-            gpu_layers,
+            offload_policy,
         }
     }
 
     /// CPU-only constructor. Used by tests and by `lib.rs` when
     /// `hardware::selector` returns `InferenceBackend::Cpu`.
     pub fn new_cpu() -> Self {
-        Self::new(0)
+        Self::with_offload_policy(OffloadPolicy::CpuOnly)
+    }
+
+    /// GPU-first constructor for normal app use. It tries full offload first,
+    /// then progressively smaller partial offloads, then CPU-only fallback.
+    pub fn new_auto_gpu() -> Self {
+        Self::with_offload_policy(OffloadPolicy::AutoGpuFallback)
     }
 }
 
@@ -90,26 +117,47 @@ impl InferenceBackend for LlamaCppBackend {
         let path = path.to_path_buf();
         let backend = ensure_backend()?;
 
-        let load_path = path.clone();
-        let gpu_layers = self.gpu_layers;
-        let model =
-            async_runtime::spawn_blocking(move || -> Result<Arc<LlamaModel>, InferenceError> {
-                // Fase 3.4: offload to GPU when the caller asked for it. With
-                // both CUDA and Vulkan compiled in (Windows/Linux), llama.cpp's
-                // ggml registry picks devices by registration order — typical
-                // single-GPU users land on the right backend naturally. Precise
-                // CUDA-vs-Vulkan filtering via `with_devices` is deferred until
-                // llama-cpp-2 exposes a stable device-enumeration API.
-                let params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
-                let model = LlamaModel::load_from_file(&backend, &load_path, &params)?;
-                Ok(Arc::new(model))
+        let mut loaded_model = None;
+        let mut last_error = None;
+        for gpu_layers in self.offload_policy.attempts() {
+            let load_path = path.clone();
+            let backend = backend.clone();
+            let result = async_runtime::spawn_blocking(move || {
+                load_model_blocking(&backend, &load_path, gpu_layers)
             })
             .await
-            .expect("model-load task panicked")?;
+            .expect("model-load task panicked");
+
+            match result {
+                Ok(model) => {
+                    tracing::info!(
+                        path = %path.display(),
+                        gpu_layers,
+                        "model load offload attempt succeeded",
+                    );
+                    loaded_model = Some((model, gpu_layers));
+                    break;
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        path = %path.display(),
+                        gpu_layers,
+                        error = %e,
+                        "model load offload attempt failed",
+                    );
+                    last_error = Some(e);
+                }
+            }
+        }
+
+        let Some((model, gpu_layers)) = loaded_model else {
+            return Err(last_error.expect("offload policy must produce at least one attempt"));
+        };
 
         let loaded = LoadedModel {
             path: path.clone(),
             model,
+            gpu_layers,
         };
         let previous = {
             let mut guard = self.state.write().await;
@@ -119,9 +167,11 @@ impl InferenceBackend for LlamaCppBackend {
             Some(prev) => tracing::info!(
                 previous = %prev.path.display(),
                 next = %path.display(),
+                previous_gpu_layers = prev.gpu_layers,
+                gpu_layers,
                 "swapped loaded model",
             ),
-            None => tracing::info!(path = %path.display(), "model loaded"),
+            None => tracing::info!(path = %path.display(), gpu_layers, "model loaded"),
         }
         Ok(())
     }
@@ -163,6 +213,20 @@ impl InferenceBackend for LlamaCppBackend {
         // not-yet-loaded, which is the correct UX answer.
         self.state.try_read().map(|g| g.is_some()).unwrap_or(false)
     }
+}
+
+fn load_model_blocking(
+    backend: &LlamaBackend,
+    path: &Path,
+    gpu_layers: u32,
+) -> Result<Arc<LlamaModel>, InferenceError> {
+    // With both CUDA and Vulkan compiled in (Windows/Linux), llama.cpp's ggml
+    // registry picks devices by registration order. Precise CUDA-vs-Vulkan
+    // filtering via `with_devices` remains deferred until llama-cpp-2 exposes a
+    // stable device-enumeration API.
+    let params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
+    let model = LlamaModel::load_from_file(backend, path, &params)?;
+    Ok(Arc::new(model))
 }
 
 struct ChannelClosed;
@@ -246,6 +310,24 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn is_loaded_starts_false() {
         assert!(!LlamaCppBackend::new_cpu().is_loaded());
+    }
+
+    #[test]
+    fn cpu_policy_attempts_cpu_only() {
+        assert_eq!(OffloadPolicy::CpuOnly.attempts(), vec![0]);
+    }
+
+    #[test]
+    fn fixed_policy_attempts_exact_layer_count() {
+        assert_eq!(OffloadPolicy::FixedGpuLayers(42).attempts(), vec![42]);
+    }
+
+    #[test]
+    fn auto_gpu_policy_attempts_full_partial_then_cpu() {
+        assert_eq!(
+            OffloadPolicy::AutoGpuFallback.attempts(),
+            vec![999, 32, 16, 8, 0],
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]
