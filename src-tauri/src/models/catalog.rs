@@ -62,8 +62,14 @@ pub enum ChatTemplate {
     ChatML,
     Mistral,
     Gemma,
+    Gemma4,
     Qwen,
+    Qwen3,
     Phi3,
+    DeepSeek,
+    Llama2,
+    CommandR,
+    GLM4,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
@@ -402,6 +408,40 @@ mod tests {
             result.is_err(),
             "unknown chat_template variant should fail to parse"
         );
+    }
+
+    #[test]
+    fn chat_template_deserializes_all_supported_names() {
+        let names = [
+            ("Llama3", ChatTemplate::Llama3),
+            ("ChatML", ChatTemplate::ChatML),
+            ("Mistral", ChatTemplate::Mistral),
+            ("Gemma", ChatTemplate::Gemma),
+            ("Gemma4", ChatTemplate::Gemma4),
+            ("Qwen", ChatTemplate::Qwen),
+            ("Qwen3", ChatTemplate::Qwen3),
+            ("Phi3", ChatTemplate::Phi3),
+            ("DeepSeek", ChatTemplate::DeepSeek),
+            ("Llama2", ChatTemplate::Llama2),
+            ("CommandR", ChatTemplate::CommandR),
+            ("GLM4", ChatTemplate::GLM4),
+        ];
+
+        for (name, expected) in names {
+            let parsed: ChatTemplate = serde_json::from_str(&format!(r#""{name}""#)).unwrap();
+            assert_eq!(parsed, expected, "{name} should parse");
+        }
+    }
+
+    #[test]
+    fn bundled_catalog_json_validates() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("model-catalog")
+            .join("catalog.json");
+        let text = std::fs::read_to_string(path).unwrap();
+        let catalog: Catalog = serde_json::from_str(&text).unwrap();
+        validate(&catalog).unwrap();
     }
 
     #[test]
