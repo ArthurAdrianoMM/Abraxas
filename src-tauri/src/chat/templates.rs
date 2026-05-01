@@ -69,6 +69,7 @@ pub struct ChatMessage {
     pub content: String,
 }
 
+#[cfg(test)]
 impl ChatMessage {
     pub fn new(role: ChatRole, content: impl Into<String>) -> Self {
         Self {
@@ -102,15 +103,11 @@ pub enum TemplateError {
         template: ChatTemplate,
         role: ChatRole,
     },
-    #[error("{template:?} template is not implemented yet: {reason}")]
-    Unimplemented {
-        template: ChatTemplate,
-        reason: &'static str,
-    },
     #[error("cannot render an empty conversation")]
     EmptyMessages,
 }
 
+#[cfg(test)]
 pub fn render_chat_template(
     template: ChatTemplate,
     messages: &[ChatMessage],
