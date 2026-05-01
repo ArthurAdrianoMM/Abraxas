@@ -83,11 +83,16 @@ pub async fn exists(pool: &SqlitePool, id: &str) -> Result<bool, sqlx::Error> {
 
 /// Removes rows whose `path` no longer exists on disk. Returns count removed.
 /// Called once at app startup to self-heal after external file deletion.
+///
+/// Uses `tokio::fs::try_exists` so the async runtime is not blocked.
+/// On I/O error (e.g. permission denied), the row is conservatively retained —
+/// a transient access failure is not proof the file is gone.
 pub async fn reconcile(pool: &SqlitePool) -> Result<u32, sqlx::Error> {
     let rows = list(pool).await?;
     let mut removed = 0u32;
     for row in rows {
-        if !std::path::Path::new(&row.path).exists() {
+        let exists = tokio::fs::try_exists(&row.path).await.unwrap_or(true);
+        if !exists {
             tracing::info!(
                 model_id = %row.id,
                 path = %row.path,
