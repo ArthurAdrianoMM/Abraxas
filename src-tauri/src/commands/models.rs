@@ -290,19 +290,40 @@ pub async fn list_installed_models(db: State<'_, Db>) -> Result<Vec<InstalledMod
 }
 
 /// Delete an installed model: removes the file from disk, then the DB row.
-/// Safe to call even if the file is already gone — the DB row is always removed.
+///
+/// Returns `ModelLoaded` error if the model is currently loaded in the
+/// inference engine — deleting the file while it is loaded would leave the
+/// backend pointing at a missing path; the caller must unload first.
+///
+/// If the file is already gone from disk the DB row is still removed — this
+/// handles the case where the user deleted the file externally.
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_model(
     db: State<'_, Db>,
+    inference_manager: State<'_, Arc<ModelManager>>,
     model_id: String,
 ) -> Result<(), CommandError> {
-    // Resolve the path before touching the filesystem.
+    // Resolve the registry row first so we have the path.
     let row = registry::get(db.pool(), &model_id)
         .await
         .map_err(AppError::Db)?;
 
-    if let Some(row) = row {
+    if let Some(ref row) = row {
+        // Guard: refuse deletion while the model is loaded. Deleting the file
+        // with the backend still holding it open means the next unload/reload
+        // fails with a confusing NotFound error.
+        if let Some(loaded) = inference_manager.current().await {
+            if loaded.path.to_string_lossy() == row.path {
+                return Err(CommandError {
+                    kind: "ModelLoaded".into(),
+                    message: format!(
+                        "cannot delete {model_id:?}: model is currently loaded; unload it first"
+                    ),
+                });
+            }
+        }
+
         if let Err(e) = tokio::fs::remove_file(&row.path).await {
             if e.kind() != std::io::ErrorKind::NotFound {
                 return Err(AppError::Io(e).into());
