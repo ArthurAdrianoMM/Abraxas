@@ -5,6 +5,8 @@
 //! incompatible sub-templates, expose explicit options or return a documented
 //! placeholder error instead of silently mapping it to a nearby format.
 
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use thiserror::Error;
