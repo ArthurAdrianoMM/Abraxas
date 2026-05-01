@@ -160,6 +160,27 @@ function InferencePanel() {
     refreshInstalled();
   }, []);
 
+  // BUG-3: auto-refresh the installed list when a download completes so the
+  // user doesn't have to click ↻ manually after each download.
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    let cancelled = false;
+    events.downloadEvent
+      .listen((event) => {
+        if (event.payload.type === "completed") {
+          refreshInstalled();
+        }
+      })
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      });
+    return () => {
+      cancelled = true;
+      if (unlisten) unlisten();
+    };
+  }, []);
+
   const [prompt, setPrompt] = useState("");
   const [tokens, setTokens] = useState("");
   const [status, setStatus] = useState<string>("idle");
