@@ -86,4 +86,28 @@ mod tests {
             "re-opening an existing db must not re-apply migrations"
         );
     }
+
+    #[tokio::test]
+    async fn init_creates_conversation_and_message_tables() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let db_path = tmp.path().join("abraxas.sqlite");
+
+        let db = Db::init(&db_path).await.expect("Db::init failed");
+
+        let conversations: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'conversations'",
+        )
+        .fetch_one(db.pool())
+        .await
+        .expect("count conversations table");
+        let messages: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'messages'",
+        )
+        .fetch_one(db.pool())
+        .await
+        .expect("count messages table");
+
+        assert_eq!(conversations, 1);
+        assert_eq!(messages, 1);
+    }
 }

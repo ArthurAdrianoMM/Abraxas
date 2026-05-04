@@ -42,6 +42,11 @@ export const commands = {
 	sampling: SamplingParams | null,
 } | null) => typedError<string, CommandError>(__TAURI_INVOKE("start_generation", { messages, options })),
 	cancelGeneration: (generationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_generation", { generationId })),
+	createConversation: (title: string | null, modelId: string | null) => typedError<Conversation, CommandError>(__TAURI_INVOKE("create_conversation", { title, modelId })),
+	listConversations: () => typedError<Conversation[], CommandError>(__TAURI_INVOKE("list_conversations")),
+	deleteConversation: (conversationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("delete_conversation", { conversationId })),
+	appendMessage: (conversationId: string, role: ChatRole, content: string) => typedError<StoredMessage, CommandError>(__TAURI_INVOKE("append_message", { conversationId, role, content })),
+	listMessages: (conversationId: string) => typedError<StoredMessage[], CommandError>(__TAURI_INVOKE("list_messages", { conversationId })),
 	fetchCatalog: () => typedError<CatalogResponse, CommandError>(__TAURI_INVOKE("fetch_catalog")),
 	/**
 	 *  Fetch the model catalog and annotate every entry with a `CompatibilityTier`
@@ -190,6 +195,14 @@ export type CompatibilityTier =
 // System RAM < 75 % of `min_ram_mb`. Likely OOM.
 "NotSupported";
 
+export type Conversation = {
+	id: string,
+	title: string,
+	model_id: string | null,
+	created_at: string,
+	updated_at: string,
+};
+
 export type ComputeCapability = {
 	major: number,
 	minor: number,
@@ -306,6 +319,15 @@ export type SamplingParams = {
 
 export type StopReasonDto = "eog" | "max_tokens";
 
+export type StoredMessage = {
+	id: string,
+	conversation_id: string,
+	role: ChatRole,
+	content: string,
+	position: number,
+	created_at: string,
+};
+
 export type SystemInfo = {
 	os: OsInfo,
 	cpu: CpuInfo,
@@ -341,4 +363,3 @@ function makeEvent<T>(name: string) {
 
     return Object.assign(fn, base);
 }
-
