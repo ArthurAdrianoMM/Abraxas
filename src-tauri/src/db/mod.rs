@@ -14,18 +14,8 @@ use std::time::Duration;
 use sqlx::sqlite::{
     SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous,
 };
-use time::format_description::well_known::Rfc3339;
-use time::OffsetDateTime;
 
 use crate::error::AppError;
-
-/// RFC 3339 / ISO-8601 UTC timestamp string. Used as the canonical text form
-/// for `created_at` / `updated_at` columns across all tables.
-pub(crate) fn now_iso() -> String {
-    OffsetDateTime::now_utc()
-        .format(&Rfc3339)
-        .expect("Rfc3339 formatting of OffsetDateTime::now_utc never fails")
-}
 
 /// Wraps the pooled connection to the app's SQLite database.
 ///

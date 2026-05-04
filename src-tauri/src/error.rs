@@ -37,12 +37,6 @@ pub struct CommandError {
     pub message: String,
 }
 
-impl From<sqlx::Error> for CommandError {
-    fn from(e: sqlx::Error) -> Self {
-        AppError::from(e).into()
-    }
-}
-
 impl From<AppError> for CommandError {
     fn from(e: AppError) -> Self {
         let kind = match &e {
