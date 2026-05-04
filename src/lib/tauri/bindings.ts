@@ -33,13 +33,13 @@ export const commands = {
 	 */
 	detectHardware: (force: boolean) => typedError<HardwareDetection, CommandError>(__TAURI_INVOKE("detect_hardware", { force })),
 	startGeneration: (messages: ChatMessage[], options: {
-    /**
-     *  Maximum number of completion tokens to emit. `None` defers to a
-     *  backend default.
-     */
-    max_completion_tokens: number | null,
-    // Sampling parameters. `None` uses `SamplingParams::default()`.
-    sampling: SamplingParams | null,
+	/**
+	 *  Maximum number of completion tokens to emit. `None` defers to a
+	 *  backend default.
+	 */
+	max_completion_tokens: number | null,
+	// Sampling parameters. `None` uses `SamplingParams::default()`.
+	sampling: SamplingParams | null,
 } | null) => typedError<string, CommandError>(__TAURI_INVOKE("start_generation", { messages, options })),
 	cancelGeneration: (generationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_generation", { generationId })),
 	fetchCatalog: () => typedError<CatalogResponse, CommandError>(__TAURI_INVOKE("fetch_catalog")),
