@@ -44,7 +44,7 @@ fn normalize_generated_typescript(source: &str) -> String {
             .strip_suffix('\r')
             .unwrap_or(line_without_lf);
 
-        normalized.push_str(line_content.trim_end_matches([' ', '\t']));
+        push_normalized_line(&mut normalized, line_content.trim_end_matches([' ', '\t']));
 
         if line.ends_with('\n') {
             normalized.push('\n');
@@ -52,6 +52,24 @@ fn normalize_generated_typescript(source: &str) -> String {
     }
 
     normalized
+}
+
+fn push_normalized_line(normalized: &mut String, line: &str) {
+    let mut rest = line;
+
+    loop {
+        if let Some(after_tab) = rest.strip_prefix('\t') {
+            normalized.push('\t');
+            rest = after_tab;
+        } else if let Some(after_spaces) = rest.strip_prefix("    ") {
+            normalized.push('\t');
+            rest = after_spaces;
+        } else {
+            break;
+        }
+    }
+
+    normalized.push_str(rest);
 }
 
 #[cfg(test)]
@@ -65,6 +83,16 @@ mod tests {
         assert_eq!(
             normalize_generated_typescript(source),
             "const value = 1;\n *\nlet next = true;"
+        );
+    }
+
+    #[test]
+    fn normalizes_leading_four_space_indents_to_tabs() {
+        let source = "commands: {\n    max_completion_tokens: number | null,\n}";
+
+        assert_eq!(
+            normalize_generated_typescript(source),
+            "commands: {\n\tmax_completion_tokens: number | null,\n}"
         );
     }
 }
