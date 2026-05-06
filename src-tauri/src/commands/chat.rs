@@ -22,10 +22,8 @@ use std::sync::Arc;
 use tauri::{AppHandle, State};
 use tauri_specta::Event;
 
-use crate::chat::templates::{
-    bos_policy_for, render_chat_template_with_options, ChatMessage, RenderOptions,
-};
-use crate::chat::{truncate_to_fit, ChatGenerationOptions};
+use crate::chat::templates::{bos_policy_for, ChatMessage};
+use crate::chat::{fit_prompt_to_context, ChatGenerationOptions, ContextError};
 use crate::error::{AppError, CommandError};
 use crate::events::GenerationEvent;
 use crate::inference::backend::{GenerateParams, TokenEvent};
@@ -99,24 +97,37 @@ pub async fn start_generation(
         .unwrap_or(DEFAULT_COMPLETION_BUDGET)
         .min(n_ctx.saturating_sub(1));
 
-    let truncated = truncate_to_fit(&messages, n_ctx, completion_budget);
-    let prompt = render_chat_template_with_options(template, &truncated, RenderOptions::default())
-        .map_err(|e| CommandError {
-            kind: "Template".into(),
-            message: e.to_string(),
-        })?;
+    let bos_policy = bos_policy_for(template);
+    let manager_for_count = Arc::clone(&manager);
+    // Fase 5.3: trim oldest non-system messages until the rendered prompt
+    // fits the model's context window, using the loaded model's tokenizer
+    // for exact counts (no heuristic drift between count and generate).
+    let fitted = fit_prompt_to_context(
+        template,
+        &messages,
+        n_ctx,
+        completion_budget,
+        move |prompt| {
+            let manager = Arc::clone(&manager_for_count);
+            async move { manager.count_tokens(prompt, bos_policy).await }
+        },
+    )
+    .await
+    .map_err(context_error_to_command)?;
 
     // `max_tokens` in `GenerateParams` is total positions (prompt + completion).
-    // We don't know prompt token count exactly without tokenizing, so let the
-    // backend stop on EOG or after the completion budget — convert the budget
-    // to a generous absolute ceiling capped at n_ctx.
-    let max_tokens = n_ctx as i32;
+    // We now have the exact prompt count from the loaded model tokenizer, so
+    // cap the backend at prompt + requested completion, never beyond n_ctx.
+    let max_tokens = fitted
+        .prompt_tokens
+        .saturating_add(completion_budget as usize)
+        .min(n_ctx as usize) as i32;
 
     let params = GenerateParams {
-        prompt,
+        prompt: fitted.prompt,
         max_tokens,
         n_ctx,
-        bos_policy: bos_policy_for(template),
+        bos_policy,
         sampling,
     };
 
@@ -189,6 +200,17 @@ pub async fn start_generation(
         handle,
     });
     Ok(id)
+}
+
+fn context_error_to_command(e: ContextError) -> CommandError {
+    let kind = match &e {
+        ContextError::Template(_) => "Template",
+        ContextError::TokenCount(_) | ContextError::PromptTooLarge { .. } => "Context",
+    };
+    CommandError {
+        kind: kind.into(),
+        message: e.to_string(),
+    }
 }
 
 #[tauri::command]

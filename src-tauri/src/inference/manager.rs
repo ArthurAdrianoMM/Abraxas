@@ -23,6 +23,7 @@ use std::time::SystemTime;
 
 use tauri::async_runtime::{Mutex, RwLock};
 
+use crate::chat::templates::BosPolicy;
 use crate::inference::backend::{GenerateParams, InferenceBackend, TokenStream};
 use crate::inference::InferenceError;
 use crate::models::catalog::ChatTemplate;
@@ -118,6 +119,14 @@ impl ModelManager {
         self.backend.generate_stream(params).await
     }
 
+    pub async fn count_tokens(
+        &self,
+        prompt: String,
+        bos_policy: BosPolicy,
+    ) -> Result<usize, InferenceError> {
+        self.backend.count_tokens(prompt, bos_policy).await
+    }
+
     pub async fn current(&self) -> Option<LoadedModel> {
         self.loaded.read().await.clone()
     }
@@ -144,6 +153,7 @@ mod tests {
     struct MockBackend {
         load_calls: AtomicUsize,
         unload_calls: AtomicUsize,
+        count_calls: AtomicUsize,
         in_flight_loads: AtomicUsize,
         max_concurrent_loads: AtomicUsize,
         call_order: StdMutex<Vec<String>>,
@@ -154,6 +164,7 @@ mod tests {
             Self {
                 load_calls: AtomicUsize::new(0),
                 unload_calls: AtomicUsize::new(0),
+                count_calls: AtomicUsize::new(0),
                 in_flight_loads: AtomicUsize::new(0),
                 max_concurrent_loads: AtomicUsize::new(0),
                 call_order: StdMutex::new(Vec::new()),
@@ -196,6 +207,15 @@ mod tests {
             _params: GenerateParams,
         ) -> Result<TokenStream, InferenceError> {
             Err(InferenceError::NoModelLoaded)
+        }
+
+        async fn count_tokens(
+            &self,
+            prompt: String,
+            _bos_policy: BosPolicy,
+        ) -> Result<usize, InferenceError> {
+            self.count_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(prompt.len())
         }
 
         fn is_loaded(&self) -> bool {
@@ -253,6 +273,20 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, InferenceError::NoModelLoaded));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn count_tokens_delegates_to_backend() {
+        let mock = Arc::new(MockBackend::new());
+        let manager = ModelManager::new(mock.clone());
+
+        let tokens = manager
+            .count_tokens("hello".to_owned(), BosPolicy::Always)
+            .await
+            .unwrap();
+
+        assert_eq!(tokens, 5);
+        assert_eq!(mock.count_calls.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test(flavor = "current_thread")]

@@ -1,158 +1,274 @@
-//! Context-window truncation (Fase 5.3).
+//! Context-window fitting (Fase 5.3).
 //!
-//! When a conversation grows past the model's context window, we drop the
-//! oldest user/assistant turns until the rendered prompt fits, while always
-//! preserving every system message. System messages carry the persona /
-//! safety instructions; losing them silently changes model behavior in ways
-//! the user can't see.
-//!
-//! Token counts are estimated, not exact. We don't have a tokenizer at this
-//! layer (templates are family-coarse, not tokenizer-specific), so we use a
-//! conservative chars/3 heuristic — empirically tighter than the common
-//! chars/4 rule for English-only chat — plus per-message overhead for the
-//! template's role markers. The heuristic is intentionally pessimistic: if
-//! we over-estimate, we truncate slightly more than necessary; if we
-//! under-estimate, the real prompt overflows `n_ctx` and llama.cpp errors
-//! out — which is the worse failure mode.
+//! When a conversation grows past the loaded model's context window, we drop
+//! the oldest non-system messages until the rendered prompt fits, while always
+//! preserving every system message and the latest message. System messages
+//! carry persona and behavior instructions; losing them silently changes model
+//! behavior in ways the user cannot see.
 
-use crate::chat::templates::{ChatMessage, ChatRole};
+use std::future::Future;
 
-/// Reserve this many tokens of headroom on top of the completion budget so
-/// a slightly-pessimistic estimate doesn't push the real prompt over.
+use thiserror::Error;
+
+use crate::chat::templates::{
+    render_chat_template_with_options, ChatMessage, ChatRole, RenderOptions, TemplateError,
+};
+use crate::inference::InferenceError;
+use crate::models::catalog::ChatTemplate;
+
+/// Reserve this many tokens of headroom on top of the completion budget for
+/// template/tokenizer boundary differences and final control tokens.
 const SAFETY_MARGIN_TOKENS: u32 = 32;
 
-/// Per-message fixed overhead from template role markers (e.g. `<|im_start|>`
-/// pairs, `[INST]` brackets). Family-independent upper bound.
-const PER_MESSAGE_OVERHEAD: u32 = 8;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FittedPrompt {
+    pub messages: Vec<ChatMessage>,
+    pub prompt: String,
+    pub prompt_tokens: usize,
+}
 
-/// Truncate `messages` so the rendered prompt is expected to fit in
-/// `n_ctx - completion_budget - SAFETY_MARGIN_TOKENS` tokens.
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum ContextError {
+    #[error(transparent)]
+    Template(#[from] TemplateError),
+
+    #[error("token counting failed: {0}")]
+    TokenCount(String),
+
+    #[error(
+        "prompt requires {prompt_tokens} tokens but only {max_prompt_tokens} are available after reserving completion budget"
+    )]
+    PromptTooLarge {
+        prompt_tokens: usize,
+        max_prompt_tokens: usize,
+    },
+}
+
+/// Render and trim `messages` until the exact tokenizer-backed prompt count
+/// fits inside `n_ctx - completion_budget - SAFETY_MARGIN_TOKENS`.
 ///
-/// Always keeps:
-///   - every `System` message (regardless of position),
-///   - the *last* message — without it there's nothing to generate from.
-///
-/// Drops the oldest non-system messages first. Returns the surviving
-/// messages in their original order. If even the system messages plus the
-/// last message don't fit, returns them anyway: the backend will surface a
-/// clearer error than we can synthesize here.
-pub fn truncate_to_fit(
+/// Performance: under pressure this calls `count_tokens` once per older
+/// non-system message considered (newest-first), each tokenizing the
+/// then-current rendered prompt. That's O(N) tokenizer round-trips for a
+/// conversation of N messages. Fine for typical chat depth; revisit with a
+/// binary search if profiling ever shows this on the hot path.
+pub async fn fit_prompt_to_context<F, Fut>(
+    template: ChatTemplate,
     messages: &[ChatMessage],
     n_ctx: u32,
     completion_budget: u32,
-) -> Vec<ChatMessage> {
-    if messages.is_empty() {
-        return Vec::new();
-    }
-
-    let budget = n_ctx
+    mut count_tokens: F,
+) -> Result<FittedPrompt, ContextError>
+where
+    F: FnMut(String) -> Fut,
+    Fut: Future<Output = Result<usize, InferenceError>>,
+{
+    let max_prompt_tokens = n_ctx
         .saturating_sub(completion_budget)
-        .saturating_sub(SAFETY_MARGIN_TOKENS);
+        .saturating_sub(SAFETY_MARGIN_TOKENS) as usize;
 
-    // Index-based to preserve original order on output.
-    let total_estimate: u32 = messages.iter().map(estimate_tokens).sum();
-    if total_estimate <= budget {
-        return messages.to_vec();
+    let full = render_and_count(template, messages.to_vec(), &mut count_tokens).await?;
+    if full.prompt_tokens <= max_prompt_tokens {
+        return Ok(full);
     }
 
-    let last_idx = messages.len() - 1;
-    let mut keep = vec![false; messages.len()];
+    let total = messages.len();
 
-    // Pin every system message and the last message.
-    for (i, m) in messages.iter().enumerate() {
-        if m.role == ChatRole::System || i == last_idx {
+    let last_idx = messages.len().saturating_sub(1);
+    let mut keep = vec![false; messages.len()];
+    for (i, message) in messages.iter().enumerate() {
+        if message.role == ChatRole::System || i == last_idx {
             keep[i] = true;
         }
     }
 
-    let mut used: u32 = messages
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| keep[*i])
-        .map(|(_, m)| estimate_tokens(m))
-        .sum();
+    let mut best =
+        render_and_count(template, kept_messages(messages, &keep), &mut count_tokens).await?;
+    if best.prompt_tokens > max_prompt_tokens {
+        return Err(ContextError::PromptTooLarge {
+            prompt_tokens: best.prompt_tokens,
+            max_prompt_tokens,
+        });
+    }
 
-    // Add older non-system, non-last messages newest-first until we'd exceed.
     for i in (0..last_idx).rev() {
         if keep[i] {
             continue;
         }
-        let cost = estimate_tokens(&messages[i]);
-        if used.saturating_add(cost) > budget {
-            continue;
+        let mut trial_keep = keep.clone();
+        trial_keep[i] = true;
+        let trial = render_and_count(
+            template,
+            kept_messages(messages, &trial_keep),
+            &mut count_tokens,
+        )
+        .await?;
+        if trial.prompt_tokens <= max_prompt_tokens {
+            keep = trial_keep;
+            best = trial;
         }
-        keep[i] = true;
-        used += cost;
     }
 
-    messages
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| keep[*i])
-        .map(|(_, m)| m.clone())
-        .collect()
+    let kept = keep.iter().filter(|k| **k).count();
+    tracing::debug!(
+        dropped = total - kept,
+        kept,
+        prompt_tokens = best.prompt_tokens,
+        budget = max_prompt_tokens,
+        "context window: truncated conversation to fit"
+    );
+
+    Ok(best)
 }
 
-fn estimate_tokens(message: &ChatMessage) -> u32 {
-    // chars/3 is conservative for English; bumps up for tokenizer overhead
-    // on punctuation and special characters in code blocks.
-    let chars = message.content.chars().count() as u32;
-    chars.div_ceil(3) + PER_MESSAGE_OVERHEAD
+async fn render_and_count<F, Fut>(
+    template: ChatTemplate,
+    messages: Vec<ChatMessage>,
+    count_tokens: &mut F,
+) -> Result<FittedPrompt, ContextError>
+where
+    F: FnMut(String) -> Fut,
+    Fut: Future<Output = Result<usize, InferenceError>>,
+{
+    let prompt = render_chat_template_with_options(template, &messages, RenderOptions::default())?;
+    let prompt_tokens = count_tokens(prompt.clone())
+        .await
+        .map_err(|e| ContextError::TokenCount(e.to_string()))?;
+
+    Ok(FittedPrompt {
+        messages,
+        prompt,
+        prompt_tokens,
+    })
+}
+
+fn kept_messages(messages: &[ChatMessage], keep: &[bool]) -> Vec<ChatMessage> {
+    messages
+        .iter()
+        .zip(keep.iter())
+        .filter(|(_, keep)| **keep)
+        .map(|(message, _)| message.clone())
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::catalog::ChatTemplate;
 
     fn msg(role: ChatRole, content: &str) -> ChatMessage {
         ChatMessage::new(role, content)
     }
 
-    #[test]
-    fn keeps_all_when_within_budget() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn keeps_all_when_rendered_prompt_fits() {
         let msgs = vec![
             msg(ChatRole::System, "be terse"),
             msg(ChatRole::User, "hi"),
             msg(ChatRole::Assistant, "hello"),
             msg(ChatRole::User, "bye"),
         ];
-        let kept = truncate_to_fit(&msgs, 4096, 256);
-        assert_eq!(kept, msgs);
+        let fitted = fit_prompt_to_context(
+            ChatTemplate::ChatML,
+            &msgs,
+            4096,
+            256,
+            |prompt| async move { Ok(prompt.len() / 4) },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(fitted.messages, msgs);
+        assert!(fitted.prompt.contains("<|im_start|>system\nbe terse"));
+        assert!(fitted.prompt.contains("<|im_start|>user\nbye"));
     }
 
-    #[test]
-    fn drops_oldest_non_system_first() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn drops_oldest_non_system_messages_first() {
         let msgs = vec![
-            msg(ChatRole::System, "sys"),
-            msg(ChatRole::User, &"a".repeat(300)),
-            msg(ChatRole::Assistant, &"b".repeat(300)),
-            msg(ChatRole::User, &"c".repeat(300)),
-            msg(ChatRole::Assistant, &"d".repeat(300)),
+            msg(ChatRole::System, "system prompt"),
+            msg(ChatRole::User, "old-user"),
+            msg(ChatRole::Assistant, "old-assistant"),
+            msg(ChatRole::User, "recent-user"),
             msg(ChatRole::User, "current"),
         ];
-        // Tight budget: only system + last + maybe one more turn fit.
-        let kept = truncate_to_fit(&msgs, 256, 64);
-        assert!(kept.first().unwrap().role == ChatRole::System);
-        assert_eq!(kept.last().unwrap().content, "current");
-        // The very oldest user (300 a's) should be dropped before newer ones.
-        assert!(!kept.iter().any(|m| m.content == "a".repeat(300)));
+        let fitted =
+            fit_prompt_to_context(ChatTemplate::ChatML, &msgs, 128, 32, |prompt| async move {
+                if prompt.contains("old-user") || prompt.contains("old-assistant") {
+                    Ok(1_000)
+                } else {
+                    Ok(40)
+                }
+            })
+            .await
+            .unwrap();
+
+        assert!(fitted.messages.iter().any(|m| m.role == ChatRole::System));
+        assert!(fitted.messages.iter().any(|m| m.content == "recent-user"));
+        assert_eq!(fitted.messages.last().unwrap().content, "current");
+        assert!(!fitted.messages.iter().any(|m| m.content == "old-user"));
+        assert!(!fitted.messages.iter().any(|m| m.content == "old-assistant"));
     }
 
-    #[test]
-    fn always_keeps_system_even_under_extreme_pressure() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn always_keeps_system_messages_under_pressure() {
         let msgs = vec![
-            msg(ChatRole::System, &"sys".repeat(100)),
-            msg(ChatRole::User, &"u".repeat(1000)),
-            msg(ChatRole::Assistant, &"a".repeat(1000)),
+            msg(ChatRole::System, "primary system"),
+            msg(ChatRole::User, "old-user"),
+            msg(ChatRole::System, "late system"),
+            msg(ChatRole::Assistant, "old-assistant"),
             msg(ChatRole::User, "tail"),
         ];
-        let kept = truncate_to_fit(&msgs, 64, 32);
-        assert!(kept.iter().any(|m| m.role == ChatRole::System));
-        assert_eq!(kept.last().unwrap().content, "tail");
+        let fitted =
+            fit_prompt_to_context(ChatTemplate::ChatML, &msgs, 96, 32, |prompt| async move {
+                if prompt.contains("old-user") || prompt.contains("old-assistant") {
+                    Ok(1_000)
+                } else {
+                    Ok(32)
+                }
+            })
+            .await
+            .unwrap();
+
+        assert!(fitted
+            .messages
+            .iter()
+            .any(|m| m.content == "primary system"));
+        assert!(fitted.messages.iter().any(|m| m.content == "late system"));
+        assert_eq!(fitted.messages.last().unwrap().content, "tail");
     }
 
-    #[test]
-    fn empty_input_returns_empty() {
-        assert!(truncate_to_fit(&[], 4096, 256).is_empty());
+    #[tokio::test(flavor = "current_thread")]
+    async fn errors_when_system_and_latest_message_cannot_fit() {
+        let msgs = vec![
+            msg(ChatRole::System, "system prompt"),
+            msg(ChatRole::User, "old-user"),
+            msg(ChatRole::User, "current"),
+        ];
+
+        let err = fit_prompt_to_context(ChatTemplate::ChatML, &msgs, 128, 32, |_prompt| async {
+            Ok(100)
+        })
+        .await
+        .unwrap_err();
+
+        assert_eq!(
+            err,
+            ContextError::PromptTooLarge {
+                prompt_tokens: 100,
+                max_prompt_tokens: 64
+            }
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn empty_input_returns_template_error() {
+        let err = fit_prompt_to_context(ChatTemplate::ChatML, &[], 4096, 256, |_prompt| async {
+            Ok(0)
+        })
+        .await
+        .unwrap_err();
+
+        assert!(matches!(err, ContextError::Template(_)));
     }
 }

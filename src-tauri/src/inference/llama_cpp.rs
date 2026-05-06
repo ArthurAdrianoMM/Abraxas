@@ -209,6 +209,31 @@ impl InferenceBackend for LlamaCppBackend {
         Ok(TokenStream::new(rx))
     }
 
+    async fn count_tokens(
+        &self,
+        prompt: String,
+        bos_policy: BosPolicy,
+    ) -> Result<usize, InferenceError> {
+        let model = {
+            let guard = self.state.read().await;
+            guard
+                .as_ref()
+                .ok_or(InferenceError::NoModelLoaded)?
+                .model
+                .clone()
+        };
+
+        async_runtime::spawn_blocking(move || {
+            let add_bos = add_bos_for(bos_policy);
+            model
+                .str_to_token(&prompt, add_bos)
+                .map(|tokens| tokens.len())
+                .map_err(InferenceError::from)
+        })
+        .await
+        .expect("token-count task panicked")
+    }
+
     fn is_loaded(&self) -> bool {
         // try_read so a status poll never blocks. "Currently loading" reads as
         // not-yet-loaded, which is the correct UX answer.
@@ -248,10 +273,7 @@ where
     // Llama2/Mistral `<s>`, DeepSeek/GLM4 equivalents) MUST tokenize without
     // the tokenizer re-adding BOS — otherwise the model sees two BOS tokens
     // and quality degrades silently. See `chat::templates::bos_policy_for`.
-    let add_bos = match params.bos_policy {
-        BosPolicy::Always => AddBos::Always,
-        BosPolicy::Never => AddBos::Never,
-    };
+    let add_bos = add_bos_for(params.bos_policy);
     let tokens = model.str_to_token(&params.prompt, add_bos)?;
     let prompt_len = tokens.len();
 
@@ -292,6 +314,13 @@ where
 
     let _ = emit(TokenEvent::End(stop));
     Ok(())
+}
+
+fn add_bos_for(policy: BosPolicy) -> AddBos {
+    match policy {
+        BosPolicy::Always => AddBos::Always,
+        BosPolicy::Never => AddBos::Never,
+    }
 }
 
 /// Build a sampler chain matching llama.cpp's standard pipeline:
@@ -338,6 +367,16 @@ mod tests {
         let backend = LlamaCppBackend::new_cpu();
         let err = backend
             .generate_stream(GenerateParams::new("hi"))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, InferenceError::NoModelLoaded));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn count_tokens_without_loaded_model_errors() {
+        let backend = LlamaCppBackend::new_cpu();
+        let err = backend
+            .count_tokens("hi".to_owned(), BosPolicy::Always)
             .await
             .unwrap_err();
         assert!(matches!(err, InferenceError::NoModelLoaded));

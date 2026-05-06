@@ -74,5 +74,10 @@ pub trait InferenceBackend: Send + Sync {
     async fn load_model(&self, path: &Path) -> Result<(), InferenceError>;
     async fn unload(&self) -> Result<(), InferenceError>;
     async fn generate_stream(&self, params: GenerateParams) -> Result<TokenStream, InferenceError>;
+    async fn count_tokens(
+        &self,
+        prompt: String,
+        bos_policy: BosPolicy,
+    ) -> Result<usize, InferenceError>;
     fn is_loaded(&self) -> bool;
 }
