@@ -23,7 +23,11 @@ use tauri::{AppHandle, State};
 use tauri_specta::Event;
 
 use crate::chat::templates::{bos_policy_for, ChatMessage};
-use crate::chat::{fit_prompt_to_context, ChatGenerationOptions, ContextError};
+use crate::chat::{
+    fit_prompt_to_context, resolve_max_completion_tokens, resolve_sampling, ChatGenerationOptions,
+    ContextError,
+};
+use crate::db::{conversations, Db};
 use crate::error::{AppError, CommandError};
 use crate::events::GenerationEvent;
 use crate::inference::backend::{GenerateParams, TokenEvent};
@@ -56,8 +60,10 @@ pub async fn start_generation(
     app: AppHandle,
     manager: State<'_, Arc<ModelManager>>,
     registry: State<'_, Arc<GenerationRegistry>>,
+    db: State<'_, Db>,
     messages: Vec<ChatMessage>,
     options: Option<ChatGenerationOptions>,
+    conversation_id: Option<String>,
 ) -> Result<String, CommandError> {
     if messages.is_empty() {
         return Err(CommandError {
@@ -86,13 +92,33 @@ pub async fn start_generation(
     })?;
 
     let options = options.unwrap_or_default();
-    let sampling = options.sampling.unwrap_or_default();
+
+    // Fase 5.4: layer per-call options on top of the conversation's stored
+    // generation params, falling back to defaults for any field left NULL.
+    let conversation = match conversation_id.as_deref() {
+        Some(id) => conversations::get(db.pool(), id)
+            .await
+            .map_err(AppError::Db)?,
+        None => None,
+    };
+    if conversation_id.is_some() && conversation.is_none() {
+        return Err(CommandError {
+            kind: "ConversationNotFound".into(),
+            message: format!(
+                "conversation {:?} does not exist",
+                conversation_id.as_deref().unwrap_or_default()
+            ),
+        });
+    }
+
+    let sampling = resolve_sampling(conversation.as_ref(), options.sampling);
+    let resolved_max_completion =
+        resolve_max_completion_tokens(conversation.as_ref(), options.max_completion_tokens);
 
     // Context budget: cap n_ctx by the catalog's declared model max so we
     // never request a window the model wasn't trained for.
     let n_ctx = loaded.context_length.unwrap_or(FALLBACK_N_CTX);
-    let completion_budget = options
-        .max_completion_tokens
+    let completion_budget = resolved_max_completion
         .map(|n| n.max(1) as u32)
         .unwrap_or(DEFAULT_COMPLETION_BUDGET)
         .min(n_ctx.saturating_sub(1));

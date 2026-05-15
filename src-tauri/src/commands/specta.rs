@@ -18,6 +18,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             super::conversations::create_conversation,
             super::conversations::list_conversations,
             super::conversations::delete_conversation,
+            super::conversations::update_conversation_generation_params,
             super::conversations::append_message,
             super::conversations::list_messages,
             super::models::fetch_catalog,

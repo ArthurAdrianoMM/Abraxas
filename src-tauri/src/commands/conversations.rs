@@ -30,6 +30,31 @@ pub async fn list_conversations(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn update_conversation_generation_params(
+    db: State<'_, Db>,
+    conversation_id: String,
+    params: conversations::ConversationGenerationParams,
+) -> Result<conversations::Conversation, CommandError> {
+    let updated = conversations::update_generation_params(db.pool(), &conversation_id, params)
+        .await
+        .map_err(AppError::Db)?;
+    if !updated {
+        return Err(CommandError {
+            kind: "ConversationNotFound".into(),
+            message: format!("conversation {conversation_id:?} does not exist"),
+        });
+    }
+    conversations::get(db.pool(), &conversation_id)
+        .await
+        .map_err(AppError::Db)?
+        .ok_or_else(|| CommandError {
+            kind: "ConversationNotFound".into(),
+            message: format!("conversation {conversation_id:?} disappeared after update"),
+        })
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn delete_conversation(
     db: State<'_, Db>,
     conversation_id: String,
@@ -113,11 +138,18 @@ mod tests {
                 .unwrap();
         sqlx::query(
             "CREATE TABLE conversations (
-                id         TEXT PRIMARY KEY,
-                title      TEXT NOT NULL,
-                model_id   TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                id                    TEXT PRIMARY KEY,
+                title                 TEXT NOT NULL,
+                model_id              TEXT,
+                created_at            TEXT NOT NULL,
+                updated_at            TEXT NOT NULL,
+                temperature           REAL,
+                top_p                 REAL,
+                top_k                 INTEGER,
+                repeat_penalty        REAL,
+                repeat_last_n         INTEGER,
+                seed                  INTEGER,
+                max_completion_tokens INTEGER
             )",
         )
         .execute(&pool)
