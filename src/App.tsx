@@ -4,6 +4,7 @@ import {
   commands,
   events,
   type AppInfo,
+  type ChatMessage,
   type ClassifiedCatalogResponse,
   type CommandError,
   type DownloadEvent,
@@ -684,6 +685,212 @@ function CatalogPanel() {
   );
 }
 
+// Minimal multi-turn chat harness: keeps the full conversation in memory and
+// sends the entire history to start_generation each turn, so we can eyeball
+// that the model actually sees prior messages. No persistence — that's 5.2.
+function ChatPanel() {
+  const [installed, setInstalled] = useState<InstalledModel[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [loadedModelId, setLoadedModelId] = useState<string | null>(null);
+  const [loadStatus, setLoadStatus] = useState<string>("no model loaded");
+  const [loading, setLoading] = useState(false);
+
+  const [history, setHistory] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [streaming, setStreaming] = useState("");
+  const [status, setStatus] = useState<string>("idle");
+  const [currentId, setCurrentId] = useState<string | null>(null);
+
+  const currentIdRef = useRef<string | null>(null);
+  const streamRef = useRef("");
+  useEffect(() => {
+    currentIdRef.current = currentId;
+  }, [currentId]);
+
+  useEffect(() => {
+    commands.listInstalledModels().then((r) => {
+      if (r.status === "ok") {
+        setInstalled(r.data);
+        setSelectedId((prev) => prev || (r.data.length > 0 ? r.data[0].id : ""));
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    let cancelled = false;
+    events.generationEvent
+      .listen((event) => {
+        const p = event.payload;
+        if (currentIdRef.current && p.generation_id !== currentIdRef.current) return;
+        switch (p.type) {
+          case "started":
+            setStatus("generating");
+            break;
+          case "token":
+            streamRef.current += p.text;
+            setStreaming(streamRef.current);
+            break;
+          case "end": {
+            // Commit the assistant turn into history so the next send carries it.
+            const final = streamRef.current;
+            setHistory((h) => [...h, { role: "assistant", content: final }]);
+            streamRef.current = "";
+            setStreaming("");
+            setStatus(`end: ${p.reason}`);
+            setCurrentId(null);
+            break;
+          }
+          case "failed":
+            setStatus(`failed: ${p.kind}: ${p.message}`);
+            setCurrentId(null);
+            break;
+          case "cancelled":
+            setStatus("cancelled");
+            setCurrentId(null);
+            break;
+        }
+      })
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      });
+    return () => {
+      cancelled = true;
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+  async function handleLoad() {
+    if (!selectedId) return;
+    setLoading(true);
+    setLoadStatus("loading...");
+    const r = await commands.loadInstalledModel(selectedId);
+    if (r.status === "ok") {
+      setLoadedModelId(selectedId);
+      setLoadStatus(`loaded: ${selectedId}`);
+    } else {
+      setLoadedModelId(null);
+      setLoadStatus(`load failed: ${formatErr(r.error)}`);
+    }
+    setLoading(false);
+  }
+
+  async function handleSend() {
+    if (!input.trim() || !loadedModelId || currentId !== null) return;
+    const next: ChatMessage[] = [...history, { role: "user", content: input }];
+    setHistory(next);
+    setInput("");
+    streamRef.current = "";
+    setStreaming("");
+    setStatus("starting...");
+    const r = await commands.startGeneration(next, {
+      max_completion_tokens: 256,
+      sampling: null,
+    });
+    if (r.status === "ok") setCurrentId(r.data);
+    else setStatus(`failed to start: ${formatErr(r.error)}`);
+  }
+
+  async function handleCancel() {
+    if (!currentId) return;
+    const r = await commands.cancelGeneration(currentId);
+    if (r.status === "error") setStatus(`cancel failed: ${formatErr(r.error)}`);
+  }
+
+  function handleReset() {
+    setHistory([]);
+    streamRef.current = "";
+    setStreaming("");
+    setStatus("idle");
+  }
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+        <select
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+          disabled={loading || installed.length === 0}
+          style={{ flex: "1 1 24rem", minWidth: "20rem", fontFamily: "monospace" }}
+        >
+          {installed.length === 0 && <option value="">(no installed models — download one first)</option>}
+          {installed.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.id} — {m.filename}
+            </option>
+          ))}
+        </select>
+        <button onClick={handleLoad} disabled={loading || !selectedId}>
+          {loading ? "Loading..." : "Load model"}
+        </button>
+        <button onClick={handleReset} disabled={history.length === 0}>
+          New chat
+        </button>
+      </div>
+      <p style={{ fontSize: "0.875rem", opacity: 0.75, marginTop: "0.25rem" }}>
+        {loadStatus} · {history.length} message(s) · {status}
+      </p>
+
+      <div
+        style={{
+          marginTop: "0.75rem",
+          padding: "0.75rem",
+          background: "rgba(127,127,127,0.08)",
+          border: "1px solid rgba(127,127,127,0.2)",
+          borderRadius: "4px",
+          minHeight: "12rem",
+          maxHeight: "30rem",
+          overflow: "auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.5rem",
+        }}
+      >
+        {history.length === 0 && streaming === "" && (
+          <span style={{ opacity: 0.4 }}>(conversation will appear here)</span>
+        )}
+        {history.map((m, i) => (
+          <div key={i}>
+            <strong style={{ opacity: 0.6, fontSize: "0.75rem" }}>{m.role}</strong>
+            <div style={{ whiteSpace: "pre-wrap" }}>{m.content}</div>
+          </div>
+        ))}
+        {streaming !== "" && (
+          <div>
+            <strong style={{ opacity: 0.6, fontSize: "0.75rem" }}>assistant</strong>
+            <div style={{ whiteSpace: "pre-wrap" }}>{streaming}</div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+        <textarea
+          placeholder="Message"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          rows={2}
+          style={{ flex: 1, fontFamily: "inherit" }}
+          disabled={!loadedModelId}
+        />
+        <button
+          onClick={handleSend}
+          disabled={!loadedModelId || !input.trim() || currentId !== null}
+        >
+          Send
+        </button>
+        {currentId !== null && <button onClick={handleCancel}>Stop</button>}
+      </div>
+    </>
+  );
+}
+
 function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [appInfoError, setAppInfoError] = useState<string | null>(null);
@@ -740,10 +947,19 @@ function App() {
 
       <section style={{ marginTop: "2rem" }}>
         <h2 style={{ fontSize: "1.125rem", marginBottom: "0.5rem" }}>
-          Inference (Fase 3.5 dev)
+          Chat (multi-turn test)
         </h2>
-        <InferencePanel />
+        <ChatPanel />
       </section>
+
+      <details style={{ marginTop: "2rem" }}>
+        <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+          Inference (Fase 3.5 dev — single prompt)
+        </summary>
+        <div style={{ marginTop: "0.75rem" }}>
+          <InferencePanel />
+        </div>
+      </details>
     </main>
   );
 }
