@@ -232,8 +232,9 @@ export function SettingsView() {
   }, [settings]);
 
   const commitMaxTokens = () => {
-    const n = parseInt(maxTokens, 10);
-    if (Number.isFinite(n) && n > 0) {
+    const trimmed = maxTokens.trim();
+    const n = Number(trimmed);
+    if (/^\d+$/.test(trimmed) && Number.isSafeInteger(n) && n > 0 && n <= 4_294_967_295) {
       void save({ default_max_completion_tokens: n });
     } else if (settings) {
       setMaxTokens(String(settings.default_max_completion_tokens));
@@ -241,12 +242,13 @@ export function SettingsView() {
   };
 
   const commitSeed = () => {
-    if (seed.trim() === "") {
+    const trimmed = seed.trim();
+    if (trimmed === "") {
       void save({ default_seed: null });
       return;
     }
-    const n = parseInt(seed, 10);
-    if (Number.isFinite(n) && n >= 0) {
+    const n = Number(trimmed);
+    if (/^\d+$/.test(trimmed) && Number.isSafeInteger(n)) {
       void save({ default_seed: n });
     } else if (settings) {
       setSeed(settings.default_seed === null ? "" : String(settings.default_seed));

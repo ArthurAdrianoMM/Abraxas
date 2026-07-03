@@ -53,7 +53,10 @@ export const useModelStore = create<ModelState>((set, get) => ({
   error: null,
 
   init: async () => {
-    if (get().status !== "unknown") return;
+    // "error" stays retryable — a transient failure here would otherwise
+    // permanently skip the default-model auto-load until restart.
+    const status = get().status;
+    if (status !== "unknown" && status !== "error") return;
     set({ status: "initializing" });
     try {
       const [installed, loadedId] = await Promise.all([

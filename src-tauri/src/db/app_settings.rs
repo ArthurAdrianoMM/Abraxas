@@ -111,12 +111,14 @@ pub async fn get(pool: &SqlitePool) -> Result<AppSettings, sqlx::Error> {
     Ok(serde_json::from_value(serde_json::Value::Object(merged)).unwrap_or_default())
 }
 
-/// Upserts every field as its own row.
+/// Upserts every field as its own row, atomically — a failure mid-write
+/// must not leave a mix of old and new fields.
 pub async fn set(pool: &SqlitePool, settings: &AppSettings) -> Result<(), sqlx::Error> {
     let object = match serde_json::to_value(settings) {
         Ok(serde_json::Value::Object(map)) => map,
         _ => return Ok(()),
     };
+    let mut tx = pool.begin().await?;
     for (key, value) in object {
         sqlx::query(
             "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
@@ -124,10 +126,10 @@ pub async fn set(pool: &SqlitePool, settings: &AppSettings) -> Result<(), sqlx::
         )
         .bind(&key)
         .bind(value.to_string())
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     }
-    Ok(())
+    tx.commit().await
 }
 
 /// Removes every settings row ("queimar tudo" resets preferences too).

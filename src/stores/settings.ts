@@ -65,8 +65,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ settings: persisted });
       return true;
     } catch (e) {
-      applyFontSize(previous);
-      set({ settings: previous, error: describeError(e) });
+      // Don't restore the snapshot wholesale — a concurrent save (e.g.
+      // "tornar padrão" from the manager) may have landed since; re-read
+      // the backend's truth instead.
+      set({ error: describeError(e) });
+      await get().refresh();
       return false;
     }
   },

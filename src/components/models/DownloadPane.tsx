@@ -37,9 +37,15 @@ export function DownloadPane() {
   const refreshDisk = useDiskStore((s) => s.refresh);
   const [recoveryDismissed, setRecoveryDismissed] = useState(false);
 
+  const phaseForEffects = session?.phase;
   useEffect(() => {
     void refreshDisk();
-  }, [refreshDisk]);
+    // Free space shrinks while bytes land — keep the meter and the
+    // disk-critical warning honest during an active download.
+    if (phaseForEffects !== "downloading") return;
+    const timer = setInterval(() => void refreshDisk(), 5000);
+    return () => clearInterval(timer);
+  }, [refreshDisk, phaseForEffects]);
 
   // Nothing to show — the user landed here without picking a model.
   useEffect(() => {
@@ -150,7 +156,6 @@ export function DownloadPane() {
             modelsDir={usage?.models_dir ?? null}
             freeBytes={usage && usage.total_bytes > 0 ? usage.free_bytes : null}
             totalBytes={usage && usage.total_bytes > 0 ? usage.total_bytes : null}
-            incomingBytes={model.size_bytes}
             remainingBytes={phase === "confirm" ? model.size_bytes : remaining}
           />
         </div>
@@ -366,20 +371,21 @@ function StorageRow({
   modelsDir,
   freeBytes,
   totalBytes,
-  incomingBytes,
   remainingBytes,
 }: {
   modelsDir: string | null;
   freeBytes: number | null;
   totalBytes: number | null;
-  incomingBytes: number;
+  /** Bytes still to land on disk (full size before start, shrinking after). */
   remainingBytes: number;
 }) {
   const MARGIN_BYTES = 1e9;
   const hasDisk = freeBytes !== null && totalBytes !== null;
   const warn = hasDisk && remainingBytes + MARGIN_BYTES > freeBytes;
   const usedPct = hasDisk ? ((totalBytes - freeBytes) / totalBytes) * 100 : 0;
-  const incomingPct = hasDisk ? Math.min(100 - usedPct, (incomingBytes / totalBytes) * 100) : 0;
+  // Incoming band = what still needs to land; already-landed bytes are
+  // counted inside `used` by the periodic disk refresh.
+  const incomingPct = hasDisk ? Math.min(100 - usedPct, (remainingBytes / totalBytes) * 100) : 0;
   const afterBytes = hasDisk ? freeBytes - remainingBytes : 0;
 
   return (
@@ -389,7 +395,7 @@ function StorageRow({
         <span className={styles.storageRhs}>
           {hasDisk
             ? `${gb(totalBytes - freeBytes, 0)} / ${gb(totalBytes, 0)} gb`
-            : `+${gb(incomingBytes)} gb`}
+            : `+${gb(remainingBytes)} gb`}
         </span>
       </div>
       {hasDisk && (

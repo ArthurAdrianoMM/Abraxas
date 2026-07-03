@@ -151,26 +151,63 @@ pub async fn clear_conversations(db: State<'_, Db>) -> Result<(), CommandError> 
     Ok(())
 }
 
-/// "Queimar tudo": unloads the model, deletes every model file, then wipes
+/// "Queimar tudo": cancels any download, unloads the model, deletes every
+/// file in the models directory (including `.part` leftovers), then wipes
 /// conversations, the installed-models registry, and all preferences.
+///
+/// File deletions are best-effort: a file still mapped by an in-flight
+/// generation (Windows locks mapped files) is logged and skipped, and the
+/// db rows are wiped regardless — startup reconciliation and the surfaced
+/// error cover the leftovers. The wipe itself never stops halfway.
 #[tauri::command]
 #[specta::specta]
 pub async fn clear_all_data(
+    app: AppHandle,
     db: State<'_, Db>,
     inference_manager: State<'_, Arc<ModelManager>>,
+    download_manager: State<'_, Arc<crate::models::download_manager::DownloadManager>>,
 ) -> Result<(), CommandError> {
+    // Stop the writers first: an active download would re-register a model
+    // into the burned registry when it completed.
+    if let Some(active) = download_manager.active_id() {
+        download_manager.cancel(&active);
+    }
     inference_manager.unload().await.map_err(AppError::from)?;
 
     let rows = registry::list(db.pool()).await.map_err(AppError::Db)?;
+    let mut files_left: Vec<String> = Vec::new();
+
     for row in &rows {
         if let Err(e) = tokio::fs::remove_file(&row.path).await {
             if e.kind() != std::io::ErrorKind::NotFound {
-                return Err(AppError::Io(e).into());
+                tracing::warn!(path = %row.path, error = %e, "clear_all_data: file kept (in use?)");
+                files_left.push(row.filename.clone());
             }
         }
         registry::remove(db.pool(), &row.id)
             .await
             .map_err(AppError::Db)?;
+    }
+
+    // Sweep whatever the registry didn't know about: `.part` downloads and
+    // orphaned files.
+    let models_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(AppError::from)?
+        .join(super::models::MODELS_DIR);
+    if let Ok(mut entries) = tokio::fs::read_dir(&models_dir).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            if entry.file_type().await.map(|t| t.is_file()).unwrap_or(false) {
+                if let Err(e) = tokio::fs::remove_file(entry.path()).await {
+                    if e.kind() != std::io::ErrorKind::NotFound {
+                        let name = entry.file_name().to_string_lossy().into_owned();
+                        tracing::warn!(file = %name, error = %e, "clear_all_data: file kept (in use?)");
+                        files_left.push(name);
+                    }
+                }
+            }
+        }
     }
 
     let conversations_removed = conversations::delete_all(db.pool())
@@ -181,7 +218,19 @@ pub async fn clear_all_data(
     tracing::info!(
         models_removed = rows.len(),
         conversations_removed,
+        files_left = files_left.len(),
         "clear_all_data: everything wiped"
     );
+
+    if !files_left.is_empty() {
+        return Err(CommandError {
+            kind: "PartialClear".into(),
+            message: format!(
+                "tudo foi esquecido, mas {} arquivo(s) estavam em uso e ficaram no disco — feche e reabra o app para removê-los: {}",
+                files_left.len(),
+                files_left.join(", ")
+            ),
+        });
+    }
     Ok(())
 }

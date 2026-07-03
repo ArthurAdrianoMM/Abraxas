@@ -125,8 +125,14 @@ export const commands = {
 	 */
 	clearConversations: () => typedError<null, CommandError>(__TAURI_INVOKE("clear_conversations")),
 	/**
-	 *  "Queimar tudo": unloads the model, deletes every model file, then wipes
+	 *  "Queimar tudo": cancels any download, unloads the model, deletes every
+	 *  file in the models directory (including `.part` leftovers), then wipes
 	 *  conversations, the installed-models registry, and all preferences.
+	 *
+	 *  File deletions are best-effort: a file still mapped by an in-flight
+	 *  generation (Windows locks mapped files) is logged and skipped, and the
+	 *  db rows are wiped regardless — startup reconciliation and the surfaced
+	 *  error cover the leftovers. The wipe itself never stops halfway.
 	 */
 	clearAllData: () => typedError<null, CommandError>(__TAURI_INVOKE("clear_all_data")),
 };
