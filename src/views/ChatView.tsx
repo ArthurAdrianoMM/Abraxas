@@ -15,14 +15,14 @@ function ModelNotice() {
   const error = useModelStore((s) => s.error);
   const setView = useUiStore((s) => s.setView);
 
-  if (status !== "none-installed" && status !== "error") return null;
+  if (status !== "none-installed" && status !== "error" && status !== "idle") return null;
 
   return (
     <div className={styles.modelNotice}>
       <span>
-        {status === "none-installed"
-          ? "Nenhuma voz desperta — o Abraxas precisa de um modelo instalado para falar."
-          : `A voz não pôde despertar: ${error}`}
+        {status === "error"
+          ? `A voz não pôde despertar: ${error}`
+          : "Nenhuma voz desperta — o Abraxas precisa de um modelo instalado para falar."}
       </span>
       <button className={styles.modelNoticeLink} onClick={() => setView("models")}>
         ir ao ateliê dos modelos →
@@ -69,7 +69,8 @@ export function ChatView() {
   }, [conversationsLoaded, loadConversations, initModel]);
 
   const generating = status !== "idle";
-  const degraded = modelStatus === "none-installed" || modelStatus === "error";
+  const degraded =
+    modelStatus === "none-installed" || modelStatus === "error" || modelStatus === "idle";
   const showEmpty = activeId === null && !generating;
 
   const handleSend = () => {
