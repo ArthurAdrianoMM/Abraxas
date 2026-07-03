@@ -1,0 +1,476 @@
+/* =========================================================================
+   ABRAXAS — Design System
+   A hermetic / Renaissance / esoteric scriptorium, rendered as software.
+
+   This file is the single source of truth for tokens, primitives and shared
+   chrome (sidebar, topbar, inner column, buttons, inputs, status bits).
+   New tabs should <link> this stylesheet and add only what's specific to
+   that tab on top.
+   ========================================================================= */
+
+/* ---------- 1. TOKENS ---------------------------------------------------- */
+:root{
+  /* surfaces — warm, paper-inverted near-blacks */
+  --bg:        #0f0b0a;
+  --bg-2:      #120e0c;
+  --bg-3:      #161110;
+  --bg-hover:  #1c1614;
+
+  /* hairlines */
+  --line:      #1f1815;
+  --line-2:    #2a201d;
+
+  /* parchment ink scale */
+  --ink:       #e8dfd0;
+  --ink-2:     #c9bda9;
+  --ink-3:     #a89e90;
+  --mute:      #8a7e70;
+  --mute-2:    #6b5f54;
+
+  /* accents — never both on the same element */
+  --brass:     #b89968;   /* warmth, life, status */
+  --bordeaux:  #7d2233;   /* ceremony, intent, focus */
+  --bordeaux-2:#5a1825;
+
+  /* type families — variable fonts bundled locally via @fontsource-variable */
+  --serif:     "EB Garamond Variable","EB Garamond","Iowan Old Style",Georgia,"Hoefler Text",serif;
+  --display:   "Cormorant Garamond Variable","Cormorant Garamond","EB Garamond",Didot,serif;
+  --mono:      "JetBrains Mono Variable","JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+
+/* ---------- 2. RESET / GLOBALS ------------------------------------------ */
+*{ box-sizing:border-box; }
+
+html,body{
+  margin:0; padding:0;
+  height:100%;
+  background:#080605;
+  color:var(--ink);
+  font-family:var(--serif);
+  font-weight:450;                  /* the half-step that makes Garamond confident on dark */
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;
+}
+
+body{
+  /* faint vignette so the dark feels like aged paper, not flat */
+  background: radial-gradient(140% 90% at 50% 0%, #100b0a 0%, #080605 60%, #050302 100%);
+  overflow:hidden;
+}
+
+::selection{ background:var(--bordeaux); color:var(--ink); }
+
+::-webkit-scrollbar{ width:10px; height:10px; }
+::-webkit-scrollbar-track{ background:transparent; }
+::-webkit-scrollbar-thumb{
+  background:#1f1815;
+  border-radius:10px;
+  border:2px solid transparent;
+  background-clip:padding-box;
+}
+::-webkit-scrollbar-thumb:hover{
+  background:#2a201d;
+  border:2px solid transparent;
+  background-clip:padding-box;
+}
+
+.sr-only{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
+
+/* ---------- 3. SHELL ---------------------------------------------------- */
+.shell{
+  display:grid;
+  grid-template-columns: 248px 1fr;
+  grid-template-rows: 100%;
+  height:100vh;
+  max-height:100vh;
+  width:100vw;
+  background:var(--bg);
+  overflow:hidden;
+}
+.shell > *{ min-height:0; }
+
+/* ---------- 4. SIDEBAR -------------------------------------------------- */
+.side{
+  background:var(--bg-2);
+  border-right:1px solid var(--line-2);
+  display:flex;
+  flex-direction:column;
+  padding:20px 16px 16px;
+  gap:20px;
+  min-width:0;
+}
+
+.brand{
+  display:flex; align-items:center; gap:11px;
+  padding:2px;
+}
+.brand .glyph{ flex-shrink:0; }
+.brand .name{
+  font-family:var(--display);
+  font-size:21px;
+  letter-spacing:0.22em;
+  font-weight:500;
+  color:var(--ink);
+  line-height:1;
+}
+.brand .tag{
+  font-family:var(--mono);
+  font-size:9.5px;
+  letter-spacing:0.1em;
+  color:var(--mute);
+  margin-top:5px;
+  line-height:1;
+}
+
+/* "+ nova conversa" — the canonical ghost-button */
+.new-btn{
+  background:transparent;
+  border:1px solid var(--line-2);
+  color:var(--brass);
+  padding:10px 13px;
+  font-family:var(--serif);
+  font-size:15px;
+  font-weight:500;
+  font-style:italic;
+  text-align:left;
+  border-radius:4px;
+  cursor:pointer;
+  letter-spacing:0.01em;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.new-btn:hover{ border-color:var(--bordeaux); color:var(--ink); }
+
+/* sidebar list */
+.conv-scroll{
+  display:flex; flex-direction:column; gap:18px;
+  flex:1; min-height:0; overflow-y:auto;
+  padding-right:2px; margin-right:-2px;
+}
+.group-label{
+  font-family:var(--mono);
+  font-size:9.5px;
+  letter-spacing:0.2em;
+  color:var(--mute-2);
+  text-transform:uppercase;
+  margin-bottom:8px;
+  padding-left:2px;
+}
+.conv{
+  padding:8px 11px;
+  border-radius:4px;
+  font-size:14.5px;
+  font-weight:450;
+  color:var(--ink-3);
+  cursor:pointer;
+  border-left:2px solid transparent;
+  margin-top:2px;
+  line-height:1.4;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.conv:first-child{ margin-top:0; }
+.conv:hover{ background:var(--bg-hover); color:var(--ink-2); }
+.conv.active{
+  background:var(--bg-hover);
+  color:var(--ink);
+  border-left-color:var(--bordeaux);     /* the canonical "selected" marker */
+}
+
+/* sidebar footer — model status block */
+.footer{
+  border-top:1px solid var(--line-2);
+  padding-top:14px;
+  display:flex; flex-direction:column; gap:5px;
+}
+.model-row{
+  display:flex; align-items:center; gap:7px;
+  font-family:var(--mono); font-size:11px; color:var(--brass);
+}
+.pulse{
+  width:6px; height:6px;
+  background:var(--brass);
+  border-radius:50%;
+  display:inline-block;
+  box-shadow:0 0 0 0 rgba(184,153,104,.55);
+  animation: pulse 2.4s ease-out infinite;
+}
+@keyframes pulse{
+  0%  { box-shadow:0 0 0 0 rgba(184,153,104,.5); }
+  70% { box-shadow:0 0 0 7px rgba(184,153,104,0); }
+  100%{ box-shadow:0 0 0 0 rgba(184,153,104,0); }
+}
+.model-meta{
+  font-family:var(--mono); font-size:10px; color:var(--mute-2);
+  padding-left:13px;
+}
+
+/* ---------- 5. MAIN COLUMN --------------------------------------------- */
+.main{
+  display:flex; flex-direction:column;
+  background:var(--bg);
+  min-width:0; min-height:0;
+  height:100%;
+  overflow:hidden;
+}
+
+.topbar{
+  padding:16px 28px;
+  border-bottom:1px solid var(--line);
+  display:flex; justify-content:space-between; align-items:center;
+  gap:16px;
+}
+.topbar .title{
+  font-family:var(--serif);
+  font-style:italic;
+  font-size:17px;
+  font-weight:500;
+  color:var(--ink-2);
+  letter-spacing:0.005em;
+}
+.topbar .meta{
+  font-family:var(--mono);
+  font-size:10px; color:var(--mute-2);
+  letter-spacing:0.06em;
+  display:flex; gap:14px; align-items:center;
+}
+.topbar .meta .dot{
+  width:5px; height:5px; border-radius:50%;
+  background:var(--brass);
+  display:inline-block;
+  margin-right:5px;
+  vertical-align:middle;
+}
+
+/* the canonical reading column — reuse on EVERY tab */
+.column{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding:32px 0 24px;
+  scroll-behavior:smooth;
+}
+.column-inner{
+  max-width:720px;
+  margin:0 auto;
+  padding:0 28px;
+  display:flex; flex-direction:column; gap:28px;
+}
+
+/* ---------- 6. CHAT-SPECIFIC PRIMITIVES (still general-purpose) -------- */
+/* `.thread` is just `.column` aliased so the chat HTML reads naturally    */
+.thread{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding:32px 0 24px;
+  scroll-behavior:smooth;
+}
+.thread-inner{
+  max-width:720px;
+  margin:0 auto;
+  padding:0 28px;
+  display:flex; flex-direction:column; gap:28px;
+}
+
+.turn{ display:flex; flex-direction:column; gap:8px; }
+.turn + .turn{
+  border-top:1px solid var(--line);
+  padding-top:28px;
+}
+
+.who{
+  display:flex; align-items:center; gap:8px;
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--mute-2);
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+}
+.who .seal{ display:inline-flex; align-items:center; justify-content:center; }
+
+.msg{
+  font-size:17.5px;
+  font-weight:450;
+  line-height:1.65;
+  color:var(--ink);
+  text-wrap:pretty;
+}
+.msg p{ margin:0 0 12px; }
+.msg p:last-child{ margin-bottom:0; }
+.msg em{ color:var(--ink-2); }
+.msg strong{ color:var(--ink); font-weight:600; }
+.msg blockquote{
+  margin:14px 0 14px 6px;
+  padding:2px 0 2px 16px;
+  border-left:1px solid var(--bordeaux);
+  font-style:italic;
+  font-size:17px;
+  font-weight:450;
+  line-height:1.65;
+  color:var(--ink-2);
+}
+.msg ul{ margin:6px 0 12px; padding-left:20px; }
+.msg ul li{ margin:4px 0; }
+.msg code{
+  font-family:var(--mono);
+  font-size:12.5px;
+  color:var(--brass);
+  background:#15100f;
+  padding:1px 5px;
+  border-radius:3px;
+  border:1px solid var(--line-2);
+}
+.msg .ornament{
+  display:block;
+  text-align:center;
+  color:var(--mute-2);
+  font-size:14px;
+  letter-spacing:1.2em;
+  margin:8px 0 0 -1.2em;
+}
+
+/* user message: subtle differentiator — brass hairline, no bubble */
+.turn.user .msg{ color:var(--ink); }
+.turn.user .msg::before{
+  content:"";
+  display:block;
+  width:18px; height:1px;
+  background:var(--brass);
+  opacity:.45;
+  margin-bottom:10px;
+}
+
+/* citation / metadata footer — reusable on any card or content block */
+.cite{
+  margin-top:14px;
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--mute-2);
+  letter-spacing:0.06em;
+  display:flex; gap:14px; flex-wrap:wrap;
+}
+.cite span b{ color:var(--ink-3); font-weight:500; }
+
+/* typing indicator */
+.typing{
+  display:inline-flex; gap:5px; align-items:center;
+  padding:4px 0;
+}
+.typing i{
+  width:5px; height:5px; border-radius:50%;
+  background:var(--brass);
+  display:inline-block;
+  opacity:.35;
+  animation: blink 1.2s ease-in-out infinite;
+}
+.typing i:nth-child(2){ animation-delay:.18s; }
+.typing i:nth-child(3){ animation-delay:.36s; }
+@keyframes blink{
+  0%,80%,100%{ opacity:.25; transform:translateY(0); }
+  40%        { opacity:1;  transform:translateY(-1px); }
+}
+
+/* ---------- 7. ACTION BAR / COMPOSER / INPUTS -------------------------- */
+.composer-wrap,
+.actionbar{
+  flex:0 0 auto;
+  padding:16px 28px 22px;
+  border-top:1px solid var(--line);
+  background: linear-gradient(180deg, rgba(15,11,10,0) 0%, var(--bg) 30%);
+}
+.composer-inner,
+.actionbar-inner{
+  max-width:720px; margin:0 auto;
+}
+
+.composer{
+  background:var(--bg-3);
+  border:1px solid var(--line-2);
+  border-radius:6px;
+  display:flex; align-items:flex-end;
+  padding:10px 12px;
+  gap:10px;
+  transition: border-color .18s;
+}
+.composer:focus-within{ border-color:var(--bordeaux); }
+.composer textarea,
+.composer input[type="text"]{
+  flex:1;
+  background:transparent;
+  border:0; outline:none; resize:none;
+  color:var(--ink);
+  font-family:var(--serif);
+  font-size:17px;
+  font-weight:450;
+  line-height:1.55;
+  padding:5px 0;
+  max-height:160px;
+  min-height:26px;
+}
+.composer textarea::placeholder,
+.composer input::placeholder{
+  color:var(--mute-2);
+  font-style:italic;
+}
+
+/* icon button — paperclip / inline tool */
+.icon-btn{
+  background:transparent;
+  border:1px solid transparent;
+  color:var(--mute);
+  width:30px; height:30px;
+  border-radius:4px;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.icon-btn:hover{ color:var(--brass); border-color:var(--line-2); }
+
+/* primary action — send / submit */
+.send-btn,
+.primary-btn{
+  background:var(--bg-hover);
+  border:1px solid var(--bordeaux);
+  color:var(--brass);
+  width:32px; height:32px;
+  border-radius:4px;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.send-btn:hover,
+.primary-btn:hover{ background:var(--bordeaux); color:var(--ink); }
+.send-btn:active,
+.primary-btn:active{ transform:translateY(0.5px); }
+
+/* hint row — keyboard / micro affordance below the composer */
+.hint-row{
+  display:flex; justify-content:space-between;
+  margin-top:9px;
+  font-family:var(--mono);
+  font-size:9.5px;
+  color:var(--mute-2);
+  letter-spacing:0.05em;
+}
+.hint-row kbd,
+kbd{
+  font-family:var(--mono);
+  border:1px solid var(--line-2);
+  border-radius:3px;
+  padding:0 5px;
+  color:var(--ink-3);
+  background:#15100f;
+  font-size:9.5px;
+}
+
+/* ---------- 8. RESPONSIVE ---------------------------------------------- */
+@media (max-width: 760px){
+  .shell{ grid-template-columns: 1fr; }
+  .side { display:none; }
+}
