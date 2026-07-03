@@ -30,6 +30,9 @@ interface ConversationsState {
   /** Creates a conversation titled after the first message and makes it active. */
   createForFirstMessage: (text: string, modelId: string | null) => Promise<Conversation>;
   remove: (id: string) => Promise<void>;
+  /** "apagar todo o histórico" — wipes every conversation on the backend and
+   *  resets the sidebar/thread to the empty state. */
+  clearAll: () => Promise<void>;
   appendMessage: (conversationId: string, role: ChatRole, content: string) => Promise<void>;
   updateParams: (id: string, params: ConversationGenerationParams) => Promise<void>;
   /** Re-sorts the sidebar after updated_at changes without a full refetch. */
@@ -74,6 +77,11 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       conversations: s.conversations.filter((c) => c.id !== id),
       ...(s.activeId === id ? { activeId: null, messages: [] } : {}),
     }));
+  },
+
+  clearAll: async () => {
+    await unwrap(commands.clearConversations());
+    set({ conversations: [], activeId: null, messages: [] });
   },
 
   appendMessage: async (conversationId, role, content) => {
