@@ -35,7 +35,8 @@ use crate::inference::ModelManager;
 
 /// Default reservation for the completion when the catalog provides a
 /// context length but the caller didn't pin `max_completion_tokens`.
-const DEFAULT_COMPLETION_BUDGET: u32 = 512;
+/// Shared with the settings default so the two never drift apart.
+const DEFAULT_COMPLETION_BUDGET: u32 = crate::db::app_settings::DEFAULT_MAX_COMPLETION_TOKENS;
 
 /// Hard cap on `n_ctx` used when the loaded model has no catalog-declared
 /// context length (legacy / dev loads). Matches the previous `GenerateParams`
