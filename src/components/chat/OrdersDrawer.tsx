@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Conversation, ConversationGenerationParams } from "../../lib/tauri/bindings";
 import { useConversationsStore } from "../../stores/conversations";
+import { useSettingsStore } from "../../stores/settings";
 import { useUiStore } from "../../stores/ui";
 import styles from "./OrdersDrawer.module.css";
 
-/** Backend fallbacks (SamplingParams::default() + DEFAULT_COMPLETION_BUDGET). */
-const DEFAULTS = { temperature: 0.8, top_p: 0.95, max_completion_tokens: 512, seed: 1234 };
+/** Last-resort fallbacks when settings haven't loaded yet — mirror
+ *  `AppSettings::default()`. The live "herdar do padrão" hints come from
+ *  the user's actual saved defaults. */
+const FALLBACK = { temperature: 0.8, top_p: 0.95, max_completion_tokens: 512, seed: 1234 };
 
 interface FieldState {
   temperature: number | null;
@@ -99,6 +102,15 @@ export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
   const setOrdersOpen = useUiStore((s) => s.setOrdersOpen);
   const updateParams = useConversationsStore((s) => s.updateParams);
   const messageCount = useConversationsStore((s) => s.messages.length);
+  const settings = useSettingsStore((s) => s.settings);
+
+  // "herdar do padrão" points at the user's saved defaults, not literals.
+  const DEFAULTS = {
+    temperature: settings?.default_temperature ?? FALLBACK.temperature,
+    top_p: settings?.default_top_p ?? FALLBACK.top_p,
+    max_completion_tokens: settings?.default_max_completion_tokens ?? FALLBACK.max_completion_tokens,
+    seed: settings?.default_seed ?? FALLBACK.seed,
+  };
 
   const [fields, setFields] = useState<FieldState>(() => fieldsFromConversation(conversation));
   const [saving, setSaving] = useState(false);
@@ -305,7 +317,9 @@ export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
                 <span className={styles.label}>semente</span>
                 <InheritToggle
                   inherit={fields.seed === null}
-                  hint={String(DEFAULTS.seed)}
+                  hint={
+                    settings?.default_seed != null ? String(settings.default_seed) : "aleatória"
+                  }
                   onToggle={() =>
                     setFields((f) => ({
                       ...f,
