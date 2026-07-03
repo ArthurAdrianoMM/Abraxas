@@ -156,6 +156,13 @@ export type AppInfo = {
  *  `DEFAULT_MAX_COMPLETION_TOKENS`).
  */
 export type AppSettings = {
+	/**
+	 *  First-run gate: `false` until the onboarding flow finishes (or is
+	 *  skipped). Installs that predate this field default to `false`, but
+	 *  the frontend auto-completes it when models or conversations already
+	 *  exist, so existing users are never onboarded retroactively.
+	 */
+	onboarding_complete: boolean,
 	font_size: FontSize,
 	// Model auto-loaded on startup. `None` = first installed model.
 	default_model_id: string | null,

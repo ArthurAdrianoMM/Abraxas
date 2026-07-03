@@ -42,6 +42,11 @@ pub struct IntegrityCheck {
 /// `DEFAULT_MAX_COMPLETION_TOKENS`).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct AppSettings {
+    /// First-run gate: `false` until the onboarding flow finishes (or is
+    /// skipped). Installs that predate this field default to `false`, but
+    /// the frontend auto-completes it when models or conversations already
+    /// exist, so existing users are never onboarded retroactively.
+    pub onboarding_complete: bool,
     pub font_size: FontSize,
     /// Model auto-loaded on startup. `None` = first installed model.
     pub default_model_id: Option<String>,
@@ -62,6 +67,7 @@ impl Default for AppSettings {
         // would be stamped onto conversations and shown to the user). The
         // debug assertion below keeps the two in sync.
         let defaults = Self {
+            onboarding_complete: false,
             font_size: FontSize::Comoda,
             default_model_id: None,
             default_temperature: 0.8,
@@ -174,6 +180,7 @@ mod tests {
     async fn set_then_get_round_trips() {
         let pool = test_pool().await;
         let settings = AppSettings {
+            onboarding_complete: true,
             font_size: FontSize::Ampla,
             default_model_id: Some("tinyllama-1.1b".into()),
             default_temperature: 1.2,
