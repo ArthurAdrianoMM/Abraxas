@@ -1,0 +1,40 @@
+/* Chrome specific to the sidebar component — the shared .side/.brand/.conv
+   primitives live in the global design system; this file covers only what
+   the design pages added on top (the injected footer nav from
+   _sidebar-nav.js, and the clickable model row). */
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+}
+
+.modelRow {
+  cursor: pointer;
+}
+
+.footerNav {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.footerLink {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+  transition: color 0.15s;
+}
+.footerLink:hover {
+  color: var(--brass);
+}
+.footerLinkActive {
+  color: var(--brass);
+}

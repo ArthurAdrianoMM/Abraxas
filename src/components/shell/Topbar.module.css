@@ -1,0 +1,106 @@
+/* Topbar chrome the design pages define outside the shared design system:
+   the model pill and quiet tool buttons (from _chat-extras.css) and the
+   "voltar ao estúdio" back link (from the Settings / Model Manager pages). */
+
+.chatTopbar {
+  position: relative;
+}
+
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.modelPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  margin-right: 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+  transition: border-color 0.15s, background 0.15s;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--ink-2);
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.modelPill:hover {
+  border-color: var(--bordeaux);
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+.modelPill :global(.pulse) {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  background: var(--brass);
+}
+.modelPillName {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 15px;
+  color: inherit;
+  letter-spacing: 0.01em;
+}
+.modelPillId {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.modelPillChev {
+  color: var(--mute);
+  margin-left: 4px;
+  transition: transform 0.15s;
+}
+
+.toolBtn {
+  background: transparent;
+  border: 0;
+  width: 28px;
+  height: 28px;
+  margin-right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mute);
+  border-radius: 3px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.toolBtn:hover {
+  color: var(--brass);
+  background: var(--bg-hover);
+}
+
+.backLink {
+  background: transparent;
+  border: 0;
+  color: var(--mute);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.15s;
+}
+.backLink:hover {
+  color: var(--brass);
+}
