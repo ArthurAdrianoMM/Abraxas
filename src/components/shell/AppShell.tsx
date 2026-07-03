@@ -2,6 +2,8 @@ import { useUiStore, type View } from "../../stores/ui";
 import { ChatView } from "../../views/ChatView";
 import { ModelsView } from "../../views/ModelsView";
 import { SettingsView } from "../../views/SettingsView";
+import { LoadRitual } from "../models/LoadRitual";
+import { SwitchingToast } from "../models/SwitchingToast";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
@@ -18,10 +20,12 @@ export function AppShell() {
   return (
     <div className="shell">
       <Sidebar />
-      <main className="main">
+      <main className="main" style={{ position: "relative" }}>
         <Topbar />
         <ActiveView />
       </main>
+      <LoadRitual />
+      <SwitchingToast />
     </div>
   );
 }

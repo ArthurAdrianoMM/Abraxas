@@ -1,6 +1,9 @@
+import { ago } from "../../lib/format";
+import { useCatalogStore } from "../../stores/catalog";
 import { useConversationsStore } from "../../stores/conversations";
 import { useModelStore } from "../../stores/model";
 import { useUiStore, type View } from "../../stores/ui";
+import { ModelSwitcher } from "./ModelSwitcher";
 import styles from "./Topbar.module.css";
 
 function BackLink({ onClick }: { onClick: () => void }) {
@@ -27,12 +30,17 @@ function Meta({ children }: { children: React.ReactNode }) {
 function ChatTopbar() {
   const setView = useUiStore((s) => s.setView);
   const setOrdersOpen = useUiStore((s) => s.setOrdersOpen);
+  const switcherOpen = useUiStore((s) => s.switcherOpen);
+  const setSwitcherOpen = useUiStore((s) => s.setSwitcherOpen);
   const activeId = useConversationsStore((s) => s.activeId);
   const conversations = useConversationsStore((s) => s.conversations);
   const modelStatus = useModelStore((s) => s.status);
   const loadedId = useModelStore((s) => s.loadedId);
+  const catalogModels = useCatalogStore((s) => s.models);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
+  const loadedName =
+    (loadedId && catalogModels.find((m) => m.model.id === loadedId)?.model.name) || loadedId;
 
   return (
     <header className={`topbar ${styles.chatTopbar}`}>
@@ -44,15 +52,21 @@ function ChatTopbar() {
         </span>
       )}
 
-      {/* model pill — the switcher popover lands with the Models phase; opens the atelier */}
+      {/* model pill → switcher popover */}
       <button
         className={styles.modelPill}
         title="trocar a voz"
-        onClick={() => setView("models")}
+        aria-haspopup="true"
+        aria-expanded={switcherOpen}
+        onClick={() => setSwitcherOpen(!switcherOpen)}
       >
         <span className="pulse"></span>
         <span className={styles.modelPillName}>
-          {modelStatus === "loaded" && loadedId ? loadedId : "sem voz"}
+          {modelStatus === "loaded" && loadedName
+            ? loadedName
+            : modelStatus === "loading"
+              ? "despertando…"
+              : "sem voz"}
         </span>
         <svg className={styles.modelPillChev} width="11" height="11" viewBox="0 0 16 16" fill="none">
           <path
@@ -64,6 +78,8 @@ function ChatTopbar() {
           />
         </svg>
       </button>
+
+      <ModelSwitcher />
 
       <button
         className={styles.toolBtn}
@@ -102,6 +118,61 @@ function ChatTopbar() {
 
 function ModelsTopbar() {
   const setView = useUiStore((s) => s.setView);
+  const pane = useUiStore((s) => s.modelsPane);
+  const setModelsPane = useUiStore((s) => s.setModelsPane);
+  const source = useCatalogStore((s) => s.source);
+  const fetchedAt = useCatalogStore((s) => s.fetchedAt);
+
+  if (pane === "catalog") {
+    return (
+      <header className="topbar">
+        <button className={styles.backLink} onClick={() => setModelsPane("manager")}>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M13 8H3M7 4L3 8l4 4"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          ateliê dos modelos
+        </button>
+        <Meta>
+          <span>
+            <span className="dot"></span>
+            {source === "cache" ? "cópia local" : "catálogo"}
+            {fetchedAt ? ` · sincronizado ${ago(fetchedAt)}` : ""}
+          </span>
+        </Meta>
+      </header>
+    );
+  }
+
+  if (pane === "download") {
+    return (
+      <header className="topbar">
+        <button className={styles.backLink} onClick={() => setModelsPane("catalog")}>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M13 8H3M7 4L3 8l4 4"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          voltar ao compêndio
+        </button>
+        <Meta>
+          <span>
+            <span className="dot"></span>download do modelo
+          </span>
+        </Meta>
+      </header>
+    );
+  }
+
   return (
     <header className="topbar">
       <BackLink onClick={() => setView("chat")} />

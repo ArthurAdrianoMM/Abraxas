@@ -1,0 +1,207 @@
+/* Error card per "Abraxas Error States.html". */
+
+.err {
+  position: relative;
+  border: 1px solid var(--line-2);
+  border-left: 2px solid var(--bordeaux);
+  border-radius: 6px;
+  padding: 26px 28px 22px;
+  background: linear-gradient(180deg, rgba(28, 22, 20, 0.45) 0%, rgba(15, 11, 10, 0.6) 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: hidden;
+}
+.err::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(60% 60% at 0% 0%, rgba(125, 34, 51, 0.18) 0%, transparent 60%);
+  pointer-events: none;
+}
+.err[data-tier="warn"] {
+  border-left-color: var(--ink-3);
+}
+.err[data-tier="warn"]::before {
+  background: radial-gradient(60% 60% at 0% 0%, rgba(168, 158, 144, 0.1) 0%, transparent 60%);
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--bordeaux);
+}
+.err[data-tier="warn"] .badge {
+  color: var(--ink-3);
+}
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+  animation: pulse 1.8s ease-out infinite;
+}
+.dot.steady {
+  animation: none;
+}
+.code {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+.title {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 30px;
+  line-height: 1.12;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: 0.005em;
+  text-wrap: balance;
+  max-width: 28ch;
+}
+.quiet {
+  color: var(--ink-3);
+  display: block;
+}
+
+.rule {
+  width: 32px;
+  height: 1px;
+  background: var(--bordeaux);
+  opacity: 0.7;
+}
+.err[data-tier="warn"] .rule {
+  background: var(--ink-3);
+  opacity: 0.5;
+}
+
+.gloss {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--ink-3);
+  margin: 0;
+  max-width: 46ch;
+  text-wrap: pretty;
+}
+.gloss em {
+  color: var(--ink-2);
+}
+
+.diag {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 2px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.diagRow {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 18px;
+  align-items: baseline;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.diagRow:last-child {
+  border-bottom: 0;
+}
+.diagK {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.diagV {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  word-break: break-all;
+  line-height: 1.4;
+}
+.diagV b {
+  color: var(--ink);
+  font-weight: 500;
+}
+.diagItalic {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+.diagBordeaux {
+  color: #c14a5d;
+}
+
+.actions {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.gbtn {
+  background: transparent;
+  border: 1px solid var(--bordeaux);
+  color: var(--brass);
+  padding: 9px 16px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, gap 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.gbtn:hover {
+  background: var(--bordeaux);
+  color: var(--ink);
+}
+.gbtnGhost {
+  border-color: var(--line-2);
+}
+.gbtnGhost:hover {
+  background: var(--bg-hover);
+  border-color: var(--bordeaux);
+  color: var(--ink);
+}
+.vlink {
+  background: transparent;
+  border: 0;
+  color: var(--mute);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13.5px;
+  cursor: pointer;
+  padding: 6px 0;
+  letter-spacing: 0.01em;
+  transition: color 0.15s;
+}
+.vlink:hover {
+  color: var(--brass);
+}

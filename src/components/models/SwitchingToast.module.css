@@ -1,0 +1,41 @@
+/* "trocando…" toast per _chat-extras.css. */
+
+.switching {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--ink-2);
+  box-shadow: 0 14px 30px -16px rgba(0, 0, 0, 0.7);
+  animation: popIn 0.2s ease-out;
+}
+.switching :global(.pulse) {
+  width: 5px;
+  height: 5px;
+}
+.name {
+  font-style: italic;
+  color: var(--ink);
+  font-family: var(--display);
+  font-weight: 500;
+}
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

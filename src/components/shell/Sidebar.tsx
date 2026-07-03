@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Conversation } from "../../lib/tauri/bindings";
 import { useConversationsStore } from "../../stores/conversations";
+import { useHardwareStore } from "../../stores/hardware";
 import { useModelStore } from "../../stores/model";
 import { useUiStore } from "../../stores/ui";
 import { AbraxasGlyph } from "./AbraxasGlyph";
@@ -103,8 +104,20 @@ function ModelFooter() {
   const status = useModelStore((s) => s.status);
   const loadedId = useModelStore((s) => s.loadedId);
   const installed = useModelStore((s) => s.installed);
+  const detection = useHardwareStore((s) => s.detection);
+  const initHardware = useHardwareStore((s) => s.init);
+
+  useEffect(() => {
+    void initHardware();
+  }, [initHardware]);
 
   const loaded = installed.find((m) => m.id === loadedId) ?? null;
+
+  const ramMeta = detection
+    ? `ram ${Math.round(
+        (detection.system.memory.total_bytes - detection.system.memory.available_bytes) / 1024 ** 3,
+      )}/${Math.round(detection.system.memory.total_bytes / 1024 ** 3)}`
+    : null;
 
   return (
     <>
@@ -125,7 +138,9 @@ function ModelFooter() {
         )}
       </div>
       <div className="model-meta">
-        {status === "loaded" && loaded ? `${formatGb(loaded.size_bytes)} · local` : "— · —"}
+        {status === "loaded" && loaded
+          ? `${formatGb(loaded.size_bytes)}${ramMeta ? ` · ${ramMeta}` : " · local"}`
+          : ramMeta ? `— · ${ramMeta}` : "— · —"}
       </div>
     </>
   );

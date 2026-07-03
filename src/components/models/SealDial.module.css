@@ -1,0 +1,181 @@
+/* The circular hermetic seal / progress dial from "Abraxas Download.html". */
+
+.seal {
+  position: relative;
+  width: 340px;
+  height: 340px;
+  display: grid;
+  place-items: center;
+}
+.seal svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.dialTrack,
+.dialFill {
+  fill: none;
+  stroke-linecap: round;
+}
+.dialTrack {
+  stroke: rgba(184, 153, 104, 0.1);
+  stroke-width: 1.4;
+}
+.dialFill {
+  stroke: var(--brass);
+  stroke-width: 1.8;
+  transition: stroke-dashoffset 0.8s cubic-bezier(0.2, 0.7, 0.2, 1), stroke 0.35s ease;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+.seal[data-state="failed"] .dialFill,
+.seal[data-state="paused"] .dialFill {
+  stroke: rgba(184, 153, 104, 0.45);
+}
+.seal[data-state="failed"] .dialTrack {
+  stroke: rgba(125, 34, 51, 0.18);
+}
+.seal[data-state="complete"] .dialTrack {
+  stroke: rgba(184, 153, 104, 0.4);
+}
+
+.ringInner {
+  fill: none;
+  stroke: rgba(184, 153, 104, 0.18);
+  stroke-width: 0.6;
+}
+.ringOuter {
+  fill: none;
+  stroke: rgba(184, 153, 104, 0.1);
+  stroke-width: 0.6;
+}
+.ticks line {
+  stroke: rgba(184, 153, 104, 0.22);
+  stroke-width: 0.6;
+}
+.ticks line.cardinal {
+  stroke: rgba(184, 153, 104, 0.55);
+}
+
+.armingDot {
+  fill: var(--brass);
+}
+
+.center {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.3s ease;
+}
+
+/* slow rotating glyph behind the seal — only during verifying */
+.verifyGlyph {
+  position: absolute;
+  inset: 60px;
+  border-radius: 50%;
+  border: 1px solid rgba(184, 153, 104, 0.25);
+  border-top-color: var(--brass);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+}
+.seal[data-state="verifying"] .verifyGlyph {
+  opacity: 1;
+  animation: sealSpin 3.4s linear infinite;
+}
+@keyframes sealSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* completed — a soft brass halo grows */
+.seal[data-state="complete"]::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(184, 153, 104, 0.18) 0%, rgba(184, 153, 104, 0) 65%);
+  pointer-events: none;
+}
+
+/* paused / failed — a faint diagonal hash overlay to convey "frozen" */
+.seal[data-state="paused"]::before,
+.seal[data-state="failed"]::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0) 0 8px,
+    rgba(0, 0, 0, 0.18) 8px 9px
+  );
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+.seal[data-state="failed"]::before {
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0) 0 8px,
+    rgba(125, 34, 51, 0.2) 8px 9px
+  );
+}
+
+/* center typography (shared by confirm/progress/done) */
+.seal :global(.pct) {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 64px;
+  line-height: 1;
+  color: var(--ink);
+  letter-spacing: 0.005em;
+  font-variant-numeric: tabular-nums;
+}
+.seal :global(.pct) :global(.sym) {
+  font-size: 32px;
+  color: var(--ink-3);
+  margin-left: 2px;
+  vertical-align: 0.2em;
+}
+.seal :global(.below) {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--mute);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.seal :global(.below) b {
+  color: var(--ink-2);
+  font-weight: 500;
+  letter-spacing: 0.16em;
+}
+
+.seal[data-state="confirm"] :global(.pct) {
+  font-size: 42px;
+}
+.seal[data-state="confirm"] :global(.pct) :global(.sym) {
+  font-size: 18px;
+}
+
+@media (max-width: 1080px) {
+  .seal {
+    width: 300px;
+    height: 300px;
+  }
+  .seal :global(.pct) {
+    font-size: 54px;
+  }
+}

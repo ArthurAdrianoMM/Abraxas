@@ -1,0 +1,300 @@
+/* "Abraxas Load Model.html" — despertando o oráculo, as a full-window overlay. */
+
+.page {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(140% 100% at 50% 50%, #100b0a 0%, #080605 65%, #050302 100%);
+  overflow: hidden;
+  isolation: isolate;
+  transition: opacity 0.5s ease;
+}
+.page.fading {
+  opacity: 0;
+}
+.page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    60% 60% at 50% 50%,
+    transparent 0%,
+    rgba(8, 6, 5, 0.45) 70%,
+    rgba(8, 6, 5, 0.92) 100%
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+.corner {
+  position: absolute;
+  z-index: 5;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--mute-2);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.cornerTl {
+  top: 22px;
+  left: 28px;
+}
+.cornerBr {
+  bottom: 20px;
+  right: 28px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.cornerBr :global(.pulse) {
+  width: 5px;
+  height: 5px;
+}
+
+.stage {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 38px;
+  padding: 0 28px;
+  max-width: 560px;
+  text-align: center;
+}
+
+.markRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  color: var(--mute);
+  text-transform: uppercase;
+}
+.markStep {
+  color: var(--brass);
+}
+.markSep {
+  color: var(--mute-2);
+  opacity: 0.6;
+}
+
+/* the seal */
+.seal {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  display: grid;
+  place-items: center;
+}
+.seal svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.ringOuter {
+  fill: none;
+  stroke: rgba(184, 153, 104, 0.1);
+  stroke-width: 0.6;
+}
+.ringInner {
+  fill: none;
+  stroke: rgba(184, 153, 104, 0.18);
+  stroke-width: 0.6;
+}
+.ticks line {
+  stroke: rgba(184, 153, 104, 0.22);
+  stroke-width: 0.6;
+}
+.ticks line.cardinal {
+  stroke: rgba(184, 153, 104, 0.55);
+}
+.arc {
+  fill: none;
+  stroke: var(--brass);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  transform-origin: 50% 50%;
+  animation: revolve 3.6s linear infinite;
+}
+@keyframes revolve {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.arc2 {
+  fill: none;
+  stroke: rgba(125, 34, 51, 0.55);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+  transform-origin: 50% 50%;
+  animation: revolveBack 6.4s linear infinite;
+}
+@keyframes revolveBack {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.center {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.glyphC {
+  width: 42px;
+  height: 42px;
+  animation: breathe 3.2s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+.sub {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.verb {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 42px;
+  line-height: 1.1;
+  color: var(--ink);
+  letter-spacing: 0.005em;
+  margin: 0;
+  text-wrap: balance;
+}
+.verbQuiet {
+  color: var(--ink-3);
+  display: block;
+}
+
+/* the four labors */
+.labors {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 100%;
+  max-width: 380px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.labor {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  gap: 14px;
+  align-items: baseline;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+  transition: color 0.4s ease;
+}
+.mark {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--line-2);
+  transform: translateY(2px);
+  transition: background 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
+}
+.aside {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--mute-2);
+  letter-spacing: 0.14em;
+}
+.labor[data-state="active"] {
+  color: var(--brass);
+}
+.labor[data-state="active"] .mark {
+  background: var(--brass);
+  border-color: var(--brass);
+  box-shadow: 0 0 0 0 rgba(184, 153, 104, 0.55);
+  animation: pulse 1.6s ease-out infinite;
+}
+.labor[data-state="done"] {
+  color: var(--ink-3);
+}
+.labor[data-state="done"] .mark {
+  background: var(--brass);
+  border-color: var(--brass);
+  box-shadow: none;
+}
+.labor[data-state="done"] .aside {
+  color: var(--mute);
+}
+
+/* which model */
+.chosen {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 4px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13.5px;
+  color: var(--mute);
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+.chosen b {
+  color: var(--ink-2);
+  font-weight: 500;
+  font-style: normal;
+  font-family: var(--display);
+  font-size: 16px;
+  letter-spacing: 0.01em;
+}
+.chosenMono {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+@media (max-width: 640px) {
+  .seal {
+    width: 240px;
+    height: 240px;
+  }
+  .verb {
+    font-size: 34px;
+  }
+  .labors {
+    max-width: 300px;
+  }
+}
