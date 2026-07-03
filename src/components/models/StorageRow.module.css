@@ -1,0 +1,89 @@
+/* Storage row + free-space meter, extracted from DownloadPane so the
+   onboarding download step renders the identical element. */
+
+.storage {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: rgba(28, 22, 20, 0.25);
+}
+.storageTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+}
+.storagePath {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  letter-spacing: 0.06em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.storageRhs {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mute);
+  white-space: nowrap;
+}
+/* thin hairline meter: filled (already used) + incoming (this download) */
+.storageMeter {
+  position: relative;
+  height: 3px;
+  background: #1a1311;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.storageFilled {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: rgba(184, 153, 104, 0.45);
+}
+.storageIncoming {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--brass);
+}
+.storageFoot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+.storageVerdictOk {
+  color: var(--brass);
+}
+.storageWarnLine {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13px;
+  color: #a8334a;
+}
+.storage[data-warn="true"] {
+  border-color: var(--bordeaux);
+  background: linear-gradient(
+    90deg,
+    rgba(125, 34, 51, 0.12) 0%,
+    rgba(125, 34, 51, 0.04) 60%,
+    transparent 100%
+  );
+}
+.storage[data-warn="true"] .storageIncoming {
+  background: var(--bordeaux);
+}
