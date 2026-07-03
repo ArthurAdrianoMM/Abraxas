@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Abraxas — preferências</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_design-system.css">
+
+<style>
+  /* =========================================================================
+     SETTINGS — "as preferências da casa"
+     Sections numbered I–V like the Computer Check ledger. Form controls
+     follow the scriptorium vocabulary: thin hairlines, brass/bordeaux on
+     focus, italic gloss in the right column. No flat default <select>.
+     ========================================================================= */
+
+  .set-column{
+    flex:1 1 auto; min-height:0; overflow-y:auto;
+    padding:36px 0 28px;
+  }
+  .set-inner{
+    max-width:840px; margin:0 auto; padding:0 36px;
+    display:flex; flex-direction:column; gap:30px;
+  }
+
+  /* head */
+  .shead{ display:flex; flex-direction:column; gap:10px; }
+  .shead .kicker{
+    display:flex; gap:14px;
+    font-family:var(--mono); font-size:10px;
+    letter-spacing:0.24em; text-transform:uppercase;
+    color:var(--mute);
+  }
+  .shead .kicker .step{ color:var(--brass); }
+  .shead .kicker .sep{ color:var(--mute-2); opacity:.6; }
+  .shead h1{
+    font-family:var(--display);
+    font-style:italic; font-weight:500;
+    font-size:40px; line-height:1.1;
+    color:var(--ink); margin:0;
+    letter-spacing:0.005em;
+    text-wrap:balance;
+  }
+  .shead h1 .quiet{ color:var(--ink-3); }
+
+  /* section */
+  .section{
+    display:grid;
+    grid-template-columns: 28px 1fr;
+    gap:18px;
+    padding-top:24px;
+    border-top:1px solid var(--line);
+  }
+  .section .roman{
+    font-family:var(--display);
+    font-style:italic; font-weight:500;
+    font-size:20px;
+    color:var(--brass); opacity:.8;
+    letter-spacing:0.04em;
+    line-height:1.5;
+    text-align:right;
+  }
+  .section-body{ display:flex; flex-direction:column; gap:18px; }
+  .section-head{ display:flex; flex-direction:column; gap:6px; }
+  .section-head .name{
+    font-family:var(--display);
+    font-style:italic; font-weight:500;
+    font-size:24px;
+    color:var(--ink);
+    letter-spacing:0.005em;
+    line-height:1.1;
+  }
+  .section-head .gloss{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14.5px; line-height:1.5;
+    color:var(--ink-3); margin:0;
+    max-width:56ch;
+  }
+
+  /* field — two-column row */
+  .field{
+    display:grid;
+    grid-template-columns: 220px 1fr;
+    gap:24px;
+    align-items:start;
+    padding:14px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .field:last-child{ border-bottom:0; }
+  .field .label{
+    display:flex; flex-direction:column; gap:4px;
+  }
+  .field .label .name{
+    font-family:var(--mono);
+    font-size:10px; letter-spacing:0.22em;
+    text-transform:uppercase;
+    color:var(--mute);
+  }
+  .field .label .desc{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:13.5px; line-height:1.5;
+    color:var(--mute-2);
+    max-width:36ch;
+  }
+  .field .value{
+    display:flex; flex-direction:column; gap:8px;
+    min-width:0;
+  }
+
+  /* radio chips — theme, etc */
+  .radio-row{
+    display:flex; gap:8px; flex-wrap:wrap;
+  }
+  .radio-chip{
+    background:transparent;
+    border:1px solid var(--line-2);
+    color:var(--ink-3);
+    padding:7px 14px;
+    border-radius:3px;
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14px;
+    cursor:pointer;
+    transition: border-color .15s, color .15s, background .15s;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .radio-chip:hover{ color:var(--ink); }
+  .radio-chip.active{
+    border-color:var(--bordeaux);
+    color:var(--ink);
+    background: rgba(28,22,20,0.55);
+  }
+  .radio-chip .dot{
+    width:5px; height:5px; border-radius:50%;
+    background: currentColor; opacity:.45;
+  }
+  .radio-chip.active .dot{ background: var(--brass); opacity:1; }
+
+  /* text input */
+  .ti{
+    display:flex; align-items:center; gap:10px;
+    border:1px solid var(--line-2);
+    border-radius:4px;
+    padding:8px 12px;
+    background:var(--bg-3);
+    transition: border-color .18s;
+  }
+  .ti:focus-within{ border-color:var(--bordeaux); }
+  .ti input::placeholder{ color:var(--mute-2); font-style:italic; }
+  .ti input{
+    flex:1; min-width:0;
+    background:transparent; border:0; outline:none;
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:13px; letter-spacing:0.04em;
+  }
+  .ti .suffix{
+    font-family:var(--mono);
+    font-size:9.5px; letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute-2);
+    flex-shrink:0;
+  }
+  .ti .icon-btn-inline{
+    background:transparent; border:0;
+    color:var(--mute);
+    cursor:pointer;
+    padding:3px;
+    transition: color .15s;
+  }
+  .ti .icon-btn-inline:hover{ color:var(--brass); }
+
+  /* slider */
+  .slider-row{
+    display:flex; flex-direction:column; gap:8px;
+    width:100%;
+  }
+  .slider-top{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-family:var(--mono);
+    font-size:10px; letter-spacing:0.18em;
+    color:var(--mute-2); text-transform:uppercase;
+  }
+  .slider-top .reading{
+    font-family:var(--display);
+    font-style:italic; font-weight:500;
+    font-size:22px;
+    color:var(--ink-2);
+    line-height:1;
+    font-variant-numeric: tabular-nums;
+    text-transform:none;
+    letter-spacing:0.01em;
+  }
+  .slider-track{
+    position:relative;
+    height:2px; background:#1a1311;
+    border-radius:2px;
+    cursor:pointer;
+    touch-action:none;
+  }
+  .slider-track .fill{
+    position:absolute; left:0; top:0; bottom:0;
+    background: var(--brass);
+    opacity:.6;
+    border-radius:2px;
+  }
+  .slider-track .thumb{
+    position:absolute; top:50%;
+    width:11px; height:11px;
+    border-radius:50%;
+    background:var(--bg);
+    border:1.5px solid var(--brass);
+    transform: translate(-50%, -50%);
+    cursor:pointer;
+    transition: box-shadow .15s;
+  }
+  .slider-track .thumb:hover{
+    box-shadow: 0 0 0 5px rgba(184,153,104,0.12);
+  }
+  .slider-bounds{
+    display:flex; justify-content:space-between;
+    font-family:var(--mono);
+    font-size:9.5px; letter-spacing:0.14em;
+    color:var(--mute-2); text-transform:uppercase;
+  }
+
+  /* toggle */
+  .toggle-row{
+    display:inline-flex; align-items:center; gap:14px;
+  }
+  .toggle{
+    position:relative;
+    width:32px; height:18px;
+    background:#1a1311;
+    border:1px solid var(--line-2);
+    border-radius:20px;
+    cursor:pointer;
+    transition: background .15s, border-color .15s;
+    flex-shrink:0;
+  }
+  .toggle .knob{
+    position:absolute;
+    top:1.5px; left:2px;
+    width:11px; height:11px;
+    border-radius:50%;
+    background: var(--mute);
+    transition: left .18s, background .18s;
+  }
+  .toggle[data-on="true"]{ border-color:var(--bordeaux); background: rgba(125,34,51,0.18); }
+  .toggle[data-on="true"] .knob{
+    left:16px;
+    background: var(--brass);
+  }
+  .toggle-row .text{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14px;
+    color:var(--ink-3);
+  }
+
+  /* select-like custom dropdown */
+  .select{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px;
+    border:1px solid var(--line-2);
+    border-radius:4px;
+    padding:8px 12px;
+    background:var(--bg-3);
+    cursor:pointer;
+    transition: border-color .15s;
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14.5px;
+    color:var(--ink);
+  }
+  .select:hover{ border-color:var(--bordeaux); }
+  .select .arrow{ color:var(--mute); }
+
+  /* action row */
+  .action-row{
+    display:flex; gap:14px; align-items:center;
+    flex-wrap:wrap;
+  }
+  .verb-link{
+    background:transparent; border:0;
+    color:var(--brass);
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14.5px;
+    cursor:pointer;
+    padding:6px 0;
+    letter-spacing:0.01em;
+    transition: color .15s;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .verb-link:hover{ color:var(--ink); }
+  .verb-link.danger{ color:var(--bordeaux); }
+  .verb-link.danger:hover{ color:#a8334a; }
+  .verb-link .arrow{ width:11px; height:11px; opacity:.7; }
+  .verb-sep{ color:var(--mute-2); opacity:.4; }
+
+  /* "ghost outline button" — the canonical Abraxas CTA */
+  .gbtn{
+    background:transparent;
+    border:1px solid var(--line-2);
+    color:var(--brass);
+    padding:9px 16px;
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14px;
+    border-radius:4px;
+    cursor:pointer;
+    transition: border-color .15s, color .15s, background .15s, gap .15s;
+    display:inline-flex; align-items:center; gap:10px;
+  }
+  .gbtn:hover{ border-color:var(--bordeaux); color:var(--ink); gap:14px; }
+  .gbtn.danger{ color: #a8334a; border-color: rgba(125,34,51,0.5); }
+  .gbtn.danger:hover{ background:rgba(125,34,51,0.18); color:var(--ink); }
+
+  /* about block */
+  .about{
+    display:flex; flex-direction:column; gap:8px;
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14.5px; line-height:1.55;
+    color:var(--ink-3);
+    max-width:54ch;
+  }
+  .about .key{
+    font-family:var(--mono);
+    font-style:normal;
+    font-size:10px; letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--mute);
+    margin-right:14px;
+  }
+  .about b{ color:var(--ink-2); font-weight:500; font-style:normal; font-family:var(--display); }
+  .about p{ margin:0; }
+
+  .topbar.stopbar .back-link{
+    background:transparent; border:0;
+    color:var(--mute);
+    font-family:var(--serif);
+    font-style:italic; font-size:14px;
+    cursor:pointer; padding:4px 2px;
+    display:inline-flex; align-items:center; gap:8px;
+    transition: color .15s;
+  }
+  .topbar.stopbar .back-link:hover{ color:var(--brass); }
+</style>
+</head>
+<body data-page="settings">
+
+<h2 class="sr-only">Abraxas — preferências do estúdio</h2>
+
+<div class="shell">
+
+  <aside class="side" data-screen-label="01 Sidebar">
+    <div class="brand">
+      <svg class="glyph" width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <circle cx="16" cy="16" r="13" stroke="#b89968" stroke-width="0.9" fill="none"/>
+        <circle cx="16" cy="16" r="9.5" stroke="#7d2233" stroke-width="0.7" fill="none"/>
+        <line x1="16" y1="1.5" x2="16" y2="30.5" stroke="#b89968" stroke-width="0.9"/>
+        <line x1="11" y1="16" x2="21" y2="16" stroke="#7d2233" stroke-width="0.7"/>
+        <circle cx="16" cy="11" r="1.4" fill="#b89968"/>
+      </svg>
+      <div style="display:flex;flex-direction:column">
+        <span class="name">ABRAXAS</span>
+        <span class="tag">v.0 · local</span>
+      </div>
+    </div>
+
+    <button class="new-btn">+ nova conversa</button>
+
+    <nav class="conv-scroll" aria-label="Conversas">
+      <div>
+        <div class="group-label">— hoje</div>
+        <div class="conv" data-title="o pássaro e o ovo">o pássaro e o ovo</div>
+      </div>
+      <div>
+        <div class="group-label">— esta semana</div>
+        <div class="conv" data-title="notas sobre Hesse">notas sobre Hesse</div>
+      </div>
+    </nav>
+
+    <div class="footer">
+      <div class="model-row"><span class="pulse"></span>llama-3.1-8b</div>
+      <div class="model-meta">7.3 GB · ram 12/16</div>
+    </div>
+  </aside>
+
+  <main class="main" data-screen-label="02 Settings">
+
+    <header class="topbar stopbar">
+      <button class="back-link" onclick="window.location.href='Abraxas Chat.html'">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13 8H3M7 4L3 8l4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        voltar ao estúdio
+      </button>
+      <span class="meta">
+        <span><span class="dot"></span>preferências</span>
+      </span>
+    </header>
+
+    <section class="set-column">
+      <div class="set-inner">
+
+        <div class="shead">
+          <div class="kicker"><span class="step">preferências</span><span class="sep">·</span><span>as ordens da casa</span></div>
+          <h1>
+            <span>As preferências.</span>
+            <span class="quiet">cinco capítulos breves.</span>
+          </h1>
+        </div>
+
+        <!-- ============== I · APPEARANCE ============== -->
+        <div class="section">
+          <span class="roman">I</span>
+          <div class="section-body">
+            <div class="section-head">
+              <span class="name">A aparência da página</span>
+              <p class="gloss">A casa nasceu em pergaminho noturno. Outros tons existem; nenhum tem brilho.</p>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">tema</span>
+                <span class="desc">a paleta de fundo e tipo.</span>
+              </div>
+              <div class="value">
+                <div class="radio-row" data-radio="theme">
+                  <button class="radio-chip active" data-value="noturno"><span class="dot"></span>noturno</button>
+                  <button class="radio-chip" data-value="pergaminho"><span class="dot"></span>pergaminho</button>
+                  <button class="radio-chip" data-value="alta tinta"><span class="dot"></span>alta tinta</button>
+                  <button class="radio-chip" data-value="automático"><span class="dot"></span>automático</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">tamanho da letra</span>
+                <span class="desc">para leitura longa.</span>
+              </div>
+              <div class="value">
+                <div class="radio-row" data-radio="font">
+                  <button class="radio-chip" data-value="compacta">compacta</button>
+                  <button class="radio-chip active" data-value="cômoda">cômoda</button>
+                  <button class="radio-chip" data-value="ampla">ampla</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">ornamentos</span>
+                <span class="desc">vinhetas, espirais, pequenas pontuações entre parágrafos.</span>
+              </div>
+              <div class="value">
+                <div class="toggle-row">
+                  <div class="toggle" data-on="true"><div class="knob"></div></div>
+                  <span class="text">deixar respirar</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============== II · MODELS DIR ============== -->
+        <div class="section">
+          <span class="roman">II</span>
+          <div class="section-body">
+            <div class="section-head">
+              <span class="name">A pasta dos modelos</span>
+              <p class="gloss">Onde os codices ficam guardados neste computador. Mude e os arquivos vão atrás.</p>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">caminho</span>
+                <span class="desc">absoluto, no seu sistema.</span>
+              </div>
+              <div class="value">
+                <div class="ti">
+                  <input type="text" value="~/Library/Application Support/Abraxas/models">
+                  <button class="icon-btn-inline" title="escolher pasta">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <path d="M2 5.5V4a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.2"/>
+                    </svg>
+                  </button>
+                </div>
+                <span style="font-family:var(--mono);font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:var(--mute-2)">
+                  4 modelos · 22.4 gb · disponível: 187 gb
+                </span>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">conferir integridade</span>
+                <span class="desc">recalcular hashes dos arquivos baixados.</span>
+              </div>
+              <div class="value">
+                <div class="action-row">
+                  <button class="verb-link">conferir agora</button>
+                  <span class="verb-sep">·</span>
+                  <span style="font-family:var(--mono);font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:var(--mute-2)">última: há 3 dias · íntegro</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============== III · GEN PARAMS ============== -->
+        <div class="section">
+          <span class="roman">III</span>
+          <div class="section-body">
+            <div class="section-head">
+              <span class="name">A medida do verbo</span>
+              <p class="gloss">Os parâmetros que entram em toda conversa nova. Cada conversa pode sobrescrever os seus.</p>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">temperatura</span>
+                <span class="desc">quão dilatado o modelo se permite ser.</span>
+              </div>
+              <div class="value">
+                <div class="slider-row">
+                  <div class="slider-top">
+                    <span>movimento</span>
+                    <span class="reading">0.70</span>
+                  </div>
+                  <div class="slider-track">
+                    <div class="fill" style="width:70%"></div>
+                    <div class="thumb" style="left:70%"></div>
+                  </div>
+                  <div class="slider-bounds">
+                    <span>0 · pedra</span>
+                    <span>2 · febre</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">top-p</span>
+                <span class="desc">fração de probabilidade considerada por token.</span>
+              </div>
+              <div class="value">
+                <div class="slider-row">
+                  <div class="slider-top">
+                    <span>amplitude</span>
+                    <span class="reading">0.92</span>
+                  </div>
+                  <div class="slider-track">
+                    <div class="fill" style="width:92%"></div>
+                    <div class="thumb" style="left:92%"></div>
+                  </div>
+                  <div class="slider-bounds">
+                    <span>0</span>
+                    <span>1</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">máximo de tokens</span>
+                <span class="desc">o quanto pode dizer numa só resposta.</span>
+              </div>
+              <div class="value">
+                <div class="ti" style="max-width:200px">
+                  <input type="text" value="2048" style="font-variant-numeric:tabular-nums">
+                  <span class="suffix">tokens</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">semente</span>
+                <span class="desc">para reproduzir uma mesma resposta; deixe em branco para aleatório.</span>
+              </div>
+              <div class="value">
+                <div class="ti" style="max-width:260px">
+                  <input type="text" value="" placeholder="aleatório · ex.: 365" style="font-variant-numeric:tabular-nums">
+                  <button class="icon-btn-inline" title="aleatório">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <path d="M3 8a5 5 0 0 1 9-3M13 8a5 5 0 0 1-9 3M12 3v3h-3M4 13v-3h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============== IV · INSTRUMENT ============== -->
+        <div class="section">
+          <span class="roman">IV</span>
+          <div class="section-body">
+            <div class="section-head">
+              <span class="name">O instrumento</span>
+              <p class="gloss">Se trocou de máquina ou ligou outro periférico, refaça o exame.</p>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">backend</span>
+                <span class="desc">como o modelo é executado.</span>
+              </div>
+              <div class="value">
+                <div class="select" style="max-width:260px">
+                  <span><em style="color:var(--brass);font-style:normal">metal</em> · gpu unificada</span>
+                  <svg class="arrow" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <span style="font-family:var(--mono);font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:var(--mute-2)">
+                  detectado · m2 · 8 núcleos · 16 gb
+                </span>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">refazer o exame</span>
+                <span class="desc">recalcula o que esta máquina aguenta.</span>
+              </div>
+              <div class="value">
+                <button class="gbtn" onclick="window.location.href='Abraxas Computer Check.html'">
+                  examinar de novo
+                  <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============== V · ABOUT / DANGER ============== -->
+        <div class="section">
+          <span class="roman">V</span>
+          <div class="section-body">
+            <div class="section-head">
+              <span class="name">A casa, em poucas linhas</span>
+              <p class="gloss">Versão, créditos, e as ações irreversíveis que se faz à meia-noite.</p>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">sobre</span>
+                <span class="desc">o que está sendo usado.</span>
+              </div>
+              <div class="value">
+                <div class="about">
+                  <p><span class="key">versão</span><b>Abraxas 0.4.2</b> · build 1106</p>
+                  <p><span class="key">tempo de execução</span>llama.cpp · b3567 · metal</p>
+                  <p><span class="key">licença</span><em>uso pessoal e contemplativo · MIT</em></p>
+                  <p style="margin-top:8px;font-style:italic;color:var(--mute);font-size:13px">
+                    “O pássaro luta para sair do ovo. O ovo é o mundo.”
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">apagar conversas</span>
+                <span class="desc">remove o histórico, mantém modelos. não há volta.</span>
+              </div>
+              <div class="value">
+                <button class="gbtn danger">apagar todo o histórico</button>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="label">
+                <span class="name">apagar tudo</span>
+                <span class="desc">conversas, modelos, preferências. a casa vai esquecer.</span>
+              </div>
+              <div class="value">
+                <button class="gbtn danger">queimar tudo</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  // radio chips
+  document.querySelectorAll('[data-radio]').forEach(group => {
+    group.querySelectorAll('.radio-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        group.querySelectorAll('.radio-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+      });
+    });
+  });
+
+  // toggles
+  document.querySelectorAll('.toggle').forEach(t => {
+    t.addEventListener('click', () => {
+      t.dataset.on = t.dataset.on === 'true' ? 'false' : 'true';
+    });
+  });
+
+  // sliders — click to set value
+  document.querySelectorAll('.slider-track').forEach(track => {
+    const fill   = track.querySelector('.fill');
+    const thumb  = track.querySelector('.thumb');
+    const reading= track.closest('.slider-row').querySelector('.reading');
+    function setFromX(x){
+      const rect = track.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+      fill.style.width = (pct*100) + '%';
+      thumb.style.left = (pct*100) + '%';
+      // scale: max from bounds — temperature 0..2, top_p 0..1
+      const last = track.closest('.slider-row').querySelector('.slider-bounds span:last-child').textContent;
+      const max = /2/.test(last) ? 2 : 1;
+      reading.textContent = (pct * max).toFixed(2);
+    }
+    let dragging = false;
+    track.addEventListener('pointerdown', e => {
+      dragging = true;
+      track.setPointerCapture(e.pointerId);
+      setFromX(e.clientX);
+    });
+    track.addEventListener('pointermove', e => { if (dragging) setFromX(e.clientX); });
+    ['pointerup','pointercancel'].forEach(t => track.addEventListener(t, () => { dragging = false; }));
+  });
+</script>
+<script src="_sidebar-nav.js"></script>
+</body>
+</html>

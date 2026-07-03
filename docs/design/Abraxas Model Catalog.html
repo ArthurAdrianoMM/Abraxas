@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Abraxas — compêndio dos modelos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_design-system.css">
+
+<style>
+  /* =========================================================================
+     MODEL CATALOG — "o compêndio"
+     Remote catalog, filterable by Recommended / Viable / Heavy / Not Supported.
+     Each row is a smaller-grain version of the Recommendation card flattened
+     to a ledger line: name + id, params/quant, compat badge, size, action.
+     ========================================================================= */
+
+  .cat-column{
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+    padding:36px 0 24px;
+  }
+  .cat-inner{
+    max-width:920px;
+    margin:0 auto;
+    padding:0 36px;
+    display:flex; flex-direction:column;
+    gap:26px;
+  }
+
+  /* head */
+  .chead{
+    display:grid;
+    grid-template-columns: 1fr auto;
+    align-items:flex-end; gap:24px;
+    padding-bottom:4px;
+  }
+  .chead .left{ display:flex; flex-direction:column; gap:10px; min-width:0; }
+  .chead .kicker{
+    display:flex; align-items:center; gap:14px;
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.24em;
+    text-transform:uppercase;
+    color:var(--mute);
+  }
+  .chead .kicker .step{ color:var(--brass); }
+  .chead .kicker .sep{ color:var(--mute-2); opacity:.6; }
+  .chead h1{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:40px;
+    line-height:1.1;
+    color:var(--ink);
+    letter-spacing:0.005em;
+    margin:0;
+    text-wrap:balance;
+  }
+  .chead h1 .quiet{ color:var(--ink-3); }
+  .chead .gloss{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:15px;
+    line-height:1.55;
+    color:var(--ink-3);
+    margin:4px 0 0;
+    max-width:52ch;
+  }
+  .chead .machine{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute-2);
+    text-align:right;
+    line-height:1.7;
+  }
+  .chead .machine b{ color:var(--brass); font-weight:500; }
+
+  /* search + filters */
+  .controls{
+    display:flex;
+    flex-direction:column; gap:16px;
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+    padding:16px 0;
+  }
+  .search{
+    display:flex; align-items:center; gap:10px;
+    border:1px solid var(--line-2);
+    border-radius:4px;
+    padding:8px 12px;
+    background:var(--bg-3);
+    transition: border-color .18s;
+  }
+  .search:focus-within{ border-color:var(--bordeaux); }
+  .search input{
+    flex:1;
+    background:transparent;
+    border:0; outline:none;
+    color:var(--ink);
+    font-family:var(--serif);
+    font-size:15px;
+    font-weight:450;
+  }
+  .search input::placeholder{ color:var(--mute-2); font-style:italic; }
+  .search .ico{ color:var(--mute); }
+
+  /* filter chips */
+  .chips{
+    display:flex; flex-wrap:wrap; gap:8px;
+    align-items:center;
+  }
+  .chip{
+    background:transparent;
+    border:1px solid var(--line-2);
+    color:var(--ink-3);
+    padding:6px 12px;
+    border-radius:3px;
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    cursor:pointer;
+    transition: border-color .15s, color .15s, background .15s;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .chip .dot{
+    width:5px; height:5px; border-radius:50%;
+    background:currentColor;
+    display:inline-block;
+    opacity:.85;
+  }
+  .chip:hover{ color:var(--ink); border-color:var(--line-2); }
+  .chip.active{
+    color:var(--ink); border-color:var(--bordeaux);
+    background: rgba(28,22,20,0.6);
+  }
+  .chip.active .count{ color:var(--brass); }
+  .chip.all .dot{ display:none; }
+  .chip.rec  .dot{ color:var(--brass); }
+  .chip.via  .dot{ color:var(--ink-3); }
+  .chip.hea  .dot{ color:var(--mute); }
+  .chip.not  .dot{ color:var(--bordeaux); }
+  .chip .count{
+    font-family:var(--mono);
+    font-size:9.5px;
+    color:var(--mute-2);
+    margin-left:2px;
+    letter-spacing:0.1em;
+  }
+
+  /* tier groups */
+  .tier-group{
+    display:flex; flex-direction:column;
+    gap:0;
+  }
+  .tier-label{
+    display:flex; align-items:baseline; gap:12px;
+    margin:6px 0 2px;
+    padding:6px 0;
+  }
+  .tier-label .roman{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:18px;
+    color:var(--brass);
+    opacity:.8;
+    letter-spacing:0.04em;
+  }
+  .tier-label .name{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:22px;
+    color:var(--ink-2);
+    line-height:1;
+    letter-spacing:0.005em;
+  }
+  .tier-label .gloss{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14px;
+    color:var(--mute);
+    line-height:1.4;
+  }
+
+  /* row */
+  .crow{
+    display:grid;
+    grid-template-columns: 22px 1fr 110px 70px auto;
+    gap:18px;
+    align-items:center;
+    padding:16px 0;
+    border-top:1px solid var(--line);
+    transition: background .15s;
+  }
+  .crow:last-child{ border-bottom:1px solid var(--line); }
+  .crow:hover{ background: rgba(28,22,20,0.22); }
+  .crow .compat{
+    width:8px; height:8px; border-radius:50%;
+    display:inline-block;
+    background:var(--mute-2);
+  }
+  .crow[data-tier="rec"] .compat{ background:var(--brass); }
+  .crow[data-tier="via"] .compat{ background:var(--ink-3); }
+  .crow[data-tier="hea"] .compat{ background:var(--mute); }
+  .crow[data-tier="not"] .compat{ background:var(--bordeaux); }
+
+  .crow .body{ display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .crow .name-row{
+    display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+  }
+  .crow .name{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:20px;
+    color:var(--ink);
+    letter-spacing:0.005em;
+    line-height:1.1;
+  }
+  .crow .id{
+    font-family:var(--mono); font-size:10px;
+    letter-spacing:0.14em; text-transform:uppercase;
+    color:var(--mute);
+  }
+  .crow .rationale{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14px;
+    line-height:1.45;
+    color:var(--ink-3);
+    margin-top:2px;
+    max-width:60ch;
+    text-wrap:pretty;
+  }
+  .crow .params{
+    display:flex; flex-wrap:wrap; gap:6px;
+  }
+  .crow .param{
+    font-family:var(--mono);
+    font-size:9px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--ink-3);
+    border:1px solid var(--line-2);
+    border-radius:3px;
+    padding:3px 6px;
+    background:rgba(28,22,20,0.4);
+  }
+  .crow .param b{ color:var(--brass); font-weight:500; letter-spacing:0.06em; }
+  .crow .size{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:20px;
+    color:var(--ink-2);
+    text-align:right;
+    line-height:1;
+    font-variant-numeric: tabular-nums;
+  }
+  .crow .size .sym{
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:0.18em;
+    color:var(--mute);
+    margin-left:4px;
+    text-transform:uppercase;
+    vertical-align:0.2em;
+  }
+
+  /* the action button (download / installed / blocked) */
+  .crow .act{
+    background:transparent;
+    border:1px solid var(--line-2);
+    color:var(--brass);
+    padding:9px 14px;
+    border-radius:4px;
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14px;
+    cursor:pointer;
+    white-space:nowrap;
+    transition: border-color .15s, color .15s, background .15s, gap .15s;
+    display:inline-flex; align-items:center; gap:10px;
+  }
+  .crow .act:hover{ border-color:var(--bordeaux); color:var(--ink); gap:14px; }
+  .crow[data-installed="true"] .act{
+    color:var(--ink-3); border-color:var(--line); cursor:default;
+  }
+  .crow[data-installed="true"] .act:hover{ background:transparent; gap:10px; }
+  .crow[data-tier="not"] .act{
+    color:var(--mute); border-color:var(--line);
+    cursor:not-allowed;
+  }
+  .crow[data-tier="not"] .act:hover{ color:var(--mute); gap:10px; }
+  .crow .act .arrow{ width:11px; height:11px; }
+
+  /* topbar */
+  .topbar.ctopbar .back-link{
+    background:transparent; border:0;
+    color:var(--mute);
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14px;
+    cursor:pointer;
+    padding:4px 2px;
+    display:inline-flex; align-items:center; gap:8px;
+    transition: color .15s;
+  }
+  .topbar.ctopbar .back-link:hover{ color:var(--brass); }
+</style>
+</head>
+<body data-page="catalog">
+
+<h2 class="sr-only">Abraxas — compêndio de modelos disponíveis para baixar</h2>
+
+<div class="shell">
+  <aside class="side" data-screen-label="01 Sidebar">
+    <div class="brand">
+      <svg class="glyph" width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <circle cx="16" cy="16" r="13" stroke="#b89968" stroke-width="0.9" fill="none"/>
+        <circle cx="16" cy="16" r="9.5" stroke="#7d2233" stroke-width="0.7" fill="none"/>
+        <line x1="16" y1="1.5" x2="16" y2="30.5" stroke="#b89968" stroke-width="0.9"/>
+        <line x1="11" y1="16" x2="21" y2="16" stroke="#7d2233" stroke-width="0.7"/>
+        <circle cx="16" cy="11" r="1.4" fill="#b89968"/>
+      </svg>
+      <div style="display:flex;flex-direction:column">
+        <span class="name">ABRAXAS</span>
+        <span class="tag">v.0 · local</span>
+      </div>
+    </div>
+
+    <button class="new-btn">+ nova conversa</button>
+
+    <nav class="conv-scroll" aria-label="Conversas">
+      <div>
+        <div class="group-label">— hoje</div>
+        <div class="conv" data-title="o pássaro e o ovo">o pássaro e o ovo</div>
+        <div class="conv" data-title="privacidade em modelos locais">privacidade em modelos locais</div>
+      </div>
+      <div>
+        <div class="group-label">— esta semana</div>
+        <div class="conv" data-title="notas sobre Hesse">notas sobre Hesse</div>
+      </div>
+    </nav>
+
+    <div class="footer">
+      <div class="model-row"><span class="pulse"></span>llama-3.1-8b</div>
+      <div class="model-meta">7.3 GB · ram 12/16</div>
+    </div>
+  </aside>
+
+  <main class="main" data-screen-label="02 Model Catalog">
+
+    <header class="topbar ctopbar">
+      <button class="back-link" onclick="window.location.href='Abraxas Model Manager.html'">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13 8H3M7 4L3 8l4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ateliê dos modelos
+      </button>
+      <span class="meta">
+        <span><span class="dot"></span>catálogo · sincronizado há 6 min</span>
+      </span>
+    </header>
+
+    <section class="cat-column">
+      <div class="cat-inner">
+
+        <!-- head -->
+        <div class="chead">
+          <div class="left">
+            <div class="kicker">
+              <span class="step">o compêndio</span><span class="sep">·</span><span>catálogo remoto</span>
+            </div>
+            <h1>
+              <span>Os modelos do mundo,</span>
+              <span class="quiet">ainda do outro lado do firmamento.</span>
+            </h1>
+            <p class="gloss">
+              Tudo que cabe nesta máquina aparece em <em>recomendado</em> ou <em>viável</em>.
+              Os pesados rodam, mas vão arrastar; os não-suportados estão listados por integridade,
+              não para serem baixados.
+            </p>
+          </div>
+          <div class="machine">
+            sua máquina<br>
+            <b>16 gb · 8 núcleos · metal</b>
+          </div>
+        </div>
+
+        <!-- search + chips -->
+        <div class="controls">
+          <div class="search">
+            <span class="ico">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.3"/>
+                <path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <input id="q" type="text" placeholder="procurar por nome, autor, quantização…" autocomplete="off">
+            <span style="font-family:var(--mono);font-size:9.5px;letter-spacing:0.18em;color:var(--mute-2);text-transform:uppercase">10 modelos</span>
+          </div>
+          <div class="chips" id="chips" role="tablist">
+            <button class="chip all active" data-tier="all">todos <span class="count">10</span></button>
+            <button class="chip rec" data-tier="rec"><span class="dot"></span>recomendados <span class="count">3</span></button>
+            <button class="chip via" data-tier="via"><span class="dot"></span>viáveis <span class="count">3</span></button>
+            <button class="chip hea" data-tier="hea"><span class="dot"></span>pesados <span class="count">2</span></button>
+            <button class="chip not" data-tier="not"><span class="dot"></span>não suportados <span class="count">2</span></button>
+          </div>
+        </div>
+
+        <!-- ============== RECOMMENDED ============== -->
+        <div class="tier-group" data-tier-group="rec">
+          <div class="tier-label">
+            <span class="roman">I</span>
+            <span class="name">Recomendados</span>
+            <span class="gloss">cabem na sua máquina sem suar.</span>
+          </div>
+
+          <article class="crow" data-tier="rec" data-installed="true">
+            <span class="compat"></span>
+            <div class="body">
+              <div class="name-row">
+                <span class="name">Llama 3.1</span>
+                <span class="id">meta · 8b · q4_k_m</span>
+              </div>
+              <p class="rationale">A escolha padrão da casa — boa em raciocínio longo, contemplativa quando preciso.</p>
+            </div>
+            <div class="params">
+              <span class="param"><b>8B</b></span>
+              <span class="param"><b>q4_k_m</b></span>
+            </div>
+            <span class="size">7.3<span class="sym">gb</span></span>
+            <button class="act">já instalado</button>
+          </article>
+
+          <article class="crow" data-tier="rec" data-installed="false">
+            <span class="compat"></span>
+            <div class="body">
+              <div class="name-row">
+                <span class="name">Mistral 7B</span>
+                <span class="id">mistralai · 7b-instruct · q5_k_m</span>
+              </div>
+              <p class="rationale">Direto, sem ornamento. Bom para resumir e cortar gordura.</p>
+            </div>
+            <div class="params">
+              <span class="param"><b>7B</b></span>
+              <span class="param"><b>q5_k_m</b></span>
+            </div>
+            <span class="size">5.1<span class="sym">gb</span></span>
+            <button class="act">
+              baixar
+              <svg class="arrow" viewBox="0 0 16 16" fill="none"><path d="M8 3v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </article>
+
+          <article class="crow" data-tier="rec" data-installed="false">
+            <span class="compat"></span>
+            <div class="body">
+              <div class="name-row">
+                <span class="name">Phi-3 Medium</span>
+                <span class="id">microsoft · 14b · q3_k_m</span>
+              </div>
+              <p class="rationale">Pequeno em parâmetros úteis, mas afiado para código e lógica.</p>
+            </div>
+            <div class="params">
+              <span class="param"><b>14B</b></span>
+              <span class="param"><b>q3_k_m</b></span>
+            </div>
+            <span class="size">6.6<span class="sym">gb</span></span>
+            <button class="act">
+              baixar
+              <svg class="arrow" viewBox="0 0 16 16" fill="none"><path d="M8 3v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </article>
+        </div>
+
+        <!-- ============== VIABLE ============== -->
+        <div class="tier-group" data-tier-group="via">
+          <div class="tier-label">
+            <span class="roman">II</span>
+            <span class="name">Viáveis</span>
+            <span class="gloss">rodam bem; talvez peçam paciência em respostas longas.</span>
+          </div>
+
+          <article class="crow" data-tier="via" data-installed="true">
+            <span class="compat"></span>
+            <div class="body">
+              <div class="name-row">
+                <span class="name">Qwen 2.5</span>
+                <span class="id">alibaba · 14b-instruct · q4_0</span>
+              </div>
+              <p class="rationale">Multilíngue, com vocabulário largo. Pesa um pouco mas pensa em português.</p>
+            </div>
+            <div class="params">
+              <span class="param"><b>14B</b></span>
+              <span class="param"><b>q4_0</b></span>
+            </div>
+            <span class="size">6.2<span class="sym">gb</span></span>
+            <button class="act">já instalado</button>
+          </article>
+
+          <article class="crow" data-tier="via" data-installed="false">
+            <span class="compat"></span>
+            <div class="body">
+              <div class="name-row">
+                <span class="name">Gemma 2</span>
+                <span class="id">google · 9b-instruct · q4_k_m</span>
+              </div>
+              <p class="rationale">Educado, prosa limpa, raramente alucina sobre datas e nomes.</p>
+            </div>
+            <div class="params">
+              <span class="param"><b>9B</b></span>
+              <span class="param"><b>q4_k_m</b></span>
+            </div>
+            <span class="size">5.4<span class="sym">gb</span></span>
+            <button class="act">
+              baixar
+              <svg class="arrow" viewBox="0 0 16 16" fill="none"><path d="M8 3v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </article>
+
+          <article class="crow" data-tier="via" data-installed="false">
+            <span class="compat"></span>
+            <div class="body">
+              <div class="name-row">
+                <span class="name">DeepSeek Coder V2</span>
+                <span class="id">deepseek · 16b · q4_k_s</span>
+              </div>
+              <p class="rationale">Afinado para código. Não conversa sobre Hesse, mas escreve Python sem reclamar.</p>
+            </div>
+            <div class="params">
+              <span class="param"><b>16B</b></span>
+              <span class="param"><b>q4_k_s</b></span>
+            </div>
+            <span class="size">8.9<span class="sym">gb</span></span>
+            <button class="act">
+              baixar
+              <svg class="arrow" viewBox="0 0 16 16" fill="none"><path d="M8 3v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </article>
+        </div>
+
+        <!-- ============== HEAVY ============== -->
+        <div class="tier-group" data-tier-group="hea">
+          <div class="tier-label">
+            <span class="roman">III</span>
+            <span class="name">Pesados</span>
+            <span class="gloss">rodam, com swap e paciência; mais para ocasiões.</span>
+          </div>
+
+          <article class="crow" data-tier="hea" data-installed="false">
+            <span class="compat"></span>
+            <div class="body">
+              <div class="name-row">
+                <span class="name">Llama 3.1</span>
+                <span class="id">meta · 70b · q3_k_m</span>
+              </div>
+              <p class="rationale">Modelo grande, com vocabulário denso. Vai usar swap; pense em respostas curtas.</p>
+            </div>
+            <div class="params">
+              <span class="param"><b>70B</b></span>
+              <span class="param"><b>q3_k_m</b></span>
+            </div>
+            <span class="size">35.2<span class="sym">gb</span></span>
+            <button class="act">
+              baixar mesmo assim
+              <svg class="arrow" viewBox="0 0 16 16" fill="none"><path d="M8 3v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </article>
+
+          <article class="crow" data-tier="hea" data-installed="false">
+            <span class="compat"></span>
+            <div class="body">
+              <div class="name-row">
+                <span class="name">Mixtral 8×7B</span>
+                <span class="id">mistralai · 47b · q4_k_s</span>
+              </div>
+              <p class="rationale">Mistura de especialistas — bom em vários idiomas. Vai pedir mais RAM do que você tem.</p>
+            </div>
+            <div class="params">
+              <span class="param"><b>47B</b></span>
+              <span class="param"><b>q4_k_s</b></span>
+            </div>
+            <span class="size">26.4<span class="sym">gb</span></span>
+            <button class="act">
+              baixar mesmo assim
+              <svg class="arrow" viewBox="0 0 16 16" fill="none"><path d="M8 3v9M4 8l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </article>
+        </div>
+
+        <!-- ============== NOT SUPPORTED ============== -->
+        <div class="tier-group" data-tier-group="not">
+          <div class="tier-label">
+            <span class="roman">IV</span>
+            <span class="name">Não suportados</span>
+            <span class="gloss">precisam de máquina maior — listados para você saber que existem.</span>
+          </div>
+
+          <article class="crow" data-tier="not" data-installed="false">
+            <span class="compat"></span>
+            <div class="body">
+              <div class="name-row">
+                <span class="name">Llama 3.1</span>
+                <span class="id">meta · 405b · q4_k_m</span>
+              </div>
+              <p class="rationale">Modelo gigantesco. Não cabe — nem com swap. Pense em 64 GB de RAM ou um servidor.</p>
+            </div>
+            <div class="params">
+              <span class="param"><b>405B</b></span>
+              <span class="param"><b>q4_k_m</b></span>
+            </div>
+            <span class="size">220<span class="sym">gb</span></span>
+            <button class="act" disabled>fora do alcance</button>
+          </article>
+
+          <article class="crow" data-tier="not" data-installed="false">
+            <span class="compat"></span>
+            <div class="body">
+              <div class="name-row">
+                <span class="name">Qwen 2.5</span>
+                <span class="id">alibaba · 72b · q4_k_m</span>
+              </div>
+              <p class="rationale">Necessita ≥ 48 GB de RAM unificada. A sua tem 16.</p>
+            </div>
+            <div class="params">
+              <span class="param"><b>72B</b></span>
+              <span class="param"><b>q4_k_m</b></span>
+            </div>
+            <span class="size">41<span class="sym">gb</span></span>
+            <button class="act" disabled>fora do alcance</button>
+          </article>
+        </div>
+
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  // chip + search filtering — one code path, so the two never disagree
+  const chips  = document.querySelectorAll('.chip');
+  const rows   = document.querySelectorAll('.crow');
+  const groups = document.querySelectorAll('.tier-group');
+  const q      = document.getElementById('q');
+
+  function applyFilters(){
+    const tier = document.querySelector('.chip.active').dataset.tier;
+    const term = q.value.trim().toLowerCase();
+    rows.forEach(r => {
+      const tierOk   = (tier === 'all') || r.dataset.tier === tier;
+      const searchOk = !term || r.textContent.toLowerCase().includes(term);
+      r.style.display = (tierOk && searchOk) ? '' : 'none';
+    });
+    // hide a tier group entirely when none of its rows survive
+    groups.forEach(g => {
+      const any = [...g.querySelectorAll('.crow')].some(r => r.style.display !== 'none');
+      g.style.display = any ? '' : 'none';
+    });
+  }
+
+  chips.forEach(c => c.addEventListener('click', () => {
+    chips.forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+    applyFilters();
+  }));
+
+  q.addEventListener('input', applyFilters);
+
+  // mock: clicking baixar takes you to the download flow
+  document.querySelectorAll('.crow .act').forEach(b => {
+    if (/baixar/.test(b.textContent)){
+      b.addEventListener('click', () => {
+        window.location.href = 'Abraxas Download.html';
+      });
+    }
+  });
+</script>
+<script src="_sidebar-nav.js"></script>
+</body>
+</html>

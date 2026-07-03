@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Abraxas — invocação</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="_design-system.css">
+
+<style>
+  /* welcome screen — overrides shell layout: no sidebar, full bleed.
+     keeps tokens, type, accents, motion language. */
+  body{ overflow:hidden; }
+
+  .welcome{
+    position:fixed; inset:0;
+    display:grid;
+    place-items:center;
+    background:
+      radial-gradient(120% 80% at 50% 50%, #100b0a 0%, #080605 65%, #050302 100%);
+    overflow:hidden;
+    isolation:isolate;
+  }
+
+  /* the fibonacci gif as background — large, centered, very subtle */
+  .welcome .figure{
+    position:absolute;
+    inset:0;
+    display:grid;
+    place-items:center;
+    z-index:0;
+    pointer-events:none;
+  }
+  .welcome .figure img{
+    width:min(92vh, 92vmin);
+    height:auto;
+    /* warm the white drawing into parchment — clearer, still atmospheric */
+    filter:
+      invert(1) hue-rotate(180deg)              /* black ink on white → light ink on dark */
+      sepia(0.45)                               /* warm tone */
+      brightness(1.05)
+      contrast(1.0);
+    opacity:0.35;
+    mix-blend-mode:screen;
+    animation: drift 24s ease-in-out infinite alternate;
+  }
+  @keyframes drift{
+    0%   { transform: rotate(-0.6deg) scale(1.00); }
+    100% { transform: rotate( 0.6deg) scale(1.04); }
+  }
+
+  /* faint inner vignette so the spiral fades at the edges of the page */
+  .welcome::before{
+    content:"";
+    position:absolute; inset:0;
+    background:
+      radial-gradient(65% 65% at 50% 50%, transparent 0%, rgba(8,6,5,0.40) 70%, rgba(8,6,5,0.92) 100%);
+    z-index:1;
+    pointer-events:none;
+  }
+
+  /* foreground stack */
+  .welcome .stage{
+    position:relative;
+    z-index:2;
+    display:flex; flex-direction:column; align-items:center;
+    gap:34px;
+    padding:0 28px;
+    text-align:center;
+  }
+
+  /* mark + wordmark */
+  .mark{
+    display:flex; flex-direction:column; align-items:center;
+    gap:22px;
+  }
+  .mark .glyph{
+    width:88px; height:88px;
+    animation: glyph-in 1.6s ease-out both;
+  }
+  @keyframes glyph-in{
+    0%   { opacity:0; transform: scale(0.92); }
+    100% { opacity:1; transform: scale(1); }
+  }
+  .wordmark{
+    font-family:var(--display);
+    font-size:64px;
+    letter-spacing:0.32em;
+    font-weight:500;
+    color:var(--ink);
+    line-height:1;
+    /* nudge optical centering against the wide tracking */
+    padding-left:0.32em;
+    animation: fade-up 1.6s ease-out 0.15s both;
+  }
+  .invocation{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:18px;
+    line-height:1.55;
+    color:var(--ink-3);
+    max-width:42ch;
+    text-wrap:balance;
+    animation: fade-up 1.6s ease-out 0.35s both;
+  }
+  @keyframes fade-up{
+    0%   { opacity:0; transform: translateY(8px); }
+    100% { opacity:1; transform: translateY(0); }
+  }
+
+  /* a hairline between invocation and CTA */
+  .rule{
+    width:34px; height:1px;
+    background:var(--brass);
+    opacity:0.55;
+    margin:2px 0;
+    animation: fade-up 1.6s ease-out 0.5s both;
+  }
+
+  /* the single CTA — italic ghost button, larger than sidebar variant */
+  .enter-btn{
+    background:transparent;
+    border:1px solid var(--line-2);
+    color:var(--brass);
+    padding:14px 26px;
+    font-family:var(--serif);
+    font-size:17px;
+    font-style:italic;
+    font-weight:500;
+    letter-spacing:0.02em;
+    border-radius:4px;
+    cursor:pointer;
+    display:inline-flex; align-items:center; gap:12px;
+    text-decoration:none;
+    transition: border-color .2s, color .2s, background .2s, gap .2s;
+    animation: fade-up 1.6s ease-out 0.65s both;
+  }
+  .enter-btn:hover{
+    border-color:var(--bordeaux);
+    color:var(--ink);
+    gap:16px;
+  }
+  .enter-btn .arrow{
+    width:14px; height:14px;
+    display:inline-flex; align-items:center; justify-content:center;
+    color:currentColor;
+  }
+
+  /* quiet secondary route under the CTA */
+  .alt-link{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute-2);
+    text-decoration:none;
+    margin-top:-14px;
+    transition: color .2s;
+    animation: fade-up 1.6s ease-out 0.8s both;
+  }
+  .alt-link:hover{ color:var(--brass); }
+
+  /* corner micro-meta — keeps the engineering / hermetic tension alive */
+  .corner{
+    position:absolute;
+    z-index:2;
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--mute-2);
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    pointer-events:none;
+    animation: fade-up 1.8s ease-out 0.9s both;
+  }
+  .corner.tl{ top:24px; left:28px; }
+
+  @media (max-width: 640px){
+    .wordmark{ font-size:42px; letter-spacing:0.26em; padding-left:0.26em; }
+    .mark .glyph{ width:64px; height:64px; }
+    .invocation{ font-size:16px; }
+  }
+</style>
+</head>
+<body>
+
+<h2 class="sr-only">Abraxas — tela inicial de invocação</h2>
+
+<div class="welcome">
+
+  <!-- background figure — fibonacci spiral -->
+  <div class="figure" aria-hidden="true">
+    <img src="assets/fibonacci.gif" alt="">
+  </div>
+
+  <!-- corners: keep the chrome's monospace meta language alive -->
+  <span class="corner tl">abraxas · v.0</span>
+
+  <!-- foreground -->
+  <div class="stage">
+
+    <div class="mark">
+      <svg class="glyph" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <circle cx="16" cy="16" r="13"  stroke="#b89968" stroke-width="0.7" fill="none"/>
+        <circle cx="16" cy="16" r="9.5" stroke="#7d2233" stroke-width="0.55" fill="none"/>
+        <line x1="16" y1="1.5" x2="16" y2="30.5" stroke="#b89968" stroke-width="0.7"/>
+        <line x1="11" y1="16" x2="21" y2="16"   stroke="#7d2233" stroke-width="0.55"/>
+        <circle cx="16" cy="11" r="1.2" fill="#b89968"/>
+      </svg>
+      <span class="wordmark">ABRAXAS</span>
+    </div>
+
+    <span class="rule" aria-hidden="true"></span>
+
+    <a class="enter-btn" href="Abraxas Chat.html" id="enterBtn">
+      <span id="enterLabel">entrar no estúdio</span>
+      <span class="arrow" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+    </a>
+
+    <a class="alt-link" href="Abraxas Computer Check.html" id="altLink">refazer o exame da máquina →</a>
+
+  </div>
+</div>
+
+<script>
+  // First visit → the house must be examined and a model chosen first.
+  // Once a model is installed (localStorage 'abraxas:ready'), the CTA
+  // leads straight into the studio.
+  const btn   = document.getElementById('enterBtn');
+  const label = document.getElementById('enterLabel');
+  const alt   = document.getElementById('altLink');
+  let ready = false;
+  try { ready = localStorage.getItem('abraxas:ready') === '1'; } catch (e) {}
+  if (!ready){
+    btn.href = 'Abraxas Computer Check.html';
+    label.textContent = 'começar · examinar a máquina';
+    alt.href = 'Abraxas Chat.html';
+    alt.textContent = 'já conheço a casa — entrar direto →';
+  }
+
+  // press Enter or Space to proceed — chat is keyboard-first, so is this
+  window.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' || e.key === ' '){
+      e.preventDefault();
+      btn.click();
+    }
+  });
+</script>
+</body>
+</html>

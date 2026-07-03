@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Abraxas — exame da máquina</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="_design-system.css">
+
+<style>
+  /* ---- Computer Check (v3 — split scriptorium spread) -------------------
+     Two-page manuscript fold. Left leaf is ceremonial: a large italic
+     verdict, brass rule, the spiral glyph as faint figure. Right leaf is
+     the scribe's ledger: numbered hardware entries (I–V) with monospace
+     labels and serif values, plus actions tucked underneath.
+     ---------------------------------------------------------------------- */
+
+  body{ overflow:hidden; }
+
+  .check{
+    position:fixed; inset:0;
+    display:grid;
+    grid-template-columns: 1.05fr 1fr;
+    background:
+      radial-gradient(140% 100% at 50% -10%, #100b0a 0%, #080605 65%, #050302 100%);
+  }
+
+  /* corner micro-meta — same language as Welcome */
+  .corner{
+    position:absolute;
+    z-index:5;
+    font-family:var(--mono);
+    font-size:9.5px;
+    color:var(--mute-2);
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    pointer-events:none;
+  }
+  .corner.tl{ top:22px; left:28px; }
+  .corner.tr{ top:22px; right:28px; display:flex; align-items:center; gap:8px; }
+  .corner.tr .pulse{ width:5px; height:5px; }
+  .corner.bl{ bottom:20px; left:28px; }
+
+  /* ====================== LEFT LEAF — ceremony ====================== */
+  .leaf-l{
+    position:relative;
+    display:flex; flex-direction:column;
+    justify-content:center;
+    padding:88px 64px 88px 88px;
+    overflow:hidden;
+    isolation:isolate;
+  }
+
+  /* faint spiral figure behind the verdict */
+  .leaf-l .figure{
+    position:absolute;
+    inset:-8% -10% -8% -20%;
+    display:grid; place-items:center;
+    z-index:0;
+    pointer-events:none;
+  }
+  .leaf-l .figure img{
+    width:120%;
+    height:auto;
+    filter:
+      invert(1) hue-rotate(180deg)
+      sepia(0.55)
+      brightness(0.95);
+    opacity:0.16;
+    mix-blend-mode:screen;
+    animation: drift 30s ease-in-out infinite alternate;
+  }
+  @keyframes drift{
+    0%   { transform: rotate(-0.4deg) scale(1.00); }
+    100% { transform: rotate( 0.4deg) scale(1.04); }
+  }
+  /* inner vignette so the figure fades into the page edges */
+  .leaf-l::before{
+    content:"";
+    position:absolute; inset:0;
+    background:
+      radial-gradient(70% 70% at 50% 50%, transparent 0%, rgba(8,6,5,0.45) 70%, rgba(8,6,5,0.92) 100%);
+    z-index:1;
+    pointer-events:none;
+  }
+
+  .leaf-l .stack{
+    position:relative;
+    z-index:2;
+    display:flex; flex-direction:column;
+    gap:28px;
+    max-width:480px;
+  }
+
+  /* small heading: spiral mark + step name */
+  .mark-row{
+    display:flex; align-items:center;
+    gap:14px;
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.24em;
+    color:var(--mute);
+    text-transform:uppercase;
+  }
+  .mark-row .glyph{ flex-shrink:0; }
+  .mark-row .step{ color:var(--brass); }
+  .mark-row .sep{ color:var(--mute-2); opacity:.6; }
+
+  /* the title before scan completes */
+  .leaf-l .pre{
+    transition: opacity .5s ease;
+  }
+  .leaf-l .pre.hide{ opacity:0; pointer-events:none; height:0; overflow:hidden; }
+
+  .leaf-l h1{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:54px;
+    line-height:1.08;
+    letter-spacing:0.005em;
+    color:var(--ink);
+    margin:0;
+    text-wrap:balance;
+  }
+  .leaf-l h1 .quiet{
+    font-style:italic;
+    color:var(--ink-3);
+    display:block;
+  }
+
+  /* the verdict, when ready, replaces the title */
+  .verdict{
+    display:flex; flex-direction:column;
+    gap:22px;
+    opacity:0;
+    transform: translateY(8px);
+    transition: opacity .65s ease, transform .65s ease;
+    pointer-events:none;
+    height:0; overflow:hidden;
+  }
+  .verdict.show{
+    opacity:1; transform:none;
+    pointer-events:auto;
+    height:auto; overflow:visible;
+  }
+
+  .verdict .tier{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.28em;
+    text-transform:uppercase;
+    color:var(--brass);
+    display:flex; align-items:center; gap:10px;
+  }
+  .verdict .tier .bullet{
+    width:5px; height:5px; border-radius:50%;
+    background:var(--brass);
+    display:inline-block;
+  }
+  .verdict[data-tier="medium"] .tier{ color:var(--ink-3); }
+  .verdict[data-tier="medium"] .tier .bullet{ background:var(--ink-3); }
+  .verdict[data-tier="low"]    .tier{ color:var(--mute);  }
+  .verdict[data-tier="low"]    .tier .bullet{ background:var(--mute); }
+  .verdict[data-tier="error"]  .tier{ color:var(--bordeaux); }
+  .verdict[data-tier="error"]  .tier .bullet{ background:var(--bordeaux); }
+
+  .verdict .conclusion{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:54px;
+    line-height:1.08;
+    letter-spacing:0.003em;
+    color:var(--ink);
+    margin:0;
+    text-wrap:balance;
+  }
+  .verdict[data-tier="error"] .conclusion{ color:var(--ink-2); }
+
+  .verdict .rule{
+    width:54px; height:1px;
+    background:var(--brass);
+    opacity:.65;
+  }
+  .verdict[data-tier="medium"] .rule{ background:var(--ink-3); opacity:.5; }
+  .verdict[data-tier="low"]    .rule{ background:var(--mute);  opacity:.55; }
+  .verdict[data-tier="error"]  .rule{ background:var(--bordeaux); opacity:.7; }
+
+  .verdict .gloss{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:16px;
+    line-height:1.6;
+    color:var(--ink-3);
+    margin:0;
+    max-width:42ch;
+  }
+  .verdict .gloss em{ color:var(--ink-2); font-style:italic; }
+
+  /* a tiny scanning whisper at bottom of left leaf during scan */
+  .scan-whisper{
+    margin-top:38px;
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.18em;
+    color:var(--mute-2);
+    text-transform:uppercase;
+    display:flex; align-items:center; gap:14px;
+    opacity:1;
+    transition: opacity .4s ease;
+  }
+  .scan-whisper.hide{ opacity:0; }
+  .scan-whisper .barwrap{
+    position:relative;
+    flex:1; max-width:200px;
+    height:1px;
+    background:var(--line-2);
+    overflow:hidden;
+  }
+  .scan-whisper .barwrap::after{
+    content:"";
+    position:absolute; top:0; bottom:0;
+    left:-30%; width:30%;
+    background:linear-gradient(90deg, transparent 0%, rgba(184,153,104,.55) 50%, transparent 100%);
+    animation: sheen 1.6s ease-in-out infinite;
+  }
+  @keyframes sheen{
+    0%   { left:-30%; }
+    100% { left:100%; }
+  }
+
+  /* ====================== MANUSCRIPT FOLD ====================== */
+  .leaf-r{
+    position:relative;
+    border-left:1px solid var(--line);
+    background: var(--bg);
+    display:flex; flex-direction:column;
+    overflow:hidden;
+  }
+
+  /* ====================== RIGHT LEAF — ledger ====================== */
+  .ledger{
+    flex:1 1 auto;
+    overflow-y:auto;
+    padding:88px 72px 32px;
+    display:flex; flex-direction:column;
+    gap:36px;
+  }
+
+  .ledger .head{
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .ledger .head .kicker{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.22em;
+    color:var(--mute-2);
+    text-transform:uppercase;
+  }
+  .ledger .head .title{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:24px;
+    line-height:1.25;
+    color:var(--ink-2);
+    margin:0;
+  }
+
+  /* ledger table — numbered scribe's entries */
+  .entries{
+    display:flex; flex-direction:column;
+    border-top:1px solid var(--line);
+  }
+  .entry{
+    display:grid;
+    grid-template-columns: 28px 14px 1fr;
+    gap:18px;
+    align-items:baseline;
+    padding:18px 0 18px;
+    border-bottom:1px solid var(--line);
+    position:relative;
+    transition: background .25s;
+  }
+  .entry:hover{ background: rgba(28,22,20,0.28); }
+
+  /* roman numeral */
+  .entry .num{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:15px;
+    color:var(--brass);
+    opacity:.75;
+    letter-spacing:0.04em;
+    line-height:1;
+    transform: translateY(2px);
+  }
+
+  /* status mark */
+  .entry .mark{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:10px; height:10px;
+    transform: translateY(3px);
+  }
+  .entry .mark .dot{
+    width:6px; height:6px; border-radius:50%;
+    background:var(--mute-2);
+  }
+  .entry.pending  .mark .dot{ background:transparent; border:1px solid var(--line-2); }
+  .entry.scanning .mark .dot{
+    background:var(--brass);
+    box-shadow:0 0 0 0 rgba(184,153,104,.55);
+    animation: pulse 1.4s ease-out infinite;
+  }
+  .entry.ok   .mark .dot{ background:var(--brass); }
+  .entry.warn .mark .dot{ background:var(--ink-3); }
+  .entry.fail .mark .dot{ background:var(--bordeaux); }
+
+  /* body — name on top, value below in serif */
+  .entry .body{
+    display:flex; flex-direction:column;
+    gap:4px;
+    min-width:0;
+  }
+  .entry .name{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.22em;
+    color:var(--mute);
+    text-transform:uppercase;
+  }
+  .entry .detail{
+    font-family:var(--serif);
+    font-size:17px;
+    font-weight:450;
+    color:var(--ink);
+    line-height:1.4;
+    text-wrap:pretty;
+  }
+  .entry.pending  .detail,
+  .entry.scanning .detail{
+    color:var(--mute-2);
+    font-style:italic;
+  }
+  .entry.fail .detail{ color:var(--bordeaux); font-style:italic; }
+
+  /* small typing indicator inline with detail while scanning */
+  .entry.scanning .detail::after{
+    content:"";
+    display:inline-block;
+    width:24px; height:1px;
+    background: linear-gradient(90deg, transparent, var(--brass), transparent);
+    margin-left:10px; vertical-align:middle;
+    background-size:200% 100%;
+    animation: shimmer 1.2s ease-in-out infinite;
+  }
+  @keyframes shimmer{
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* ====================== ACTION BAR ====================== */
+  .actions{
+    flex:0 0 auto;
+    border-top:1px solid var(--line);
+    padding:18px 72px 22px;
+    background:var(--bg);
+    display:flex; align-items:center; justify-content:space-between;
+    gap:14px;
+  }
+
+  .ghost-link{
+    background:transparent; border:0;
+    color:var(--mute);
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14px;
+    cursor:pointer;
+    padding:6px 2px;
+    letter-spacing:0.01em;
+    transition: color .15s;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .ghost-link:hover{ color:var(--brass); }
+  .ghost-link[disabled]{ opacity:.3; cursor:default; }
+  .ghost-link[disabled]:hover{ color:var(--mute); }
+  .ghost-link svg{ opacity:.7; }
+
+  .continue-btn{
+    background:transparent;
+    border:1px solid var(--line-2);
+    color:var(--mute-2);
+    padding:13px 24px;
+    font-family:var(--serif);
+    font-size:15px;
+    font-style:italic;
+    font-weight:500;
+    letter-spacing:0.02em;
+    border-radius:4px;
+    cursor:not-allowed;
+    display:inline-flex; align-items:center; gap:12px;
+    transition: border-color .25s, color .25s, background .25s, gap .25s;
+  }
+  .continue-btn[data-ready="true"]{
+    border-color:var(--bordeaux);
+    color:var(--brass);
+    cursor:pointer;
+  }
+  .continue-btn[data-ready="true"]:hover{
+    background:var(--bg-hover);
+    color:var(--ink);
+    gap:16px;
+  }
+  .continue-btn .arrow{
+    width:13px; height:13px;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+
+  /* tweak panel sits above the action bar */
+  .twk-panel{ bottom:88px !important; }
+
+  /* ---- responsive : stack to single column ----
+     Drop the fixed full-viewport grid below the breakpoint so the page
+     can scroll naturally — otherwise the ledger gets clipped. */
+  @media (max-width: 980px){
+    body{ overflow:auto; }
+    .check{
+      position:static;
+      display:block;
+      min-height:100vh;
+    }
+    .leaf-l{
+      padding:72px 32px 56px;
+      min-height:auto;
+    }
+    .leaf-l h1, .verdict .conclusion{ font-size:38px; }
+    .leaf-r{
+      border-left:0;
+      border-top:1px solid var(--line);
+      overflow:visible;
+    }
+    .ledger{
+      padding:48px 32px 24px;
+      overflow:visible;
+    }
+    .actions{ padding:18px 32px 22px; }
+    .corner.tr{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<h2 class="sr-only">Abraxas — verificação do computador antes de rodar modelo local</h2>
+
+<!-- corner meta : same lexicon as Welcome -->
+<span class="corner tl">abraxas · v.0</span>
+<span class="corner bl">passo 02 / 04</span>
+
+<div class="check" data-screen-label="01 Computer Check">
+
+  <!-- ============== LEFT LEAF — ceremony ============== -->
+  <section class="leaf-l">
+
+    <div class="figure" aria-hidden="true">
+      <img src="assets/fibonacci.gif" alt="">
+    </div>
+
+    <div class="stack">
+
+      <!-- spiral mark -->
+      <div class="mark-row">
+        <svg class="glyph" width="24" height="24" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <circle cx="16" cy="16" r="13" stroke="#b89968" stroke-width="0.9" fill="none"/>
+          <circle cx="16" cy="16" r="9.5" stroke="#7d2233" stroke-width="0.7" fill="none"/>
+          <line x1="16" y1="1.5" x2="16" y2="30.5" stroke="#b89968" stroke-width="0.9"/>
+          <circle cx="16" cy="11" r="1.3" fill="#b89968"/>
+        </svg>
+      </div>
+
+      <!-- pre-scan title -->
+      <div class="pre" id="pre">
+        <h1>
+          <span>Examinando</span>
+          <span class="quiet">o instrumento.</span>
+        </h1>
+      </div>
+
+      <!-- post-scan verdict -->
+      <div class="verdict" id="verdict" data-tier="optimal" aria-live="polite">
+        <span class="tier" id="vTier"><span class="bullet"></span><span id="vTierLabel">resultado · ótimo</span></span>
+        <p class="conclusion" id="vMain">Seu computador está pronto para a IA local.</p>
+        <span class="rule"></span>
+        <p class="gloss" id="vGloss">Pode rodar modelos médios e grandes sem suar. Recomendamos começar com <em>llama-3.1-8b</em>.</p>
+      </div>
+
+      <!-- whisper while scanning -->
+      <div class="scan-whisper" id="whisper">
+        <span id="whisperText">verificando o que seu computador roda com folga</span>
+        <span class="barwrap"><span class="bar"></span></span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============== RIGHT LEAF — ledger ============== -->
+  <section class="leaf-r">
+
+    <div class="ledger">
+
+      <div class="head">
+        <span class="kicker">— inventário do hardware</span>
+      </div>
+
+      <div class="entries" id="entries"><!-- injected --></div>
+    </div>
+
+    <div class="actions">
+      <button class="ghost-link" id="retryBtn" type="button" disabled>
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+          <path d="M13 8a5 5 0 1 1-1.5-3.6M13 2v3h-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        verificar novamente
+      </button>
+
+      <button class="continue-btn" id="continueBtn" type="button" data-ready="false" disabled>
+        <span id="continueLabel">aguarde…</span>
+        <span class="arrow" aria-hidden="true">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+      </button>
+    </div>
+
+  </section>
+
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+<script type="text/babel">
+  /* =========================================================================
+     Computer Check — split-leaf controller
+     Right ledger animates row by row; left leaf reveals the verdict on done.
+     ========================================================================= */
+
+  const FIXTURES = {
+    optimal: {
+      ram:     { detail:'21,4 GB livres de 32 GB',          state:'ok'   },
+      cpu:     { detail:'Apple M3 Pro · 18% em uso',        state:'ok'   },
+      gpu:     { detail:'Apple M3 Pro · 18 núcleos',        state:'ok'   },
+      vram:    { detail:'2,1 GB de 18 GB compartilhados',   state:'ok'   },
+      storage: { detail:'412 GB livres em SSD interno',     state:'ok'   },
+    },
+    medium: {
+      ram:     { detail:'9,2 GB livres de 16 GB',           state:'warn' },
+      cpu:     { detail:'Intel i7 · 41% em uso',            state:'warn' },
+      gpu:     { detail:'NVIDIA GTX 1650 · 4 GB',           state:'ok'   },
+      vram:    { detail:'1,1 GB de 4 GB',                   state:'warn' },
+      storage: { detail:'74 GB livres em SSD',              state:'warn' },
+    },
+    low: {
+      ram:     { detail:'2,6 GB livres de 8 GB',            state:'warn' },
+      cpu:     { detail:'Intel i5 · 56% em uso',            state:'warn' },
+      gpu:     { detail:'gráficos integrados',              state:'warn' },
+      vram:    { detail:'compartilhada com a memória',      state:'warn' },
+      storage: { detail:'18 GB livres',                     state:'warn' },
+    },
+    error: {
+      ram:     { detail:'5,8 GB livres de 16 GB',           state:'ok'   },
+      cpu:     { detail:'Intel i5 · 28% em uso',            state:'ok'   },
+      gpu:     { detail:'leitura interrompida',             state:'fail' },
+      vram:    { detail:'leitura interrompida',             state:'fail' },
+      storage: { detail:'124 GB livres',                    state:'ok'   },
+    },
+  };
+
+  const VERDICTS = {
+    optimal: {
+      tier:'resultado · ótimo',
+      main:'Seu computador está pronto para a IA local.',
+      gloss:'Pode rodar modelos médios e grandes sem suar. Recomendamos começar com <em>llama-3.1-8b</em>.',
+      cta:'continuar',
+    },
+    medium: {
+      tier:'resultado · adequado',
+      main:'Seu computador roda melhor os modelos menores.',
+      gloss:'Modelos pequenos e quantizados respondem bem. Os maiores podem ficar lentos — vamos sugerir uma boa primeira escolha.',
+      cta:'continuar',
+    },
+    low: {
+      tier:'resultado · limitado',
+      main:'Pode ficar lento, mas modelos leves devem funcionar.',
+      gloss:'Use modelos quantizados de 1–3B. As respostas serão <em>devagar</em>, no espírito da escrita à pena.',
+      cta:'continuar mesmo assim',
+    },
+    error: {
+      tier:'falha · não foi possível ler',
+      main:'Não conseguimos completar o exame.',
+      gloss:'Algumas leituras falharam. Feche outras aplicações pesadas e tente novamente — costuma resolver.',
+      cta:'corrigir antes de seguir',
+    },
+  };
+
+  const ROW_DEFS = [
+    { key:'ram',     name:'memória ram',     roman:'I.'   },
+    { key:'cpu',     name:'processador',     roman:'II.'  },
+    { key:'gpu',     name:'placa gráfica',   roman:'III.' },
+    { key:'vram',    name:'memória de vídeo',roman:'IV.'  },
+    { key:'storage', name:'armazenamento',   roman:'V.'   },
+  ];
+
+  const $entries = document.getElementById('entries');
+  const $pre     = document.getElementById('pre');
+  const $verdict = document.getElementById('verdict');
+  const $vMain   = document.getElementById('vMain');
+  const $vGloss  = document.getElementById('vGloss');
+  const $vTierL  = document.getElementById('vTierLabel');
+  const $whisp   = document.getElementById('whisper');
+  const $whispT  = document.getElementById('whisperText');
+  const $cont    = document.getElementById('continueBtn');
+  const $contLbl = document.getElementById('continueLabel');
+  const $retry   = document.getElementById('retryBtn');
+
+  function buildEntries(){
+    $entries.innerHTML = ROW_DEFS.map(r => `
+      <div class="entry pending" data-key="${r.key}">
+        <span class="num">${r.roman}</span>
+        <span class="mark"><span class="dot"></span></span>
+        <div class="body">
+          <span class="name">${r.name}</span>
+          <span class="detail">aguardando</span>
+        </div>
+      </div>`).join('');
+  }
+
+  function setEntry(key, fixture, state){
+    const el = $entries.querySelector(`.entry[data-key="${key}"]`);
+    if(!el) return;
+    el.classList.remove('pending','scanning','ok','warn','fail');
+    el.classList.add(state);
+    if(state === 'scanning'){
+      el.querySelector('.detail').textContent = 'lendo';
+      return;
+    }
+    if(fixture){
+      el.querySelector('.detail').textContent = fixture.detail;
+    }
+  }
+
+  let scanToken = 0;
+
+  async function runScan(tier){
+    const myToken = ++scanToken;
+    const fx = FIXTURES[tier];
+    const v  = VERDICTS[tier];
+
+    // reset
+    buildEntries();
+    $verdict.classList.remove('show');
+    $pre.classList.remove('hide');
+    $whisp.classList.remove('hide');
+    $whispT.textContent = 'verificando o que seu computador roda com folga';
+    $cont.dataset.ready = 'false';
+    $cont.disabled = true;
+    $contLbl.textContent = 'aguarde…';
+    $retry.disabled = true;
+
+    for(let i = 0; i < ROW_DEFS.length; i++){
+      if(myToken !== scanToken) return;
+      const def = ROW_DEFS[i];
+      $whispT.textContent = `lendo ${def.name}`;
+      setEntry(def.key, null, 'scanning');
+      await sleep(560 + Math.random()*220);
+      if(myToken !== scanToken) return;
+      const fixture = fx[def.key];
+      setEntry(def.key, fixture, fixture.state);
+    }
+
+    if(myToken !== scanToken) return;
+
+    // settle: hide pre + whisper, show verdict
+    $pre.classList.add('hide');
+    $whisp.classList.add('hide');
+
+    $verdict.dataset.tier = tier;
+    $vTierL.textContent = v.tier;
+    $vMain.textContent  = v.main;
+    $vGloss.innerHTML   = v.gloss;
+    // small delay so the column reflows before the fade-in starts
+    await sleep(60);
+    $verdict.classList.add('show');
+
+    $retry.disabled = false;
+
+    if(tier === 'error'){
+      $cont.dataset.ready = 'false';
+      $cont.disabled = true;
+      $contLbl.textContent = v.cta;
+    } else {
+      $cont.dataset.ready = 'true';
+      $cont.disabled = false;
+      $contLbl.textContent = v.cta;
+    }
+  }
+
+  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+  $retry.addEventListener('click', () => {
+    if($retry.disabled) return;
+    runScan(window.__currentTier || 'optimal');
+  });
+
+  $cont.addEventListener('click', () => {
+    if($cont.disabled) return;
+    window.location.href = 'Abraxas Model Recommendation.html';
+  });
+
+  // ---- Tweaks ----
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "tier": "optimal"
+  }/*EDITMODE-END*/;
+
+  function App(){
+    const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+    React.useEffect(() => {
+      window.__currentTier = t.tier;
+      runScan(t.tier);
+    }, [t.tier]);
+
+    return (
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Cenário do exame" />
+        <TweakRadio
+          label="Resultado"
+          value={t.tier}
+          options={['optimal','medium','low','error']}
+          onChange={(v) => setTweak('tier', v)}
+        />
+      </TweaksPanel>
+    );
+  }
+
+  const tweakRoot = document.createElement('div');
+  document.body.appendChild(tweakRoot);
+  ReactDOM.createRoot(tweakRoot).render(<App />);
+</script>
+</body>
+</html>

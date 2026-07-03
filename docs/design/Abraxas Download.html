@@ -1,0 +1,1454 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Abraxas — download do modelo</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="_design-system.css">
+
+<style>
+  /* =========================================================================
+     DOWNLOAD — "the descent"
+     The model is being copied down from the firmament onto this machine.
+     Two-leaf manuscript spread:
+       LEFT  — the ledger (what is being committed to disk: name, link,
+               size, params, storage status). Calm, typographic, layered.
+       RIGHT — the work itself (a circular hermetic seal that breathes
+               while connecting, fills as bytes arrive, spins while
+               verifying, settles when complete).
+     ========================================================================= */
+
+  body{ overflow:hidden; }
+
+  .page{
+    position:fixed; inset:0;
+    display:grid;
+    grid-template-columns: 1.05fr 1fr;
+    background:
+      radial-gradient(140% 100% at 50% -10%, #100b0a 0%, #080605 65%, #050302 100%);
+  }
+
+  /* ---------- corner micro-meta (same vocabulary as the rest) ---------- */
+  .corner{
+    position:absolute;
+    z-index:5;
+    font-family:var(--mono);
+    font-size:9.5px;
+    color:var(--mute-2);
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    pointer-events:none;
+  }
+  .corner.tl{ top:22px; left:28px; }
+  .corner.tr{
+    top:22px; left:50%; transform:translateX(-50%);
+    display:inline-flex; align-items:center;
+    color:var(--mute);
+  }
+  .corner.bl{ bottom:20px; left:28px; }
+  .corner.br{ bottom:20px; right:28px; text-align:right; }
+
+  /* the gutter — a fold between the two leaves, matches Computer Check */
+  .page::before{
+    content:"";
+    position:absolute;
+    top:8%; bottom:8%;
+    left:calc((100% / 2.05) * 1.05);
+    width:1px;
+    background:
+      linear-gradient(180deg,
+        transparent 0%,
+        rgba(184,153,104,0.18) 25%,
+        rgba(184,153,104,0.28) 50%,
+        rgba(184,153,104,0.18) 75%,
+        transparent 100%);
+    pointer-events:none;
+    z-index:1;
+  }
+
+  /* ====================== LEFT LEAF — the ledger ====================== */
+  .leaf-l{
+    position:relative;
+    padding:88px 56px 88px 88px;
+    display:flex; flex-direction:column;
+    justify-content:center;
+    gap:32px;
+    overflow:hidden;
+    min-width:0;
+  }
+
+  .mark-row{
+    display:flex; align-items:center;
+    gap:14px;
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.24em;
+    color:var(--mute);
+    text-transform:uppercase;
+  }
+  .mark-row .step{ color:var(--brass); }
+  .mark-row .sep{ color:var(--mute-2); opacity:.6; }
+
+  .ledger-stack{
+    display:flex; flex-direction:column;
+    gap:28px;
+    max-width:520px;
+  }
+
+  /* the eyebrow — italic verb that names what's happening */
+  .verb{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:38px;
+    line-height:1.1;
+    color:var(--ink);
+    letter-spacing:0.005em;
+    margin:0;
+    text-wrap:balance;
+    transition: color .35s ease;
+  }
+  .verb .quiet{ color:var(--ink-3); }
+
+  /* the model card — chosen one, committed to ledger */
+  .chosen{
+    border:1px solid var(--line-2);
+    border-left: 1px solid var(--brass);
+    border-radius:4px;
+    padding:18px 20px 18px 22px;
+    display:grid;
+    grid-template-columns: 36px 1fr auto;
+    align-items:center;
+    gap:18px;
+    background: linear-gradient(180deg, rgba(28,22,20,0.3), rgba(15,11,10,0));
+  }
+  .chosen .roman{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:30px;
+    color:var(--brass);
+    line-height:1;
+    text-align:center;
+    letter-spacing:0.02em;
+  }
+  .chosen .who{
+    display:flex; flex-direction:column; gap:4px;
+    text-transform:none;
+    letter-spacing:0;
+    color:var(--ink);
+    font-family:var(--serif);
+    font-size:inherit;
+  }
+  .chosen .who .name{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:22px;
+    color:var(--ink);
+    line-height:1;
+  }
+  .chosen .who .mono{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.16em;
+    color:var(--mute);
+    text-transform:uppercase;
+  }
+  .chosen .reverse-link{
+    background:transparent; border:0;
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:13px;
+    color:var(--mute);
+    cursor:pointer;
+    padding:6px 2px;
+    letter-spacing:0.01em;
+    transition: color .15s;
+    white-space:nowrap;
+  }
+  .chosen .reverse-link:hover{ color:var(--brass); }
+
+  /* the entries — params, size, time, link, storage */
+  .entries{
+    display:flex; flex-direction:column;
+    gap:1px;
+    background:var(--line);
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .entry{
+    display:grid;
+    grid-template-columns: 130px 1fr auto;
+    gap:18px;
+    align-items:center;
+    background:var(--bg);
+    padding:13px 4px;
+  }
+  .entry .label{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute);
+  }
+  .entry .value{
+    font-family:var(--serif);
+    font-size:15.5px;
+    color:var(--ink-2);
+    line-height:1.35;
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .entry .value.mono{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:0.06em;
+    color:var(--ink-3);
+  }
+  .entry .value b{ color:var(--ink); font-weight:500; }
+  .entry .aside{
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--mute-2);
+    white-space:nowrap;
+  }
+  .entry .aside.brass{ color:var(--brass); }
+
+  /* storage row — its own treatment so the warning state can take over */
+  .storage{
+    display:flex; flex-direction:column;
+    gap:8px;
+    padding:14px 16px;
+    border:1px solid var(--line-2);
+    border-radius:4px;
+    background:rgba(28,22,20,0.25);
+    transition: border-color .3s ease, background .3s ease;
+  }
+  .storage .top{
+    display:flex; justify-content:space-between; align-items:baseline; gap:14px;
+  }
+  .storage .top .lhs{
+    font-family:var(--serif);
+    font-size:14.5px;
+    color:var(--ink-2);
+    line-height:1.4;
+    text-wrap:pretty;
+  }
+  .storage .top .lhs b{ color:var(--ink); font-weight:500; }
+  .storage .top .rhs{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--mute);
+    white-space:nowrap;
+  }
+  /* storage meter — a thin hairline bar with two segments: filled (brass), incoming (brass-faint) */
+  .storage .meter{
+    position:relative;
+    height:3px;
+    background:#1a1311;
+    border-radius:2px;
+    overflow:hidden;
+  }
+  .storage .meter .filled{
+    position:absolute; top:0; left:0; bottom:0;
+    background:rgba(184,153,104,0.45);
+    transition: width .8s cubic-bezier(.2,.7,.2,1);
+  }
+  .storage .meter .incoming{
+    position:absolute; top:0; bottom:0;
+    background:var(--brass);
+    transition: width .8s cubic-bezier(.2,.7,.2,1), left .8s cubic-bezier(.2,.7,.2,1);
+  }
+  .storage .foot{
+    display:flex; justify-content:space-between; align-items:center; gap:14px;
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--mute-2);
+  }
+  .storage .foot .ok{ color:var(--brass); }
+
+  /* warning state for storage */
+  .storage[data-warn="true"]{
+    border-color:var(--bordeaux);
+    background:
+      linear-gradient(90deg, rgba(125,34,51,0.12) 0%, rgba(125,34,51,0.04) 60%, transparent 100%);
+  }
+  .storage[data-warn="true"] .meter .incoming{ background:var(--bordeaux); }
+  .storage[data-warn="true"] .foot .ok{ color:var(--bordeaux); }
+  .storage[data-warn="true"] .top .rhs{ color:var(--bordeaux); }
+  .storage .warn-line{
+    display:none;
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:13.5px;
+    color:var(--ink-2);
+    line-height:1.5;
+    border-top:1px dashed rgba(125,34,51,0.35);
+    padding-top:10px;
+  }
+  .storage[data-warn="true"] .warn-line{ display:block; }
+
+  /* parameters list — a compact ledger of "what arrives in this download" */
+  .params{
+    display:flex; flex-wrap:wrap;
+    gap:6px;
+  }
+  .params .param{
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--ink-3);
+    border:1px solid var(--line-2);
+    border-radius:3px;
+    padding:4px 8px;
+    background:rgba(28,22,20,0.4);
+  }
+  .params .param b{ color:var(--brass); font-weight:500; letter-spacing:0.08em; }
+
+  /* ====================== RIGHT LEAF — the work ====================== */
+  .leaf-r{
+    position:relative;
+    padding:88px 88px 88px 56px;
+    display:flex; flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:30px;
+    overflow:hidden;
+  }
+
+  /* state caption above the dial */
+  .state-caption{
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    text-align:center;
+  }
+  .state-caption .badge{
+    display:inline-flex; align-items:center; gap:9px;
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.28em;
+    text-transform:uppercase;
+    color:var(--mute);
+    padding:5px 0;
+    transition: color .3s ease;
+  }
+  .state-caption .badge .glyph{
+    width:6px; height:6px; border-radius:50%;
+    background:currentColor;
+    display:inline-block;
+    box-shadow:0 0 0 0 currentColor;
+  }
+  .state-caption[data-state="connecting"] .badge,
+  .state-caption[data-state="verifying"]  .badge,
+  .state-caption[data-state="downloading"] .badge{ color:var(--brass); }
+  .state-caption[data-state="downloading"] .badge .glyph{
+    animation: pulse-brass 2.2s ease-out infinite;
+  }
+  .state-caption[data-state="connecting"] .badge .glyph{
+    animation: pulse-brass 1.4s ease-out infinite;
+  }
+  .state-caption[data-state="verifying"] .badge .glyph{
+    animation: pulse-brass 1.8s ease-out infinite;
+  }
+  .state-caption[data-state="paused"] .badge,
+  .state-caption[data-state="lost"]   .badge{ color:var(--ink-3); }
+  .state-caption[data-state="lost"]   .badge{ color:var(--bordeaux); }
+  .state-caption[data-state="complete"] .badge{ color:var(--brass); }
+
+  @keyframes pulse-brass{
+    0%   { box-shadow:0 0 0 0 rgba(184,153,104,0.55); }
+    70%  { box-shadow:0 0 0 8px rgba(184,153,104,0); }
+    100% { box-shadow:0 0 0 0 rgba(184,153,104,0); }
+  }
+
+  .state-caption .verb-line{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:22px;
+    color:var(--ink-2);
+    letter-spacing:0.005em;
+    line-height:1.2;
+    text-wrap:balance;
+    max-width:32ch;
+    transition: color .3s ease;
+  }
+
+  /* ----------- the seal/dial ----------- */
+  .seal{
+    position:relative;
+    width:340px; height:340px;
+    display:grid; place-items:center;
+  }
+  .seal svg{ position:absolute; inset:0; width:100%; height:100%; }
+  .seal .dial-track,
+  .seal .dial-fill{
+    fill:none;
+    stroke-linecap:round;
+  }
+  .seal .dial-track{
+    stroke: rgba(184,153,104,0.10);
+    stroke-width: 1.4;
+  }
+  .seal .dial-fill{
+    stroke: var(--brass);
+    stroke-width: 1.8;
+    transition: stroke-dashoffset .8s cubic-bezier(.2,.7,.2,1), stroke .35s ease;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+  }
+  .seal[data-state="lost"] .dial-fill,
+  .seal[data-state="paused"] .dial-fill{
+    stroke: rgba(184,153,104,0.45);
+  }
+  .seal[data-state="lost"] .dial-track{
+    stroke: rgba(125,34,51,0.18);
+  }
+  /* hairline inner ring (faint hermetic frame) */
+  .seal .ring-inner{
+    fill:none;
+    stroke: rgba(184,153,104,0.18);
+    stroke-width: 0.6;
+  }
+  .seal .ring-outer{
+    fill:none;
+    stroke: rgba(184,153,104,0.10);
+    stroke-width: 0.6;
+  }
+  /* tick marks on the outer ring (12 cardinals) */
+  .seal .ticks line{
+    stroke: rgba(184,153,104,0.22);
+    stroke-width: 0.6;
+  }
+  .seal .ticks line.cardinal{
+    stroke: rgba(184,153,104,0.55);
+  }
+
+  /* center text — the percentage / state numeric */
+  .seal .center{
+    position:relative;
+    z-index:2;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    transition: opacity .3s ease;
+  }
+  .seal .pct{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:64px;
+    line-height:1;
+    color:var(--ink);
+    letter-spacing:0.005em;
+    font-variant-numeric: tabular-nums;
+  }
+  .seal .pct .sym{
+    font-size:32px;
+    color:var(--ink-3);
+    margin-left:2px;
+    vertical-align:0.2em;
+  }
+  .seal .below{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    color:var(--mute);
+    display:flex; gap:10px; align-items:center;
+  }
+  .seal .below b{ color:var(--ink-2); font-weight:500; letter-spacing:0.16em; }
+
+  /* slow rotating glyph behind the seal — only during verifying */
+  .seal .verify-glyph{
+    position:absolute;
+    inset:60px;
+    border-radius:50%;
+    border:1px solid rgba(184,153,104,0.25);
+    border-top-color: var(--brass);
+    opacity:0;
+    transition: opacity .35s ease;
+    pointer-events:none;
+  }
+  .seal[data-state="verifying"] .verify-glyph{
+    opacity:1;
+    animation: spin 3.4s linear infinite;
+  }
+  @keyframes spin{
+    from{ transform: rotate(0deg); }
+    to  { transform: rotate(360deg); }
+  }
+
+  /* completed — a soft brass halo grows */
+  .seal[data-state="complete"]::after{
+    content:"";
+    position:absolute; inset:-12px;
+    border-radius:50%;
+    background:
+      radial-gradient(circle, rgba(184,153,104,0.18) 0%, rgba(184,153,104,0) 65%);
+    pointer-events:none;
+  }
+
+  /* ----------- live metrics row ----------- */
+  .metrics{
+    display:grid;
+    grid-template-columns: repeat(3, auto);
+    gap:30px;
+    align-items:start;
+    text-align:center;
+  }
+  .metric{
+    display:flex; flex-direction:column; gap:4px;
+    min-width:90px;
+  }
+  .metric .k{
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:0.2em;
+    text-transform:uppercase;
+    color:var(--mute-2);
+  }
+  .metric .v{
+    font-family:var(--serif);
+    font-size:17px;
+    color:var(--ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing:0.005em;
+  }
+  .metric .v .sub{
+    color:var(--mute);
+    font-size:14px;
+    margin-left:2px;
+  }
+  .metric.dim .v{ color:var(--ink-3); }
+
+  /* ----------- action row ----------- */
+  .actions{
+    display:flex; align-items:center;
+    gap:14px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+
+  /* primary action — bordeaux border, brass fill on hover */
+  .btn{
+    background:transparent;
+    border:1px solid var(--line-2);
+    color:var(--ink-3);
+    padding:12px 22px;
+    font-family:var(--serif);
+    font-size:14.5px;
+    font-style:italic;
+    font-weight:500;
+    letter-spacing:0.01em;
+    border-radius:4px;
+    cursor:pointer;
+    display:inline-flex; align-items:center; gap:10px;
+    white-space:nowrap;
+    transition: background .18s, color .18s, border-color .18s, opacity .18s;
+  }
+  .btn:hover{ color:var(--ink); border-color:var(--mute); }
+  .btn[disabled]{ opacity:.35; cursor:default; }
+  .btn[disabled]:hover{ color:var(--ink-3); border-color:var(--line-2); }
+
+  .btn.primary{
+    border-color:var(--bordeaux);
+    color:var(--brass);
+  }
+  .btn.primary:hover{
+    background:var(--bg-hover);
+    color:var(--ink);
+  }
+  .btn.primary .arrow{ transition: transform .18s; display:inline-flex; }
+  .btn.primary:hover .arrow{ transform: translateX(3px); }
+
+  .btn.warn{
+    border-color: rgba(125,34,51,0.5);
+    color: var(--ink-3);
+  }
+  .btn.warn:hover{
+    background:transparent;
+    color:var(--bordeaux);
+    border-color:var(--bordeaux);
+  }
+
+  /* a quiet text link variant for secondary affordances */
+  .ghost-link{
+    background:transparent; border:0;
+    color:var(--mute);
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14px;
+    cursor:pointer;
+    padding:6px 2px;
+    letter-spacing:0.01em;
+    transition: color .15s;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .ghost-link:hover{ color:var(--brass); }
+
+  /* ----------- recovery banner (shown only on a returning session) ---------- */
+  .recovery{
+    display:none;
+    position:absolute;
+    top:64px; left:50%;
+    transform:translateX(-50%);
+    z-index:6;
+    padding:9px 16px;
+    border:1px solid rgba(184,153,104,0.35);
+    border-radius:4px;
+    background: rgba(28,22,20,0.7);
+    backdrop-filter: blur(4px);
+    color: var(--ink-2);
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:13.5px;
+    letter-spacing:0.005em;
+    align-items:center; gap:10px;
+    animation: fade-in .45s ease both;
+  }
+  .recovery.visible{ display:inline-flex; }
+  .recovery .glyph{ color:var(--brass); }
+  .recovery .dismiss{
+    background:transparent; border:0;
+    color:var(--mute);
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    margin-left:8px;
+    cursor:pointer;
+  }
+  .recovery .dismiss:hover{ color:var(--brass); }
+
+  @keyframes fade-in{
+    from{ opacity:0; transform: translate(-50%, -6px); }
+    to  { opacity:1; transform: translate(-50%, 0); }
+  }
+
+  /* ====================== STEP A vs B vs DONE bodies ====================== */
+  /* Both right-leaf modes share the same shell; we just toggle visibility. */
+  .work{ position:relative; display:flex; flex-direction:column; align-items:center; gap:28px; transition: opacity .35s ease; }
+  .work.hidden{ display:none; }
+
+  /* On the confirmation step, the seal is "armed but empty" — a single brass
+     dot on the dial track at 12 o'clock, with the size as the center number. */
+  .seal.confirm .dial-fill{ stroke-dashoffset: 100 !important; }
+  .seal.confirm .arming-dot{
+    fill: var(--brass);
+    opacity:1;
+    transition: opacity .3s ease;
+  }
+  .seal.arming-hide .arming-dot{ opacity:0; }
+  .arming-dot{ opacity:0; }
+
+  /* On confirm, a second smaller text below shows "to be downloaded" */
+  .seal.confirm .pct{ font-size:42px; }
+  .seal.confirm .pct .sym{ font-size:18px; }
+
+  /* the confirmation primary line above the buttons */
+  .confirm-line{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14.5px;
+    color:var(--mute);
+    text-align:center;
+    max-width:42ch;
+    line-height:1.55;
+    text-wrap:pretty;
+  }
+
+  /* paused / lost — a faint diagonal hash overlay on the seal to convey "frozen" */
+  .seal[data-state="paused"]::before,
+  .seal[data-state="lost"]::before{
+    content:"";
+    position:absolute;
+    inset:8px;
+    border-radius:50%;
+    background:
+      repeating-linear-gradient(
+        135deg,
+        rgba(0,0,0,0.0) 0 8px,
+        rgba(0,0,0,0.18) 8px 9px
+      );
+    pointer-events:none;
+    mix-blend-mode: multiply;
+  }
+  .seal[data-state="lost"]::before{
+    background:
+      repeating-linear-gradient(
+        135deg,
+        rgba(0,0,0,0.0) 0 8px,
+        rgba(125,34,51,0.20) 8px 9px
+      );
+  }
+
+  /* tweaks panel sits low-right */
+  .twk-panel{ bottom:24px !important; right:24px !important; }
+
+  /* ====================== RESPONSIVE ====================== */
+  @media (max-width: 1080px){
+    .leaf-l{ padding:64px 32px 64px 56px; }
+    .leaf-r{ padding:64px 56px 64px 32px; gap:24px; }
+    .seal{ width:300px; height:300px; }
+    .seal .pct{ font-size:54px; }
+    .verb{ font-size:32px; }
+  }
+  @media (max-width: 880px){
+    body{ overflow:auto; }
+    .page{ position:static; min-height:100vh; grid-template-columns: 1fr; }
+    .page::before{ display:none; }
+    .leaf-l{ padding:48px 28px 24px; }
+    .leaf-r{ padding:24px 28px 64px; }
+    .verb{ font-size:28px; }
+    .seal{ width:260px; height:260px; }
+    .seal .pct{ font-size:46px; }
+  }
+</style>
+</head>
+<body>
+
+<h2 class="sr-only">Abraxas — download do modelo</h2>
+
+<span class="corner tl">abraxas · v.0</span>
+<span class="corner tr">
+  <svg width="14" height="14" viewBox="0 0 32 32" fill="none" aria-hidden="true" style="vertical-align:middle;margin-right:8px">
+    <circle cx="16" cy="16" r="13" stroke="#b89968" stroke-width="0.9" fill="none"/>
+    <circle cx="16" cy="16" r="9.5" stroke="#7d2233" stroke-width="0.7" fill="none"/>
+    <line x1="16" y1="1.5" x2="16" y2="30.5" stroke="#b89968" stroke-width="0.9"/>
+    <circle cx="16" cy="11" r="1.3" fill="#b89968"/>
+  </svg>
+  passo 04 · <span style="color:var(--brass)" id="phaseTag">download do modelo</span>
+</span>
+<span class="corner bl">passo 04 / 04</span>
+<span class="corner br" id="cornerBR">aguardando confirmação</span>
+
+
+<div class="page" data-screen-label="04 Download" id="page">
+
+  <!-- ============== LEFT — LEDGER ============== -->
+  <section class="leaf-l">
+    <div class="ledger-stack">
+
+      <h1 class="verb" id="verb">
+        <em>Llama 3.1</em>
+      </h1>
+
+      <!-- the chosen model — a small, gilded receipt -->
+      <div class="chosen">
+        <span class="roman">III</span>
+        <span class="who">
+          <span class="name" id="modelName">Llama 3.1</span>
+        </span>
+        <button class="reverse-link" id="reverseLink" type="button">trocar →</button>
+      </div>
+
+      <!-- the entries — the "ledger lines" -->
+      <div class="entries">
+
+        <div class="entry">
+          <span class="label">parâmetros</span>
+          <span class="value">8 B · Q4_K_M</span>
+        </div>
+
+        <div class="entry">
+          <span class="label">tamanho</span>
+          <span class="value"><b id="sizeBig">7,30 GB</b></span>
+        </div>
+
+        <div class="entry">
+          <span class="label">tempo</span>
+          <span class="value" id="etaCalc">≈ 10 min · 98 Mb/s</span>
+        </div>
+
+        <div class="entry">
+          <span class="label">origem</span>
+          <span class="value mono" id="origin">huggingface.co/meta-llama/Llama-3.1-8B-Instruct-GGUF</span>
+        </div>
+
+      </div>
+
+      <!-- storage transparency — explicit, calm by default; loud when warn -->
+      <div class="storage" id="storage" data-warn="false">
+        <div class="top">
+          <span class="lhs">
+            <span style="font-family:var(--mono);font-size:12px;color:var(--ink-3);letter-spacing:0.06em">~/Library/Application Support/Abraxas/models/</span>
+          </span>
+          <span class="rhs" id="storageRhs">82 / 512 gb</span>
+        </div>
+        <div class="meter" aria-hidden="true">
+          <div class="filled" id="storageFilled" style="width:16%"></div>
+          <div class="incoming" id="storageIncoming" style="left:16%; width:1.43%"></div>
+        </div>
+        <div class="foot" id="storageFoot">
+          <span class="ok" id="storageVerdict"></span>
+        </div>
+        <div class="warn-line" id="warnLine">
+          espaço crítico — libere pelo menos 8 gb ou escolha um modelo menor.
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============== RIGHT — THE WORK ============== -->
+  <section class="leaf-r">
+
+    <!-- recovery banner: only the first time we land here from a previously-interrupted session -->
+    <div class="recovery" id="recovery" role="status" aria-live="polite">
+      <svg class="glyph" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M3 8a5 5 0 1 0 1.5-3.6M3 4v3h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      retomado em <b id="recoveryPos" style="color:var(--ink); font-weight:500">3,4 GB / 7,30 GB</b>
+      <button class="dismiss" id="recoveryDismiss" type="button">ok</button>
+    </div>
+
+    <!-- ============ Step A: confirmation work ============ -->
+    <div class="work" id="workConfirm">
+
+      <div class="state-caption" data-state="confirm">
+        <span class="badge"><span class="glyph"></span>confirmação</span>
+      </div>
+
+      <div class="seal confirm" id="sealConfirm">
+        <svg viewBox="0 0 240 240" aria-hidden="true">
+          <!-- outer cardinals -->
+          <g class="ticks">
+            <!-- 12 marks; cardinal at top, right, bottom, left -->
+            <!-- generated inline for fewer JS deps -->
+            <line x1="120" y1="14" x2="120" y2="22" class="cardinal"/>
+            <line x1="120" y1="218" x2="120" y2="226" class="cardinal"/>
+            <line x1="14" y1="120" x2="22" y2="120" class="cardinal"/>
+            <line x1="218" y1="120" x2="226" y2="120" class="cardinal"/>
+            <line x1="171" y1="22.4" x2="167.7" y2="29.7"/>
+            <line x1="217.6" y1="69" x2="210.3" y2="72.3"/>
+            <line x1="217.6" y1="171" x2="210.3" y2="167.7"/>
+            <line x1="171" y1="217.6" x2="167.7" y2="210.3"/>
+            <line x1="69" y1="217.6" x2="72.3" y2="210.3"/>
+            <line x1="22.4" y1="171" x2="29.7" y2="167.7"/>
+            <line x1="22.4" y1="69" x2="29.7" y2="72.3"/>
+            <line x1="69" y1="22.4" x2="72.3" y2="29.7"/>
+          </g>
+          <circle cx="120" cy="120" r="108" class="ring-outer"/>
+          <circle cx="120" cy="120" r="98" class="ring-inner"/>
+          <!-- track + (empty) fill — drawn so the layout matches the progress dial -->
+          <circle cx="120" cy="120" r="86" class="dial-track"/>
+          <circle cx="120" cy="120" r="86" class="dial-fill"
+                  pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
+          <!-- arming dot at 12 o'clock -->
+          <circle cx="120" cy="34" r="3.4" class="arming-dot"/>
+        </svg>
+        <div class="center">
+          <div class="pct" id="confirmSize">7,30<span class="sym"> gb</span></div>
+          <div class="below"><span>a descer</span></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="goBackBtn" type="button">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M13 8H3M7 4 3 8l4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>voltar à recomendação</span>
+        </button>
+        <button class="btn primary" id="startBtn" type="button">
+          <span>começar</span>
+          <span class="arrow" aria-hidden="true">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+              <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ============ Step B: progress work ============ -->
+    <div class="work hidden" id="workProgress">
+
+      <div class="state-caption" data-state="downloading" id="stateCaption">
+        <span class="badge"><span class="glyph"></span><span id="badgeText">descendo</span></span>
+      </div>
+
+      <div class="seal" id="sealDial" data-state="downloading">
+        <svg viewBox="0 0 240 240" aria-hidden="true">
+          <g class="ticks">
+            <line x1="120" y1="14" x2="120" y2="22" class="cardinal"/>
+            <line x1="120" y1="218" x2="120" y2="226" class="cardinal"/>
+            <line x1="14" y1="120" x2="22" y2="120" class="cardinal"/>
+            <line x1="218" y1="120" x2="226" y2="120" class="cardinal"/>
+            <line x1="171" y1="22.4" x2="167.7" y2="29.7"/>
+            <line x1="217.6" y1="69" x2="210.3" y2="72.3"/>
+            <line x1="217.6" y1="171" x2="210.3" y2="167.7"/>
+            <line x1="171" y1="217.6" x2="167.7" y2="210.3"/>
+            <line x1="69" y1="217.6" x2="72.3" y2="210.3"/>
+            <line x1="22.4" y1="171" x2="29.7" y2="167.7"/>
+            <line x1="22.4" y1="69" x2="29.7" y2="72.3"/>
+            <line x1="69" y1="22.4" x2="72.3" y2="29.7"/>
+          </g>
+          <circle cx="120" cy="120" r="108" class="ring-outer"/>
+          <circle cx="120" cy="120" r="98" class="ring-inner"/>
+          <circle cx="120" cy="120" r="86" class="dial-track"/>
+          <circle id="dialFill" cx="120" cy="120" r="86" class="dial-fill"
+                  pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
+        </svg>
+        <div class="verify-glyph"></div>
+        <div class="center">
+          <div class="pct" id="dialPct">0<span class="sym"> %</span></div>
+          <div class="below"><span id="dialBelowL"><b id="dialMb">0 mb</b> de <b id="dialTotal">4,71 gb</b></span></div>
+        </div>
+      </div>
+
+      <div class="metrics">
+        <div class="metric" id="mSpeed">
+          <span class="k">vazão</span>
+          <span class="v"><span id="speedVal">12.4</span> <span class="sub">mb/s</span></span>
+        </div>
+        <div class="metric" id="mEta">
+          <span class="k">restam</span>
+          <span class="v" id="etaVal">≈ 5 min 42 s</span>
+        </div>
+        <div class="metric" id="mState">
+          <span class="k">situação</span>
+          <span class="v" id="situationVal">estável</span>
+        </div>
+      </div>
+
+      <div class="actions" id="progressActions">
+        <button class="btn" id="anotherBtn" type="button" title="cancela o download atual e devolve à recomendação">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M13 8H3M7 4 3 8l4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>escolher outro modelo</span>
+        </button>
+        <button class="btn warn" id="cancelBtn" type="button">
+          cancelar
+        </button>
+        <button class="btn primary" id="pauseBtn" type="button">
+          <span id="pauseLabel">pausar</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ============ Step Done ============ -->
+    <div class="work hidden" id="workDone">
+      <div class="state-caption" data-state="complete">
+        <span class="badge"><span class="glyph"></span>completo · sha-256 íntegro</span>
+      </div>
+
+      <div class="seal" data-state="complete">
+        <svg viewBox="0 0 240 240" aria-hidden="true">
+          <g class="ticks">
+            <line x1="120" y1="14" x2="120" y2="22" class="cardinal"/>
+            <line x1="120" y1="218" x2="120" y2="226" class="cardinal"/>
+            <line x1="14" y1="120" x2="22" y2="120" class="cardinal"/>
+            <line x1="218" y1="120" x2="226" y2="120" class="cardinal"/>
+            <line x1="171" y1="22.4" x2="167.7" y2="29.7"/>
+            <line x1="217.6" y1="69" x2="210.3" y2="72.3"/>
+            <line x1="217.6" y1="171" x2="210.3" y2="167.7"/>
+            <line x1="171" y1="217.6" x2="167.7" y2="210.3"/>
+            <line x1="69" y1="217.6" x2="72.3" y2="210.3"/>
+            <line x1="22.4" y1="171" x2="29.7" y2="167.7"/>
+            <line x1="22.4" y1="69" x2="29.7" y2="72.3"/>
+            <line x1="69" y1="22.4" x2="72.3" y2="29.7"/>
+          </g>
+          <circle cx="120" cy="120" r="108" class="ring-outer"/>
+          <circle cx="120" cy="120" r="98" class="ring-inner"/>
+          <circle cx="120" cy="120" r="86" class="dial-track" style="stroke:rgba(184,153,104,0.4)"/>
+          <circle cx="120" cy="120" r="86" class="dial-fill"
+                  pathLength="100" stroke-dasharray="100" stroke-dashoffset="0"/>
+          <!-- a small brass check, drawn as path -->
+          <path d="M96 120 l16 16 l36 -36" stroke="#b89968" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="center">
+          <div class="below" style="margin-top:62px"><b>7,30 gb</b> · íntegro</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" id="openChatBtn" type="button">
+          <span>despertar o modelo</span>
+          <span class="arrow" aria-hidden="true">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+              <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        </button>
+      </div>
+    </div>
+
+  </section>
+
+</div>
+
+
+<!-- ============== React + Babel ============== -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+
+<script>
+/* =========================================================================
+   STATE MACHINE — confirm → connecting → downloading → (paused | lost) →
+                   verifying → complete
+   The active progress is also written to localStorage on every tick so a
+   page refresh returns the user to the same byte-position. The very first
+   load after a "real" interruption shows a "we resumed where you left
+   off" banner.
+   ========================================================================= */
+
+const STORAGE_KEY = 'abraxas.download.v1';
+const TOTAL_BYTES = 7300000000;       // 7.30 GB — llama-3.1-8b · q4_k_m (same size everywhere in the house)
+const TOTAL_GB    = 7.30;
+
+// ---- formatting helpers ----
+const fmtPct = (n) => Math.max(0, Math.min(100, n)).toFixed(0);
+const fmtGB  = (b) => (b / 1e9).toFixed(2).replace('.', ',') + ' gb';
+const fmtMB  = (b) => Math.round(b / 1e6) + ' mb';
+const fmtSize = (b) => b >= 1e9 ? fmtGB(b) : fmtMB(b);
+
+function fmtEta(seconds){
+  if(!isFinite(seconds) || seconds <= 0) return '—';
+  if(seconds < 60) return `≈ ${Math.round(seconds)} s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  if(m < 60) return `≈ ${m} min ${s.toString().padStart(2,'0')} s`;
+  const h = Math.floor(m/60); const mm = m%60;
+  return `≈ ${h} h ${mm} min`;
+}
+
+// ---- DOM lookup ----
+const $ = (id) => document.getElementById(id);
+const els = {
+  page:        $('page'),
+  workConfirm: $('workConfirm'),
+  workProgress:$('workProgress'),
+  workDone:    $('workDone'),
+  sealConfirm: $('sealConfirm'),
+  confirmSize: $('confirmSize'),
+  startBtn:    $('startBtn'),
+  goBackBtn:   $('goBackBtn'),
+  reverseLink: $('reverseLink'),
+
+  sealDial:    $('sealDial'),
+  dialFill:    $('dialFill'),
+  dialPct:     $('dialPct'),
+  dialMb:      $('dialMb'),
+  dialTotal:   $('dialTotal'),
+  speedVal:    $('speedVal'),
+  etaVal:      $('etaVal'),
+  situationVal:$('situationVal'),
+  badgeText:   $('badgeText'),
+  stateCaption:$('stateCaption'),
+  pauseBtn:    $('pauseBtn'),
+  pauseLabel:  $('pauseLabel'),
+  cancelBtn:   $('cancelBtn'),
+  anotherBtn:  $('anotherBtn'),
+  openChatBtn: $('openChatBtn'),
+
+  storage:     $('storage'),
+  storageRhs:  $('storageRhs'),
+  storageFilled:$('storageFilled'),
+  storageIncoming:$('storageIncoming'),
+  storageVerdict:$('storageVerdict'),
+  warnLine:    $('warnLine'),
+
+  recovery:    $('recovery'),
+  recoveryDismiss:$('recoveryDismiss'),
+
+  cornerBR:    $('cornerBR'),
+  phaseTag:    $('phaseTag'),
+};
+
+// ---- state ----
+const STATE = {
+  step: 'confirm',           // 'confirm' | 'progress' | 'done'
+  phase: 'idle',             // 'idle' | 'connecting' | 'downloading' | 'paused' | 'lost' | 'verifying' | 'complete'
+  bytes: 0,
+  speedMBs: 12.4,
+  startedAt: null,
+  showRecovery: false,
+};
+
+// stable text per phase
+const PHASE_COPY = {
+  connecting:  { badge:'conectando',         verb:'estabelecendo o canal com o repositório.' },
+  downloading: { badge:'descendo',           verb:'o texto está atravessando a rede.' },
+  paused:      { badge:'pausado',            verb:'o download está suspenso. retome quando quiser.' },
+  lost:        { badge:'conexão perdida',    verb:'o canal caiu. estamos esperando a rede voltar — a posição já está salva.' },
+  verifying:   { badge:'verificando',        verb:'conferindo o selo: sha-256 byte a byte.' },
+  complete:    { badge:'completo',           verb:'o modelo está em casa.' },
+};
+
+const SITUATION = {
+  connecting:  'estabelecendo',
+  downloading: 'estável',
+  paused:      'pausado',
+  lost:        'aguardando rede',
+  verifying:   'conferindo selo',
+  complete:    'íntegro',
+};
+
+const CORNER_BR = {
+  confirm:     'aguardando confirmação',
+  connecting:  'conectando ao repositório',
+  downloading: 'cópia em andamento',
+  paused:      'cópia pausada',
+  lost:        'conexão perdida — segura',
+  verifying:   'verificando integridade',
+  complete:    'cópia íntegra · pronto',
+};
+
+const PHASE_TAG = {
+  confirm:     'download do modelo',
+  connecting:  'download do modelo',
+  downloading: 'download do modelo',
+  paused:      'download pausado',
+  lost:        'download em pausa',
+  verifying:   'verificação do selo',
+  complete:    'download concluído',
+};
+
+// ---- persistence ----
+function persist(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      step: STATE.step,
+      phase: STATE.phase,
+      bytes: STATE.bytes,
+      ts: Date.now(),
+    }));
+  }catch(e){}
+}
+function loadPersisted(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return null;
+    return JSON.parse(raw);
+  }catch(e){ return null; }
+}
+function clearPersisted(){
+  try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+}
+
+// ---- render ----
+function render(){
+  // step containers
+  els.workConfirm.classList.toggle('hidden', STATE.step !== 'confirm');
+  els.workProgress.classList.toggle('hidden', STATE.step !== 'progress');
+  els.workDone.classList.toggle('hidden', STATE.step !== 'done');
+
+  // corner br + phase tag
+  els.cornerBR.textContent = CORNER_BR[STATE.phase] || CORNER_BR[STATE.step];
+  els.phaseTag.textContent = PHASE_TAG[STATE.phase] || PHASE_TAG[STATE.step];
+
+  // confirm seal arming dot — only visible while sitting on confirm
+  if(STATE.step === 'confirm'){
+    els.sealConfirm.classList.remove('arming-hide');
+    els.confirmSize.innerHTML = '7,30<span class="sym"> gb</span>';
+  }else{
+    els.sealConfirm.classList.add('arming-hide');
+  }
+
+  if(STATE.step !== 'progress'){ return; }
+
+  // progress dial
+  const pct = STATE.bytes / TOTAL_BYTES * 100;
+  const dashOffset = 100 - pct;
+  els.dialFill.setAttribute('stroke-dashoffset', dashOffset.toFixed(2));
+  els.dialPct.innerHTML = `${fmtPct(pct)}<span class="sym"> %</span>`;
+  els.dialMb.textContent = fmtSize(STATE.bytes);
+  els.dialTotal.textContent = fmtGB(TOTAL_BYTES);
+
+  // metrics
+  const remaining = Math.max(0, TOTAL_BYTES - STATE.bytes);
+  const etaSec = STATE.speedMBs > 0 ? (remaining / 1e6) / STATE.speedMBs : Infinity;
+  els.speedVal.textContent = (STATE.phase === 'downloading' ? STATE.speedMBs.toFixed(1) : '—');
+  els.etaVal.textContent   = (STATE.phase === 'downloading' ? fmtEta(etaSec) :
+                              STATE.phase === 'verifying'   ? '< 30 s' :
+                              STATE.phase === 'paused'      ? 'pausado' :
+                              STATE.phase === 'lost'        ? 'aguardando' :
+                              STATE.phase === 'connecting'  ? 'estimando' : '—');
+  els.situationVal.textContent = SITUATION[STATE.phase] || '—';
+
+  // captions
+  const copy = PHASE_COPY[STATE.phase] || PHASE_COPY.downloading;
+  els.badgeText.textContent = copy.badge;
+  els.stateCaption.dataset.state = STATE.phase;
+  els.sealDial.dataset.state    = STATE.phase;
+
+  // pause button label & disabled state
+  els.pauseLabel.textContent = STATE.phase === 'paused' || STATE.phase === 'lost' ? 'retomar' : 'pausar';
+  els.pauseBtn.disabled  = (STATE.phase === 'verifying');
+  els.cancelBtn.disabled = (STATE.phase === 'verifying');
+  // "another model" only safe to abort when paused or lost — never mid-stream or mid-verify
+  els.anotherBtn.disabled = !(STATE.phase === 'paused' || STATE.phase === 'lost');
+
+  // dim metric when relevant
+  document.getElementById('mSpeed').classList.toggle('dim', STATE.phase !== 'downloading');
+}
+
+// ---- transitions ----
+let tickHandle = null;
+let phaseTimeout = null;
+
+function clearTimers(){
+  if(tickHandle){ clearInterval(tickHandle); tickHandle = null; }
+  if(phaseTimeout){ clearTimeout(phaseTimeout); phaseTimeout = null; }
+}
+
+function setPhase(p){
+  STATE.phase = p;
+  render();
+  persist();
+}
+
+function startDownload(){
+  STATE.step = 'progress';
+  STATE.bytes = STATE.bytes || 0;
+  STATE.startedAt = Date.now();
+
+  setPhase('connecting');
+  // brief connection shimmer, then begin
+  phaseTimeout = setTimeout(() => {
+    setPhase('downloading');
+    runTicker();
+  }, 1400);
+}
+
+function runTicker(){
+  clearTimers();
+  // ~12.4 MB/s, 250ms tick — feels like a real download but reaches the end in well under a minute for demo
+  tickHandle = setInterval(() => {
+    if(STATE.phase !== 'downloading') return;
+    // ~12.4 MB/s with jitter; advanced 9× real-time so the demo lands in ~1 min
+    STATE.speedMBs = 11.5 + Math.random()*2.4;
+    const advance = STATE.speedMBs * 1e6 * 9;
+    STATE.bytes = Math.min(TOTAL_BYTES, STATE.bytes + advance);
+    if(STATE.bytes >= TOTAL_BYTES){
+      STATE.bytes = TOTAL_BYTES;
+      setPhase('verifying');
+      clearTimers();
+      phaseTimeout = setTimeout(() => {
+        setPhase('complete');
+        STATE.step = 'done';
+        clearPersisted();
+        render();
+      }, 2200);
+      return;
+    }
+    render();
+    persist();
+  }, 250);
+}
+
+function togglePause(){
+  if(STATE.phase === 'downloading' || STATE.phase === 'connecting'){
+    clearTimers();
+    setPhase('paused');
+  }else if(STATE.phase === 'paused' || STATE.phase === 'lost'){
+    setPhase('connecting');
+    phaseTimeout = setTimeout(() => {
+      setPhase('downloading');
+      runTicker();
+    }, 900);
+  }
+}
+
+function cancel(){
+  clearTimers();
+  STATE.bytes = 0;
+  STATE.step = 'confirm';
+  setPhase('idle');
+  clearPersisted();
+}
+
+function openChat(){
+  // the model is on disk — mark the house as ready and wake the oracle
+  try { localStorage.setItem('abraxas:ready', '1'); } catch (e) {}
+  window.location.href = 'Abraxas Load Model.html';
+}
+function backToReco(){ window.location.href = 'Abraxas Model Recommendation.html'; }
+
+// ---- wire buttons ----
+els.startBtn.addEventListener('click', startDownload);
+els.goBackBtn.addEventListener('click', backToReco);
+els.reverseLink.addEventListener('click', backToReco);
+els.pauseBtn.addEventListener('click', togglePause);
+els.cancelBtn.addEventListener('click', cancel);
+els.anotherBtn.addEventListener('click', backToReco);
+els.openChatBtn.addEventListener('click', openChat);
+els.recoveryDismiss.addEventListener('click', () => {
+  els.recovery.classList.remove('visible');
+});
+
+// keyboard
+document.addEventListener('keydown', (e) => {
+  // don't hijack keys meant for form fields or focused buttons
+  if (e.target.closest('input, textarea, select, button')) return;
+  if(e.key === 'Enter'){
+    if(STATE.step === 'confirm'){ e.preventDefault(); startDownload(); }
+    else if(STATE.step === 'done'){ e.preventDefault(); openChat(); }
+  }
+  if(e.key === ' '){
+    if(STATE.step === 'progress' &&
+      (STATE.phase === 'downloading' || STATE.phase === 'paused' || STATE.phase === 'lost' || STATE.phase === 'connecting')){
+      e.preventDefault(); togglePause();
+    }
+  }
+});
+
+// ---- recovery on load ----
+(function bootstrap(){
+  const persisted = loadPersisted();
+  if(persisted && persisted.step === 'progress' && persisted.bytes > 0 && persisted.bytes < TOTAL_BYTES){
+    // returning user — restore at exact byte position, paused so they decide to resume
+    STATE.step = 'progress';
+    STATE.bytes = persisted.bytes;
+    STATE.phase = 'paused';
+    STATE.showRecovery = true;
+    render();
+    const pos = document.getElementById('recoveryPos');
+    if (pos) pos.textContent = (STATE.bytes / 1e9).toFixed(1).replace('.', ',') + ' GB / 7,30 GB';
+    els.recovery.classList.add('visible');
+  }else{
+    render();
+  }
+})();
+
+// ---- expose for tweaks panel ----
+window.__abraxas = {
+  setStep(step){
+    clearTimers();
+    if(step === 'confirm'){ cancel(); return; }
+    if(step === 'progress'){
+      if(STATE.step !== 'progress' || STATE.bytes === 0) startDownload();
+    }
+    if(step === 'done'){
+      clearTimers();
+      STATE.bytes = TOTAL_BYTES;
+      STATE.step = 'done';
+      STATE.phase = 'complete';
+      render();
+    }
+  },
+  setPhase(p){
+    clearTimers();
+    STATE.step = 'progress';
+    if(STATE.bytes === 0) STATE.bytes = TOTAL_BYTES * 0.46;
+    STATE.phase = p;
+    if(p === 'downloading') runTicker();
+    if(p === 'verifying'){
+      STATE.bytes = TOTAL_BYTES;
+    }
+    if(p === 'complete'){
+      STATE.bytes = TOTAL_BYTES;
+      STATE.step = 'done';
+    }
+    render();
+  },
+  setStorageWarn(warn){
+    if(warn){
+      els.storage.dataset.warn = 'true';
+      els.storageRhs.textContent = '503 / 512 gb usados';
+      els.storageFilled.style.width = '98.2%';
+      els.storageIncoming.style.left = '98.2%';
+      els.storageIncoming.style.width = '1.43%';
+      els.storageVerdict.textContent = 'espaço crítico · 1,7 gb sobrarão';
+    }else{
+      els.storage.dataset.warn = 'false';
+      els.storageRhs.textContent = '82 / 512 gb usados';
+      els.storageFilled.style.width = '16%';
+      els.storageIncoming.style.left = '16%';
+      els.storageIncoming.style.width = '1.43%';
+      els.storageVerdict.textContent = '';
+    }
+  },
+  showRecovery(show){
+    els.recovery.classList.toggle('visible', !!show);
+  }
+};
+</script>
+
+
+<!-- ============== Tweaks panel ============== -->
+<script type="text/babel">
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "phase": "auto",
+    "storageWarn": false,
+    "showRecovery": false
+  }/*EDITMODE-END*/;
+
+  function App(){
+    const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+    React.useEffect(() => {
+      window.__abraxas.setStorageWarn(t.storageWarn);
+    }, [t.storageWarn]);
+
+    React.useEffect(() => {
+      window.__abraxas.showRecovery(t.showRecovery);
+    }, [t.showRecovery]);
+
+    React.useEffect(() => {
+      if(t.phase === 'auto') return;
+      if(t.phase === 'confirm'){ window.__abraxas.setStep('confirm'); return; }
+      if(t.phase === 'done'){ window.__abraxas.setStep('done'); return; }
+      window.__abraxas.setPhase(t.phase);
+    }, [t.phase]);
+
+    return (
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Estado do fluxo" />
+        <TweakSelect
+          label="Fase"
+          value={t.phase}
+          options={[
+            { value:'auto',         label:'auto · (deixe rodar)' },
+            { value:'confirm',      label:'A · confirmação' },
+            { value:'connecting',   label:'B · conectando' },
+            { value:'downloading',  label:'B · descendo' },
+            { value:'paused',       label:'B · pausado' },
+            { value:'lost',         label:'B · conexão perdida' },
+            { value:'verifying',    label:'B · verificando' },
+            { value:'done',         label:'C · completo' },
+          ]}
+          onChange={(v) => setTweak('phase', v)}
+        />
+        <TweakSection label="Casos de borda" />
+        <TweakToggle
+          label="Disco em margem estreita"
+          value={t.storageWarn}
+          onChange={(v) => setTweak('storageWarn', v)}
+        />
+        <TweakToggle
+          label="Mostrar 'retomado de uma sessão anterior'"
+          value={t.showRecovery}
+          onChange={(v) => setTweak('showRecovery', v)}
+        />
+      </TweaksPanel>
+    );
+  }
+
+  const tweakRoot = document.createElement('div');
+  document.body.appendChild(tweakRoot);
+  ReactDOM.createRoot(tweakRoot).render(<App />);
+</script>
+
+</body>
+</html>

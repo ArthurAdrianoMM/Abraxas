@@ -1,0 +1,821 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Abraxas — chat hermético local</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!-- shared design system: tokens, sidebar, topbar, chat primitives, composer -->
+<link rel="stylesheet" href="_design-system.css">
+<!-- chat-only overlays: switcher popover, ordens drawer, toast -->
+<link rel="stylesheet" href="_chat-extras.css">
+</head>
+<body data-page="chat">
+
+<h2 class="sr-only">Abraxas — interface principal de chat hermético rodando modelo local</h2>
+
+<div class="shell">
+
+  <!-- ============== SIDEBAR ============== -->
+  <aside class="side" data-screen-label="01 Sidebar">
+    <div class="brand">
+      <svg class="glyph" width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <circle cx="16" cy="16" r="13" stroke="#b89968" stroke-width="0.9" fill="none"></circle>
+        <circle cx="16" cy="16" r="9.5" stroke="#7d2233" stroke-width="0.7" fill="none"></circle>
+        <line x1="16" y1="1.5" x2="16" y2="30.5" stroke="#b89968" stroke-width="0.9"></line>
+        <line x1="11" y1="16" x2="21" y2="16" stroke="#7d2233" stroke-width="0.7"></line>
+        <circle cx="16" cy="11" r="1.4" fill="#b89968"></circle>
+      </svg>
+      <div style="display:flex;flex-direction:column">
+        <span class="name">ABRAXAS</span>
+        <span class="tag">v.0 · local</span>
+      </div>
+    </div>
+
+    <button class="new-btn" id="newBtn">+ nova conversa</button>
+
+    <nav class="conv-scroll" aria-label="Conversas">
+      <div>
+        <div class="group-label">— hoje</div>
+        <div class="conv active" data-title="o pássaro e o ovo">o pássaro e o ovo</div>
+        <div class="conv" data-title="privacidade em modelos locais">privacidade em modelos locais</div>
+        <div class="conv" data-title="gnose e linguagem">gnose e linguagem</div>
+      </div>
+      <div>
+        <div class="group-label">— esta semana</div>
+        <div class="conv" data-title="notas sobre Hesse">notas sobre Hesse</div>
+        <div class="conv" data-title="como funciona quantização">como funciona quantização</div>
+        <div class="conv" data-title="alquimia interior, leituras">alquimia interior, leituras</div>
+        <div class="conv" data-title="o silêncio dos pitagóricos">o silêncio dos pitagóricos</div>
+      </div>
+      <div>
+        <div class="group-label">— mais antigas</div>
+        <div class="conv" data-title="cabala e combinatória">cabala e combinatória</div>
+        <div class="conv" data-title="rascunho de ensaio: o duplo">rascunho de ensaio: o duplo</div>
+        <div class="conv" data-title="Jung, Eranos, sincronicidade">Jung, Eranos, sincronicidade</div>
+      </div>
+    </nav>
+
+    <div class="footer">
+      <div class="model-row"><span class="pulse"></span><span id="footerName">llama-3.1-8b</span></div>
+      <div class="model-meta" id="footerMeta">7.3 GB · ram 12/16</div>
+    </div>
+  </aside>
+
+  <!-- ============== MAIN ============== -->
+  <main class="main" data-screen-label="02 Thread">
+
+    <header class="topbar" style="position:relative">
+      <span class="title" id="threadTitle" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">o pássaro e o ovo</span>
+
+      <!-- model pill → switcher popover -->
+      <button class="model-pill" id="pill" aria-haspopup="true" aria-expanded="false" title="trocar a voz" style="white-space:nowrap;flex-shrink:0">
+        <span class="pulse"></span>
+        <span class="name" id="pillName">Llama 3.1</span>
+        <span class="id" id="pillId">8b · q4_k_m</span>
+        <svg class="chev" width="11" height="11" viewBox="0 0 16 16" fill="none">
+          <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </button>
+
+      <!-- ordens desta conversa → drawer -->
+      <button class="tool-btn" id="ordersBtn" title="ordens desta conversa" aria-haspopup="dialog">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <line x1="2" y1="4.5" x2="14" y2="4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></line>
+          <line x1="2" y1="11.5" x2="14" y2="11.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></line>
+          <circle cx="10.5" cy="4.5" r="1.8" fill="var(--bg-2)" stroke="currentColor" stroke-width="1.2"></circle>
+          <circle cx="5.5" cy="11.5" r="1.8" fill="var(--bg-2)" stroke="currentColor" stroke-width="1.2"></circle>
+        </svg>
+      </button>
+
+      <!-- preferências da casa -->
+      <a class="tool-btn" href="Abraxas Settings.html" title="preferências">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="8" cy="8" r="2.6" stroke="currentColor" stroke-width="1.2"></circle>
+          <line x1="8" y1="1.5" x2="8" y2="3.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></line>
+          <line x1="8" y1="12.4" x2="8" y2="14.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></line>
+          <line x1="1.5" y1="8" x2="3.6" y2="8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></line>
+          <line x1="12.4" y1="8" x2="14.5" y2="8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></line>
+        </svg>
+      </a>
+
+      <span class="meta">
+        <span><span class="dot"></span>offline</span>
+      </span>
+    </header>
+
+    <section class="thread" id="thread">
+      <div class="thread-inner" id="threadInner">
+
+        <!-- USER -->
+        <article class="turn user">
+          <div class="who">
+            <span>você</span>
+          </div>
+          <div class="msg">
+            <p>o que Hesse quis dizer com <em>"abraxas"</em> em Demian?</p>
+          </div>
+        </article>
+
+        <!-- ABRAXAS -->
+        <article class="turn">
+          <div class="who">
+            <span class="seal" aria-hidden="true">
+              <svg width="11" height="11" viewBox="0 0 32 32" fill="none">
+                <circle cx="16" cy="16" r="13" stroke="#7d2233" stroke-width="1.4" fill="none"></circle>
+                <line x1="16" y1="3" x2="16" y2="29" stroke="#7d2233" stroke-width="1.3"></line>
+                <circle cx="16" cy="11" r="1.7" fill="#b89968"></circle>
+              </svg>
+            </span>
+            <span>abraxas</span>
+          </div>
+          <div class="msg">
+            <p>Em <em>Demian</em>, Abraxas é a divindade que reúne em si mesma o que a tradição cristã separou — luz e sombra, deus e demônio, criação e destruição. Hesse o invoca naquela passagem que você provavelmente já conhece:</p>
+            <blockquote>O pássaro luta para sair do ovo. O ovo é o mundo. Quem quiser nascer precisa primeiro destruir um mundo. O pássaro voa em direção a Deus. O nome de Deus é Abraxas.</blockquote>
+            <p>A figura é gnóstica — um deus de 365 nomes, anterior à divisão moral. Para o jovem Sinclair, descobrir Abraxas é o gesto inaugural de pensar fora das categorias herdadas.</p>
+            <div class="cite">
+              <span><b>fonte</b> · Hesse, <em>Demian</em>, cap. 5</span>
+              <span><b>contexto</b> · gnose, basilidianos</span>
+              <span><b>tokens</b> · 184</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- USER -->
+        <article class="turn user">
+          <div class="who"><span>você</span></div>
+          <div class="msg">
+            <p>e por que <em>365</em>? tem a ver com o ano?</p>
+          </div>
+        </article>
+
+        <!-- ABRAXAS -->
+        <article class="turn">
+          <div class="who">
+            <span class="seal" aria-hidden="true">
+              <svg width="11" height="11" viewBox="0 0 32 32" fill="none">
+                <circle cx="16" cy="16" r="13" stroke="#7d2233" stroke-width="1.4" fill="none"></circle>
+                <line x1="16" y1="3" x2="16" y2="29" stroke="#7d2233" stroke-width="1.3"></line>
+                <circle cx="16" cy="11" r="1.7" fill="#b89968"></circle>
+              </svg>
+            </span>
+            <span>abraxas</span>
+          </div>
+          <div class="msg">
+            <p>Sim, e não exatamente. Os basilidianos — escola gnóstica do séc. II em Alexandria — leram <code>ΑΒΡΑΞΑΣ</code> como um nome cuja soma das letras gregas, pela <em>isopsefia</em>, dá <strong>365</strong>:</p>
+            <ul>
+              <li>α=1, β=2, ρ=100, α=1, ξ=60, α=1, ς=200 → <em>365</em></li>
+            </ul>
+            <p>Isso o vinculava aos 365 céus da cosmologia basilidiana, e por extensão ao ciclo solar — mas o número era <em>causa</em> da forma do nome, não consequência do calendário. O ano veio depois, na coincidência.</p>
+            <span class="ornament">· · ·</span>
+            <div class="cite">
+              <span><b>fonte</b> · Irineu, <em>Adv. Haer.</em> I.24</span>
+              <span><b>ver também</b> · Jung, <em>Sete Sermões</em></span>
+              <span><b>tokens</b> · 246</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- USER -->
+        <article class="turn user">
+          <div class="who"><span>você</span></div>
+          <div class="msg">
+            <p>me dá uma leitura curta para esta noite. nada acadêmico.</p>
+          </div>
+        </article>
+
+        <!-- ABRAXAS, currently "thinking" -->
+        <article class="turn" id="liveTurn">
+          <div class="who">
+            <span class="seal" aria-hidden="true">
+              <svg width="11" height="11" viewBox="0 0 32 32" fill="none">
+                <circle cx="16" cy="16" r="13" stroke="#7d2233" stroke-width="1.4" fill="none"></circle>
+                <line x1="16" y1="3" x2="16" y2="29" stroke="#7d2233" stroke-width="1.3"></line>
+                <circle cx="16" cy="11" r="1.7" fill="#b89968"></circle>
+              </svg>
+            </span>
+            <span>abraxas <span style="color:var(--mute);letter-spacing:.05em;text-transform:none;font-style:italic;margin-left:6px">— pensando devagar</span></span>
+          </div>
+          <div class="msg">
+            <span class="typing" aria-label="modelo digitando"><i></i><i></i><i></i></span>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ============== COMPOSER ============== -->
+    <div class="composer-wrap">
+      <div class="composer-inner">
+        <div class="composer">
+          <button class="icon-btn" title="anexar fragmento" aria-label="anexar">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10.5 4.5L5.7 9.3a2 2 0 1 0 2.8 2.8l5.5-5.5a3.5 3.5 0 0 0-5-5L3 7.6a5 5 0 1 0 7 7l4.5-4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+          <textarea id="ta" rows="1" placeholder="pergunte ao abraxas…" autocomplete="off" spellcheck="false"></textarea>
+          <button class="send-btn" id="sendBtn" aria-label="enviar">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 13V3M8 3l-4 4M8 3l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+        </div>
+        <div class="hint-row" style="display:none"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ============== SWITCHER POPOVER (from the topbar pill) ============== -->
+<div class="pop-scrim" id="popScrim"></div>
+<aside class="popover" id="pop" role="menu" aria-label="trocar de modelo">
+
+  <div class="pop-head">
+    <span class="kicker">— qual voz desta vez</span>
+    <span class="machine">sua máq · <b>16 gb</b> · metal</span>
+  </div>
+
+  <div class="pop-list" id="popList">
+
+    <div class="pop-item active" data-active="true" data-default="true" data-heavy="false"
+         data-name="Llama 3.1" data-id="8b · q4_k_m" data-foot="7.3 GB · ram 12/16">
+      <span class="seal">★</span>
+      <div class="body">
+        <div class="name-row">
+          <span class="name">Llama 3.1</span>
+          <span class="id">meta · 8b · q4_k_m</span>
+        </div>
+        <span class="meta">padrão · <b>já carregada</b></span>
+      </div>
+      <div>
+        <div class="size"><b>7.3</b> gb</div>
+        <div class="now-line">agora</div>
+      </div>
+    </div>
+
+    <div class="pop-item" data-active="false" data-default="false" data-heavy="false"
+         data-name="Mistral 7B" data-id="7b · q5_k_m" data-foot="5.1 GB · ram 8/16">
+      <span class="seal">★</span>
+      <div class="body">
+        <div class="name-row">
+          <span class="name">Mistral 7B</span>
+          <span class="id">mistralai · 7b · q5_k_m</span>
+        </div>
+        <span class="meta">leve · <b>carrega em ~3 s</b></span>
+      </div>
+      <div>
+        <div class="size"><b>5.1</b> gb</div>
+        <div class="now-line">agora</div>
+      </div>
+    </div>
+
+    <div class="pop-item" data-active="false" data-default="false" data-heavy="false"
+         data-name="Phi-3 Mini" data-id="3.8b · q8_0" data-foot="3.8 GB · ram 6/16">
+      <span class="seal">★</span>
+      <div class="body">
+        <div class="name-row">
+          <span class="name">Phi-3 Mini</span>
+          <span class="id">microsoft · 3.8b · q8_0</span>
+        </div>
+        <span class="meta">muito leve · <b>~2 s</b></span>
+      </div>
+      <div>
+        <div class="size"><b>3.8</b> gb</div>
+        <div class="now-line">agora</div>
+      </div>
+    </div>
+
+    <div class="pop-item" data-active="false" data-default="false" data-heavy="true"
+         data-name="Qwen 2.5" data-id="14b · q4_0" data-foot="6.2 GB · ram 11/16">
+      <span class="seal">★</span>
+      <div class="body">
+        <div class="name-row">
+          <span class="name">Qwen 2.5</span>
+          <span class="id">alibaba · 14b · q4_0</span>
+        </div>
+        <span class="meta">pesa um pouco · <b>~6 s · tela de despertar</b></span>
+      </div>
+      <div>
+        <div class="size"><b>6.2</b> gb</div>
+        <div class="now-line">agora</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pop-foot">
+    <a href="Abraxas Model Catalog.html">
+      <span>procurar no catálogo</span>
+      <span class="right">remoto →</span>
+    </a>
+    <a href="Abraxas Model Manager.html">
+      <span>ateliê dos modelos</span>
+      <span class="right">instalados →</span>
+    </a>
+  </div>
+</aside>
+
+<!-- "trocando…" toast -->
+<div class="switching" id="switching">
+  <span class="pulse"></span>
+  <span><em>despertando</em> <b id="switchName" style="font-style:italic;color:var(--ink);font-family:var(--display);font-weight:500">Mistral 7B</b>…</span>
+</div>
+
+<!-- ============== ORDENS DRAWER (per-conversation settings) ============== -->
+<div class="dscrim" id="dscrim"></div>
+
+<aside class="drawer" id="drawer" data-screen-label="03 Conversation Settings" role="dialog" aria-label="ordens desta conversa" aria-modal="true">
+
+  <div class="drawer-head">
+    <div class="kicker">
+      <span><span class="step">ordens</span> · desta conversa</span>
+      <button class="x" id="drawerClose" aria-label="fechar">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+          <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
+        </svg>
+      </button>
+    </div>
+    <h1>As ordens desta conversa.</h1>
+    <span class="conv-name"><b id="drawerConvName">“o pássaro e o ovo”</b> · 4 turnos · iniciada há 12 min</span>
+  </div>
+
+  <div class="drawer-body">
+
+    <!-- I · SYSTEM PROMPT -->
+    <div class="dsection">
+      <div class="dsection-head">
+        <span class="name">i · a voz</span>
+        <p class="gloss">a instrução que abre todo turno do modelo. permanece nesta conversa.</p>
+      </div>
+      <div class="sysprompt">
+        <textarea spellcheck="false">Você é Abraxas — um interlocutor contemplativo, hermético, que responde em português com prosa cuidada e referências precisas quando há. Evite tom corporativo; prefira o tom de um caderno noturno. Quando citar uma fonte, prefira a edição original.</textarea>
+        <div class="sysprompt-foot">
+          <div class="preset-row">
+            <button class="preset">contemplativo</button>
+            <button class="preset">técnico, seco</button>
+            <button class="preset">tutor paciente</button>
+            <button class="preset">em branco</button>
+          </div>
+          <span>347 caracteres</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- II · GEN OVERRIDES -->
+    <div class="dsection">
+      <div class="dsection-head">
+        <span class="name">ii · a medida do verbo</span>
+        <p class="gloss">parâmetros desta conversa. desmarque para herdar das preferências.</p>
+      </div>
+
+      <!-- temperature (overridden) -->
+      <div class="dfield" data-inherit="false">
+        <div class="top">
+          <span class="label">temperatura</span>
+          <span class="inherit" data-on="false">
+            <span class="checkbox"></span>
+            herdar do padrão (0.70)
+          </span>
+        </div>
+        <div class="value-area">
+          <div class="slider-row">
+            <div class="slider-top">
+              <span>movimento</span>
+              <span class="reading">0.45 <span class="vs">· padrão 0.70</span></span>
+            </div>
+            <div class="slider-track">
+              <div class="fill" style="width:22%"></div>
+              <div class="thumb" style="left:22%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- top_p (inherited) -->
+      <div class="dfield muted" data-inherit="true">
+        <div class="top">
+          <span class="label">top-p</span>
+          <span class="inherit" data-on="true">
+            <span class="checkbox"></span>
+            herdar do padrão (0.92)
+          </span>
+        </div>
+        <div class="value-area">
+          <div class="slider-row">
+            <div class="slider-top">
+              <span>amplitude</span>
+              <span class="reading">0.92</span>
+            </div>
+            <div class="slider-track">
+              <div class="fill" style="width:92%"></div>
+              <div class="thumb" style="left:92%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- max tokens (overridden) -->
+      <div class="dfield" data-inherit="false">
+        <div class="top">
+          <span class="label">máximo de tokens</span>
+          <span class="inherit" data-on="false">
+            <span class="checkbox"></span>
+            herdar do padrão (2048)
+          </span>
+        </div>
+        <div class="value-area">
+          <div style="display:flex; align-items:center; gap:10px; border:1px solid var(--line-2); border-radius:4px; padding:8px 12px; background:var(--bg-3); max-width:240px">
+            <input type="text" value="4096" style="flex:1; background:transparent; border:0; outline:none; color:var(--ink); font-family:var(--mono); font-size:13px; font-variant-numeric: tabular-nums;">
+            <span style="font-family:var(--mono); font-size:9.5px; letter-spacing:0.18em; text-transform:uppercase; color:var(--mute-2)">tokens</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- seed (inherited) -->
+      <div class="dfield muted" data-inherit="true">
+        <div class="top">
+          <span class="label">semente</span>
+          <span class="inherit" data-on="true">
+            <span class="checkbox"></span>
+            herdar do padrão (aleatório)
+          </span>
+        </div>
+        <div class="value-area">
+          <div style="display:flex; align-items:center; gap:10px; border:1px solid var(--line-2); border-radius:4px; padding:8px 12px; background:var(--bg-3); max-width:240px">
+            <input type="text" value="" placeholder="aleatório · ex.: 365" style="flex:1; background:transparent; border:0; outline:none; color:var(--ink); font-family:var(--mono); font-size:13px;">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- III · MODEL OVERRIDE -->
+    <div class="dsection">
+      <div class="dsection-head">
+        <span class="name">iii · qual modelo</span>
+        <p class="gloss">a voz pode mudar dentro da mesma conversa — Abraxas mantém o histórico.</p>
+      </div>
+      <div class="dfield" data-inherit="false" style="border:0; padding:0">
+        <div class="top">
+          <span class="label">modelo</span>
+          <span class="inherit" data-on="false">
+            <span class="checkbox"></span>
+            herdar (llama-3.1-8b)
+          </span>
+        </div>
+        <div class="value-area">
+          <div class="model-pick" id="drawerModelPick" title="trocar a voz">
+            <span class="star">★</span>
+            <span class="name" id="drawerModelName">Llama 3.1</span>
+            <span class="id" id="drawerModelId">8b · q4_k_m</span>
+            <svg class="arrow" width="11" height="11" viewBox="0 0 16 16" fill="none">
+              <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IV · MEMORY -->
+    <div class="dsection">
+      <div class="dsection-head">
+        <span class="name">iv · a memória</span>
+        <p class="gloss">o que esta conversa carrega entre turnos.</p>
+      </div>
+
+      <div class="dfield" style="border:0; padding:0">
+        <div class="top">
+          <span class="label">tokens em contexto</span>
+          <span class="badge">salvo agora</span>
+        </div>
+        <div class="value-area" style="display:flex; flex-direction:column; gap:10px; opacity:1; pointer-events:auto">
+          <div style="font-family:var(--mono); font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:var(--mute-2)">
+            <b style="color:var(--ink-2); font-family:var(--display); font-style:italic; font-weight:500; font-size:18px; letter-spacing:0.01em; margin-right:6px;">784</b>
+            de <b style="color:var(--ink-3);">128 000</b> tokens · 0.6% ocupado
+          </div>
+          <div style="position:relative; height:2px; background:#1a1311; border-radius:2px;">
+            <div style="position:absolute; left:0; top:0; bottom:0; width:0.6%; background:var(--brass); opacity:.7"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="drawer-foot">
+    <button class="verb-link" id="drawerReset">restaurar tudo ao padrão</button>
+    <button class="gbtn" id="drawerApply">
+      aplicar à conversa
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    </button>
+  </div>
+</aside>
+
+<script>
+  // ===================== thread / composer =====================
+  const thread   = document.getElementById('thread');
+  const inner    = document.getElementById('threadInner');
+  const liveTurn = document.getElementById('liveTurn');
+  const ta       = document.getElementById('ta');
+  const sendBtn  = document.getElementById('sendBtn');
+  const title    = document.getElementById('threadTitle');
+
+  const SEAL = `
+    <span class="seal" aria-hidden="true">
+      <svg width="11" height="11" viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="16" r="13" stroke="#7d2233" stroke-width="1.4" fill="none"></circle>
+        <line x1="16" y1="3" x2="16" y2="29" stroke="#7d2233" stroke-width="1.3"></line>
+        <circle cx="16" cy="11" r="1.7" fill="#b89968"></circle>
+      </svg>
+    </span>`;
+
+  const REPLIES = [
+    `<p>Aceito a pergunta. Deixe-a repousar; volto com ela quando o silêncio tiver dado forma.</p><span class="ornament">· · ·</span>`,
+    `<p>Há uma resposta — mas ela exige que você abandone primeiro a forma da pergunta.</p><p>Reformule, sem pressa.</p>`,
+    `<p>O que você nomeia já é metade do gesto. A outra metade é <em>esperar</em>.</p><span class="ornament">· · ·</span>`,
+    `<p>Curioso. Essa pergunta tem dois fundos:</p><ul><li>o que você quer saber</li><li>o que a pergunta quer que você descubra</li></ul><p>Qual deles vamos abrir?</p>`,
+    `<p>Anote isto antes que eu responda: <em>onde a sua pergunta dói?</em></p><p>Volto em seguida.</p>`,
+    `<p>Os gnósticos diriam que toda pergunta verdadeira já contém o seu opositor. Vejo o seu opositor aqui — quer que eu o nomeie?</p>`
+  ];
+  const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+
+  function autosize(){
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
+  }
+  function syncSend(){
+    const empty = !ta.value.trim();
+    sendBtn.disabled = empty;
+    sendBtn.style.opacity = empty ? .4 : 1;
+    sendBtn.style.cursor = empty ? 'default' : 'pointer';
+  }
+  ta.addEventListener('input', () => { autosize(); syncSend(); });
+  syncSend();
+
+  function sendText(text){
+    if(!text) return;
+
+    const u = document.createElement('article');
+    u.className = 'turn user';
+    u.innerHTML = `<div class="who"><span>você</span></div><div class="msg"></div>`;
+    const p = document.createElement('p');
+    p.textContent = text;
+    u.querySelector('.msg').appendChild(p);
+    inner.appendChild(u);
+
+    const a = document.createElement('article');
+    a.className = 'turn';
+    a.innerHTML = `
+      <div class="who">${SEAL}<span>abraxas</span></div>
+      <div class="msg"><span class="typing"><i></i><i></i><i></i></span></div>`;
+    inner.appendChild(a);
+
+    thread.scrollTop = thread.scrollHeight;
+
+    const delay = 700 + Math.min(1800, text.length * 18);
+    setTimeout(() => {
+      a.querySelector('.msg').innerHTML = pick(REPLIES);
+      thread.scrollTop = thread.scrollHeight;
+    }, delay);
+  }
+
+  function send(){
+    const text = ta.value.trim();
+    if(!text) return;
+    ta.value = ''; autosize(); syncSend();
+    sendText(text);
+    ta.focus();
+  }
+
+  sendBtn.addEventListener('click', send);
+  ta.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault(); send();
+    }
+  });
+  window.addEventListener('load', () => ta.focus());
+
+  // ===================== handoffs from other pages =====================
+  // seed prompt sent from "Abraxas New Conversation.html"
+  let seeded = false;
+  try {
+    const seed = sessionStorage.getItem('abraxas:seed');
+    if (seed){
+      sessionStorage.removeItem('abraxas:seed');
+      seeded = true;
+      // start clean: new thread with the seed as the first word
+      inner.innerHTML = '';
+      const seedTitle = seed.length > 44 ? seed.slice(0, 44) + '…' : seed;
+      title.textContent = seedTitle;
+      const dcn = document.getElementById('drawerConvName');
+      if (dcn){
+        dcn.textContent = '“' + seedTitle + '”';
+        dcn.nextSibling.textContent = ' · 1 turno · iniciada agora';
+      }
+      document.querySelectorAll('.conv').forEach(c => c.classList.remove('active'));
+      sendText(seed);
+    } else {
+      // conversation opened from another page's sidebar
+      const conv = sessionStorage.getItem('abraxas:conv');
+      if (conv){
+        sessionStorage.removeItem('abraxas:conv');
+        title.textContent = conv;
+        const dcn2 = document.getElementById('drawerConvName');
+        if (dcn2) dcn2.textContent = '“' + conv + '”';
+        document.querySelectorAll('.conv').forEach(c => {
+          c.classList.toggle('active', (c.dataset.title || '') === conv);
+        });
+      }
+    }
+  } catch (e) {}
+
+  thread.scrollTop = thread.scrollHeight;
+
+  // demo: finish the "thinking" turn (only when showing the demo thread)
+  if (!seeded){
+    setTimeout(() => {
+      if (!liveTurn || !liveTurn.isConnected) return;
+      const msg = liveTurn.querySelector('.msg');
+      msg.innerHTML = `
+        <p>Apague tudo, deixe só o abajur.</p>
+        <p>Leia <em>Demian</em>, do capítulo quatro ao seis. Não para entender — para <strong>ouvir</strong>. Sinclair não argumenta, ele atravessa.</p>
+        <p>Quando o livro fechar, anote em uma linha qual mundo, hoje, te parece um ovo.</p>
+        <span class="ornament">· · ·</span>
+        <div class="cite">
+          <span><b>leitura</b> · ~22 min</span>
+          <span><b>humor</b> · noturno</span>
+          <span><b>tokens</b> · 92</span>
+        </div>`;
+      const who = liveTurn.querySelector('.who');
+      who.innerHTML = who.innerHTML.replace(/<span style[^>]*>.*?<\/span>/, '');
+      thread.scrollTop = thread.scrollHeight;
+    }, 1800);
+  }
+
+  // sidebar conversations switch in-page
+  document.querySelectorAll('.conv').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.conv').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      title.textContent = el.dataset.title || el.textContent;
+      const name = document.getElementById('drawerConvName');
+      if (name) name.textContent = '“' + (el.dataset.title || el.textContent) + '”';
+    });
+  });
+
+  // ===================== model switcher popover =====================
+  const pill       = document.getElementById('pill');
+  const pop        = document.getElementById('pop');
+  const popScrim   = document.getElementById('popScrim');
+  const items      = document.querySelectorAll('.pop-item');
+  const pillName   = document.getElementById('pillName');
+  const pillId     = document.getElementById('pillId');
+  const footerName = document.getElementById('footerName');
+  const footerMeta = document.getElementById('footerMeta');
+  const switching  = document.getElementById('switching');
+  const switchName = document.getElementById('switchName');
+
+  function applyModel(m){
+    pillName.textContent = m.name;
+    pillId.textContent   = m.id;
+    footerName.textContent = (m.name + ' · ' + m.id).toLowerCase();
+    footerMeta.textContent = m.foot;
+    const dn = document.getElementById('drawerModelName');
+    const di = document.getElementById('drawerModelId');
+    if (dn) dn.textContent = m.name;
+    if (di) di.textContent = m.id;
+    try { localStorage.setItem('abraxas:model', JSON.stringify(m)); } catch (e) {}
+  }
+
+  // restore last chosen model
+  try {
+    const saved = JSON.parse(localStorage.getItem('abraxas:model') || 'null');
+    if (saved && saved.name){
+      applyModel(saved);
+      items.forEach(x => {
+        const mine = x.dataset.name === saved.name;
+        x.classList.toggle('active', mine);
+        x.dataset.active = mine ? 'true' : 'false';
+      });
+    }
+  } catch (e) {}
+
+  function popClose(){
+    pop.classList.remove('open');
+    pill.classList.remove('open');
+    popScrim.classList.remove('open');
+    pill.setAttribute('aria-expanded', 'false');
+  }
+  function popOpen(){
+    pop.classList.add('open');
+    pill.classList.add('open');
+    popScrim.classList.add('open');
+    pill.setAttribute('aria-expanded', 'true');
+  }
+  pill.addEventListener('click', e => {
+    e.stopPropagation();
+    pop.classList.contains('open') ? popClose() : popOpen();
+  });
+  popScrim.addEventListener('click', popClose);
+
+  items.forEach(it => {
+    it.addEventListener('click', () => {
+      if (it.classList.contains('active')) { popClose(); return; }
+      const m = { name: it.dataset.name, id: it.dataset.id, foot: it.dataset.foot };
+      popClose();
+
+      // heavy model: go through the waking ceremony page
+      if (it.dataset.heavy === 'true'){
+        try { localStorage.setItem('abraxas:model', JSON.stringify(m)); } catch (e) {}
+        window.location.href = 'Abraxas Load Model.html';
+        return;
+      }
+
+      switchName.textContent = m.name;
+      switching.classList.add('open');
+      setTimeout(() => {
+        items.forEach(x => { x.classList.remove('active'); x.dataset.active = 'false'; });
+        it.classList.add('active');
+        it.dataset.active = 'true';
+        applyModel(m);
+        switching.classList.remove('open');
+      }, 1400);
+    });
+  });
+
+  // ===================== ordens drawer =====================
+  const drawer      = document.getElementById('drawer');
+  const dscrim      = document.getElementById('dscrim');
+  const ordersBtn   = document.getElementById('ordersBtn');
+
+  function drawerClose(){
+    drawer.classList.remove('open');
+    dscrim.classList.remove('open');
+    document.body.classList.remove('drawer-open');
+  }
+  function drawerOpen(){
+    popClose();
+    drawer.classList.add('open');
+    dscrim.classList.add('open');
+    document.body.classList.add('drawer-open');
+  }
+  ordersBtn.addEventListener('click', drawerOpen);
+  document.getElementById('drawerClose').addEventListener('click', drawerClose);
+  document.getElementById('drawerApply').addEventListener('click', drawerClose);
+  dscrim.addEventListener('click', drawerClose);
+
+  // the model row inside the drawer opens the switcher
+  document.getElementById('drawerModelPick').addEventListener('click', () => {
+    drawerClose();
+    popOpen();
+  });
+
+  // drawer sliders — drag to set (temperatura 0–2, demais 0–1)
+  document.querySelectorAll('.drawer .slider-track').forEach(track => {
+    const fill    = track.querySelector('.fill');
+    const thumb   = track.querySelector('.thumb');
+    const row     = track.closest('.slider-row');
+    const reading = row ? row.querySelector('.reading') : null;
+    const field   = track.closest('.dfield');
+    const label   = field ? (field.querySelector('.label') || {}).textContent || '' : '';
+    const max     = /temperatura/i.test(label) ? 2 : 1;
+    function setFromX(x){
+      const rect = track.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+      fill.style.width  = (pct * 100) + '%';
+      thumb.style.left  = (pct * 100) + '%';
+      if (reading && reading.firstChild){
+        // keep the trailing "· padrão …" span intact — update only the number
+        reading.firstChild.nodeValue = (pct * max).toFixed(2) + ' ';
+      }
+    }
+    let dragging = false;
+    track.addEventListener('pointerdown', e => {
+      dragging = true;
+      track.setPointerCapture(e.pointerId);
+      setFromX(e.clientX);
+    });
+    track.addEventListener('pointermove', e => { if (dragging) setFromX(e.clientX); });
+    ['pointerup','pointercancel'].forEach(t => track.addEventListener(t, () => { dragging = false; }));
+  });
+
+  // inherit toggles
+  document.querySelectorAll('.dfield .inherit').forEach(inh => {
+    inh.addEventListener('click', () => {
+      const on = inh.dataset.on === 'true';
+      inh.dataset.on = on ? 'false' : 'true';
+      const field = inh.closest('.dfield');
+      field.dataset.inherit = on ? 'false' : 'true';
+      field.classList.toggle('muted', !on);
+    });
+  });
+
+  // esc closes whichever overlay is open
+  window.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (drawer.classList.contains('open')) drawerClose();
+    else popClose();
+  });
+</script>
+
+<script src="_sidebar-nav.js"></script>
+</body>
+</html>

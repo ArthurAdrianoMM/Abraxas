@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Abraxas — falhas e malogros</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_design-system.css">
+
+<style>
+  /* =========================================================================
+     ERROR STATES — "falhas e malogros"
+     A gallery of every error variant the app can encounter, on a single
+     page so the team can review the tone in one read. Each card uses the
+     ceremony language we use elsewhere: italic display verdict, mono
+     diagnostic, brass/bordeaux rule, ghost-button actions. Six cards:
+       I.   model load fail
+       II.  download fail
+       III. OOM
+       IV.  no disk space
+       V.   catalog fetch fail
+       VI.  checksum mismatch
+     ========================================================================= */
+
+  body{ overflow:auto; }
+  html, body{ height:auto; }
+
+  .page{
+    min-height:100vh;
+    padding:64px 36px 96px;
+    background:
+      radial-gradient(140% 100% at 50% -10%, #100b0a 0%, #080605 65%, #050302 100%);
+  }
+  .corner{
+    position:fixed; z-index:5;
+    font-family:var(--mono); font-size:9.5px;
+    color:var(--mute-2);
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    pointer-events:none;
+  }
+  .corner.tl{ top:22px; left:28px; }
+  .corner.br{ bottom:20px; right:28px; }
+
+  .inner{ max-width:1080px; margin:0 auto; }
+
+  .head{ margin-bottom:36px; }
+  .head .kicker{
+    font-family:var(--mono); font-size:10px;
+    letter-spacing:0.24em; text-transform:uppercase;
+    color:var(--mute);
+    margin-bottom:8px;
+  }
+  .head .kicker span.step{ color:var(--bordeaux); }
+  .head .kicker span.sep{ color:var(--mute-2); opacity:.6; margin:0 8px; }
+  .head h1{
+    font-family:var(--display);
+    font-style:italic; font-weight:500;
+    font-size:46px; line-height:1.1;
+    color:var(--ink); margin:0 0 8px;
+    letter-spacing:0.005em;
+    text-wrap:balance;
+  }
+  .head h1 .quiet{ color:var(--ink-3); }
+  .head .gloss{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:16px;
+    line-height:1.55;
+    color:var(--ink-3);
+    margin:0;
+    max-width:62ch;
+  }
+
+  /* the gallery */
+  .gallery{
+    display:grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap:24px;
+  }
+  @media (max-width: 900px){ .gallery{ grid-template-columns: 1fr; } }
+
+  /* card */
+  .err{
+    position:relative;
+    border:1px solid var(--line-2);
+    border-left: 2px solid var(--bordeaux);
+    border-radius:6px;
+    padding:26px 28px 22px;
+    background:
+      linear-gradient(180deg, rgba(28,22,20,0.45) 0%, rgba(15,11,10,0.6) 100%);
+    display:flex; flex-direction:column;
+    gap:14px;
+    overflow:hidden;
+  }
+  .err::before{
+    content:"";
+    position:absolute; left:0; top:0;
+    width:120px; height:120px;
+    background:
+      radial-gradient(60% 60% at 0% 0%, rgba(125,34,51,0.18) 0%, transparent 60%);
+    pointer-events:none;
+  }
+
+  .err .top{
+    display:flex; justify-content:space-between; align-items:center;
+    gap:12px;
+  }
+  .err .badge{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.24em;
+    text-transform:uppercase;
+    color:var(--bordeaux);
+  }
+  .err .badge .dot{
+    width:5px; height:5px; border-radius:50%;
+    background:var(--bordeaux);
+    display:inline-block;
+    animation: pulse 1.8s ease-out infinite;
+  }
+  .err .badge .dot.steady{ animation:none; }
+  .err .code{
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute-2);
+  }
+  /* a couple of variants get warm/brass instead of bordeaux */
+  .err[data-tier="warn"]{ border-left-color: var(--ink-3); }
+  .err[data-tier="warn"] .badge{ color:var(--ink-3); }
+  .err[data-tier="warn"] .badge .dot{ background:var(--ink-3); }
+  .err[data-tier="warn"]::before{
+    background: radial-gradient(60% 60% at 0% 0%, rgba(168,158,144,0.10) 0%, transparent 60%);
+  }
+
+  .err h2{
+    font-family:var(--display);
+    font-style:italic; font-weight:500;
+    font-size:30px; line-height:1.12;
+    color:var(--ink); margin:0;
+    letter-spacing:0.005em;
+    text-wrap:balance;
+    max-width:24ch;
+  }
+  .err h2 .quiet{ color:var(--ink-3); display:block; }
+
+  .err .rule{
+    width:32px; height:1px;
+    background: var(--bordeaux); opacity:.7;
+  }
+  .err[data-tier="warn"] .rule{ background: var(--ink-3); opacity:.5; }
+
+  .err .gloss{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14.5px;
+    line-height:1.55;
+    color:var(--ink-3);
+    margin:0;
+    max-width:42ch;
+    text-wrap:pretty;
+  }
+  .err .gloss em{ color:var(--ink-2); }
+
+  /* the diagnostic ledger — small key-value entries */
+  .diag{
+    display:flex; flex-direction:column;
+    gap:0;
+    margin-top:2px;
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .diag .row{
+    display:grid;
+    grid-template-columns: 130px 1fr;
+    gap:18px;
+    align-items:baseline;
+    padding:10px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .diag .row:last-child{ border-bottom:0; }
+  .diag .row .k{
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute);
+  }
+  .diag .row .v{
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--ink-3);
+    word-break: break-all;
+    line-height:1.4;
+  }
+  .diag .row .v.italic{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:13.5px;
+    color:var(--ink-2);
+  }
+  .diag .row .v b{ color:var(--ink); font-weight:500; }
+  .diag .row .v.bordeaux{ color:#c14a5d; }
+
+  .err .actions{
+    display:flex; gap:14px; align-items:center;
+    flex-wrap:wrap;
+    margin-top:4px;
+  }
+  .gbtn{
+    background:transparent;
+    border:1px solid var(--bordeaux);
+    color:var(--brass);
+    padding:9px 16px;
+    font-family:var(--serif);
+    font-style:italic; font-size:14px;
+    border-radius:4px;
+    cursor:pointer;
+    transition: background .15s, color .15s, gap .15s;
+    display:inline-flex; align-items:center; gap:10px;
+  }
+  .gbtn:hover{ background:var(--bordeaux); color:var(--ink); gap:14px; }
+  .gbtn.ghost{
+    border-color: var(--line-2);
+    color: var(--brass);
+  }
+  .gbtn.ghost:hover{ background: var(--bg-hover); border-color: var(--bordeaux); color: var(--ink); }
+  .vlink{
+    background:transparent; border:0;
+    color:var(--mute);
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:13.5px;
+    cursor:pointer;
+    padding:6px 0;
+    letter-spacing:0.01em;
+    transition: color .15s;
+  }
+  .vlink:hover{ color:var(--brass); }
+
+  /* "viewed where" hint at top of each card — tells team where this surfaces */
+  .err .where{
+    position:absolute;
+    top:14px; right:18px;
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:12.5px;
+    color:var(--mute-2);
+  }
+  .err .where b{
+    font-family:var(--mono);
+    font-style:normal;
+    font-size:9px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute);
+    margin-right:6px;
+  }
+</style>
+</head>
+<body data-page="errors">
+
+<h2 class="sr-only">Abraxas — galeria das falhas possíveis e seu tratamento</h2>
+
+<span class="corner tl" style="pointer-events:auto"><a href="Abraxas Chat.html" style="color:inherit;text-decoration:none" onmouseover="this.style.color='var(--brass)'" onmouseout="this.style.color='inherit'">← voltar ao estúdio</a> · abraxas · v.0</span>
+<span class="corner br">galeria das falhas · 6 estados</span>
+
+<div class="page" data-screen-label="01 Errors Gallery">
+  <div class="inner">
+
+    <div class="head">
+      <div class="kicker">
+        <span class="step">os malogros</span><span class="sep">·</span><span>como a casa avisa quando algo falha</span>
+      </div>
+      <h1>
+        <span>As falhas, em voz baixa.</span>
+        <span class="quiet">seis casos. nenhuma surpresa.</span>
+      </h1>
+      <p class="gloss">
+        Quando algo falha, Abraxas explica em prosa o que aconteceu, o que isso significa, e o
+        que fazer em seguida. Códigos de erro ficam disponíveis em letra pequena, para quem precisa.
+      </p>
+    </div>
+
+    <div class="gallery">
+
+      <!-- ===== I · MODEL LOAD FAIL ===== -->
+      <article class="err" data-tier="error">
+        <span class="where"><b>aparece em</b>load model · em conversa</span>
+        <div class="top">
+          <span class="badge"><span class="dot steady"></span>i · não carregou</span>
+          <span class="code">err.load.weights</span>
+        </div>
+        <h2>
+          <span>O oráculo não acordou.</span>
+          <span class="quiet">o arquivo está aqui, mas recusou.</span>
+        </h2>
+        <span class="rule"></span>
+        <p class="gloss">
+          O modelo <em>Llama 3.1 (8B · q4_k_m)</em> não pôde ser lido para a memória.
+          O arquivo está intacto; provavelmente o tempo de execução está em outra versão.
+        </p>
+        <div class="diag">
+          <div class="row"><span class="k">modelo</span><span class="v">llama-3.1-8b-instruct.q4_k_m.gguf</span></div>
+          <div class="row"><span class="k">causa provável</span><span class="v italic">incompatibilidade de versão · llama.cpp esperava <b>b3567</b>, encontrou <b>b3210</b></span></div>
+          <div class="row"><span class="k">arquivo</span><span class="v">~/Library/Application Support/Abraxas/models/llama-3.1-8b.gguf</span></div>
+        </div>
+        <div class="actions">
+          <button class="gbtn">tentar de novo</button>
+          <button class="gbtn ghost">trocar de modelo</button>
+          <button class="vlink">copiar registro do erro</button>
+        </div>
+      </article>
+
+      <!-- ===== II · DOWNLOAD FAIL ===== -->
+      <article class="err" data-tier="error">
+        <span class="where"><b>aparece em</b>download · onboarding ou catálogo</span>
+        <div class="top">
+          <span class="badge"><span class="dot"></span>ii · download interrompido</span>
+          <span class="code">err.download.timeout</span>
+        </div>
+        <h2>
+          <span>O fio se cortou no meio.</span>
+          <span class="quiet">68% chegaram. retomamos.</span>
+        </h2>
+        <span class="rule"></span>
+        <p class="gloss">
+          A descida foi interrompida — o servidor remoto parou de responder. Os bytes
+          baixados ficaram salvos; podemos continuar de onde paramos sem recomeçar.
+        </p>
+        <div class="diag">
+          <div class="row"><span class="k">progresso</span><span class="v"><b>4.96 / 7.30</b> GB · 68%</span></div>
+          <div class="row"><span class="k">causa</span><span class="v italic">tempo esgotado · sem resposta há 28s</span></div>
+          <div class="row"><span class="k">link</span><span class="v">huggingface.co/meta-llama/Meta-Llama-3.1-8B-Instruct…</span></div>
+        </div>
+        <div class="actions">
+          <button class="gbtn">retomar de 68%</button>
+          <button class="gbtn ghost">recomeçar do zero</button>
+          <button class="vlink">cancelar download</button>
+        </div>
+      </article>
+
+      <!-- ===== III · OOM ===== -->
+      <article class="err" data-tier="error">
+        <span class="where"><b>aparece em</b>em conversa · ao gerar</span>
+        <div class="top">
+          <span class="badge"><span class="dot steady"></span>iii · memória esgotou</span>
+          <span class="code">err.runtime.oom</span>
+        </div>
+        <h2>
+          <span>A memória bateu no teto.</span>
+          <span class="quiet">o modelo pediu mais do que cabe.</span>
+        </h2>
+        <span class="rule"></span>
+        <p class="gloss">
+          A geração foi interrompida porque a memória da máquina não comportou a janela
+          de contexto desta conversa. Podemos reduzir o contexto, baixar o <em>top-p</em>,
+          ou trocar para um modelo mais leve.
+        </p>
+        <div class="diag">
+          <div class="row"><span class="k">memória</span><span class="v">pediu <b>14.8 GB</b> · disponível <b>3.1 GB</b> de 16</span></div>
+          <div class="row"><span class="k">contexto</span><span class="v">~ <b>96 000</b> tokens nesta conversa</span></div>
+          <div class="row"><span class="k">sugestão</span><span class="v italic">resumir os turnos antigos ou ir para mistral-7b</span></div>
+        </div>
+        <div class="actions">
+          <button class="gbtn">resumir e tentar de novo</button>
+          <button class="gbtn ghost">trocar para Mistral 7B</button>
+          <button class="vlink">reduzir contexto</button>
+        </div>
+      </article>
+
+      <!-- ===== IV · NO DISK SPACE ===== -->
+      <article class="err" data-tier="warn">
+        <span class="where"><b>aparece em</b>download · antes de começar</span>
+        <div class="top">
+          <span class="badge"><span class="dot steady"></span>iv · disco quase cheio</span>
+          <span class="code">err.disk.space</span>
+        </div>
+        <h2>
+          <span>O disco não tem onde guardar isto.</span>
+          <span class="quiet">faltam 1.2 GB depois da margem.</span>
+        </h2>
+        <span class="rule"></span>
+        <p class="gloss">
+          Para baixar <em>Llama 3.1 (8B)</em> com folga de respiro, precisaríamos de
+          <em>8.3 GB</em> livres. Existem <em>4.1 GB</em> — apenas o suficiente para
+          colocar o arquivo, sem espaço para o sistema operar.
+        </p>
+        <div class="diag">
+          <div class="row"><span class="k">precisa</span><span class="v"><b>8.3</b> GB · arquivo + margem de 1 GB</span></div>
+          <div class="row"><span class="k">disponível</span><span class="v bordeaux"><b>4.1</b> GB</span></div>
+          <div class="row"><span class="k">sugestão</span><span class="v italic">remover Mixtral 8×7B (26.4 GB) ou liberar disco antes de continuar</span></div>
+        </div>
+        <div class="actions">
+          <button class="gbtn">ir ao ateliê dos modelos</button>
+          <button class="gbtn ghost">escolher modelo mais leve</button>
+          <button class="vlink">prosseguir mesmo assim</button>
+        </div>
+      </article>
+
+      <!-- ===== V · CATALOG FETCH FAIL ===== -->
+      <article class="err" data-tier="warn">
+        <span class="where"><b>aparece em</b>catálogo · ao abrir</span>
+        <div class="top">
+          <span class="badge"><span class="dot"></span>v · não consegui ler o compêndio</span>
+          <span class="code">err.catalog.fetch</span>
+        </div>
+        <h2>
+          <span>O firmamento está fora do alcance.</span>
+          <span class="quiet">mostro a última cópia que vi.</span>
+        </h2>
+        <span class="rule"></span>
+        <p class="gloss">
+          O catálogo remoto não respondeu. Pode ser a rede, pode ser o servidor.
+          O que mostro abaixo é a cópia local — datada de <em>há 3 dias</em> e ainda
+          confiável para baixar.
+        </p>
+        <div class="diag">
+          <div class="row"><span class="k">tentativa</span><span class="v">https://catalog.abraxas.local/v1/models</span></div>
+          <div class="row"><span class="k">resposta</span><span class="v italic">sem conexão · DNS sem resposta</span></div>
+          <div class="row"><span class="k">cópia local</span><span class="v"><b>10</b> modelos · sincronizada <b>há 3 dias</b></span></div>
+        </div>
+        <div class="actions">
+          <button class="gbtn">tentar de novo</button>
+          <button class="gbtn ghost">usar cópia local</button>
+          <button class="vlink">conferir conexão</button>
+        </div>
+      </article>
+
+      <!-- ===== VI · CHECKSUM MISMATCH ===== -->
+      <article class="err" data-tier="error">
+        <span class="where"><b>aparece em</b>final do download · verificação</span>
+        <div class="top">
+          <span class="badge"><span class="dot steady"></span>vi · selo não confere</span>
+          <span class="code">err.integrity.sha256</span>
+        </div>
+        <h2>
+          <span>O selo do arquivo não confere.</span>
+          <span class="quiet">não vou abrir um codex que possa ter sido tocado.</span>
+        </h2>
+        <span class="rule"></span>
+        <p class="gloss">
+          Os bytes chegaram inteiros, mas a soma <em>sha-256</em> não bate com a publicada
+          pelo autor do modelo. Pode ter sido corrupção no caminho — pode ter sido troca.
+          Preferimos não usar.
+        </p>
+        <div class="diag">
+          <div class="row"><span class="k">esperado</span><span class="v">3f8c · a9b1 · 0e44 · cd72 · …<b>91ff</b></span></div>
+          <div class="row"><span class="k">obtido</span><span class="v bordeaux">3f8c · a9b1 · 0e44 · cd72 · …<b>02ab</b></span></div>
+          <div class="row"><span class="k">arquivo</span><span class="v italic">mantido em quarentena · não é exposto à conversa</span></div>
+        </div>
+        <div class="actions">
+          <button class="gbtn">baixar de novo</button>
+          <button class="gbtn ghost">descartar arquivo</button>
+          <button class="vlink">ver soma completa</button>
+        </div>
+      </article>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  // wire the recovery actions that map to real pages of the house
+  const ROUTES = [
+    [/ateliê dos modelos|trocar de modelo|escolher modelo mais leve|trocar para/i, 'Abraxas Model Manager.html'],
+    [/retomar de|recomeçar do zero|baixar de novo/i, 'Abraxas Download.html'],
+  ];
+  document.querySelectorAll('.actions button').forEach(btn => {
+    const label = btn.textContent.trim();
+    for (const [re, href] of ROUTES){
+      if (re.test(label)){
+        btn.addEventListener('click', () => { window.location.href = href; });
+        break;
+      }
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Abraxas — chat hermético local</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:        #0f0b0a;
+    --bg-2:      #120e0c;
+    --bg-3:      #161110;
+    --bg-hover:  #1c1614;
+    --line:      #1f1815;
+    --line-2:    #2a201d;
+    --ink:       #e8dfd0;
+    --ink-2:     #c9bda9;
+    --ink-3:     #a89e90;
+    --mute:      #8a7e70;
+    --mute-2:    #6b5f54;
+    --brass:     #b89968;
+    --bordeaux:  #7d2233;
+    --bordeaux-2:#5a1825;
+    --serif:     "EB Garamond","Iowan Old Style",Georgia,"Hoefler Text",serif;
+    --display:   "Cormorant Garamond","EB Garamond",Didot,serif;
+    --mono:      "JetBrains Mono",ui-monospace,Menlo,monospace;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;background:#080605;color:var(--ink);font-family:var(--serif);font-weight:450;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+  body{
+    /* faint vignette so the dark feels like aged paper, not flat */
+    background:
+      radial-gradient(140% 90% at 50% 0%, #100b0a 0%, #080605 60%, #050302 100%);
+    overflow:hidden;
+  }
+
+  ::selection{background:var(--bordeaux);color:var(--ink)}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#1f1815;border-radius:10px;border:2px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:#2a201d;border:2px solid transparent;background-clip:padding-box}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+  /* ---------- shell ---------- */
+  .shell{
+    display:grid;
+    grid-template-columns: 248px 1fr;
+    grid-template-rows: 100%;       /* force row to fit viewport, not content */
+    height:100vh;
+    max-height:100vh;
+    width:100vw;
+    background:var(--bg);
+    overflow:hidden;
+  }
+  .shell > *{ min-height:0; }       /* let grid children actually shrink-to-fit */
+
+  /* ---------- sidebar ---------- */
+  .side{
+    background:var(--bg-2);
+    border-right:1px solid var(--line-2);
+    display:flex;
+    flex-direction:column;
+    padding:20px 16px 16px;
+    gap:20px;
+    min-width:0;
+  }
+
+  .brand{
+    display:flex; align-items:center; gap:11px;
+    padding:2px 2px 2px;
+  }
+  .brand .glyph{flex-shrink:0}
+  .brand .name{
+    font-family:var(--display);
+    font-size:21px;
+    letter-spacing:0.22em;
+    font-weight:500;
+    color:var(--ink);
+    line-height:1;
+  }
+  .brand .tag{
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:0.1em;
+    color:var(--mute);
+    margin-top:5px;
+    line-height:1;
+  }
+
+  .new-btn{
+    background:transparent;
+    border:1px solid var(--line-2);
+    color:var(--brass);
+    padding:10px 13px;
+    font-family:var(--serif);
+    font-size:15px;
+    font-weight:500;
+    font-style:italic;
+    text-align:left;
+    border-radius:4px;
+    cursor:pointer;
+    transition:border-color .15s, color .15s, background .15s;
+    letter-spacing:0.01em;
+  }
+  .new-btn:hover{border-color:var(--bordeaux); color:var(--ink)}
+
+  .conv-scroll{
+    display:flex; flex-direction:column; gap:18px;
+    flex:1; min-height:0; overflow-y:auto;
+    padding-right:2px; margin-right:-2px;
+  }
+  .group-label{
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:0.2em;
+    color:var(--mute-2);
+    text-transform:uppercase;
+    margin-bottom:8px;
+    padding-left:2px;
+  }
+  .conv{
+    padding:8px 11px;
+    border-radius:4px;
+    font-size:14.5px;
+    font-weight:450;
+    color:var(--ink-3);
+    cursor:pointer;
+    transition:background .12s, color .12s, border-color .12s;
+    border-left:2px solid transparent;
+    margin-top:2px;
+    line-height:1.4;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .conv:first-child{margin-top:0}
+  .conv:hover{background:var(--bg-hover); color:var(--ink-2)}
+  .conv.active{
+    background:var(--bg-hover);
+    color:var(--ink);
+    border-left-color:var(--bordeaux);
+  }
+
+  .footer{
+    border-top:1px solid var(--line-2);
+    padding-top:14px;
+    display:flex; flex-direction:column; gap:5px;
+  }
+  .model-row{
+    display:flex; align-items:center; gap:7px;
+    font-family:var(--mono); font-size:11px; color:var(--brass);
+  }
+  .pulse{
+    width:6px;height:6px;background:var(--brass);border-radius:50%;display:inline-block;
+    box-shadow:0 0 0 0 rgba(184,153,104,.55);
+    animation:pulse 2.4s ease-out infinite;
+  }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(184,153,104,.5)}
+    70%{box-shadow:0 0 0 7px rgba(184,153,104,0)}
+    100%{box-shadow:0 0 0 0 rgba(184,153,104,0)}
+  }
+  .model-meta{
+    font-family:var(--mono); font-size:10px; color:var(--mute-2); padding-left:13px;
+  }
+
+  /* ---------- main ---------- */
+  .main{
+    display:flex; flex-direction:column;
+    background:var(--bg);
+    min-width:0;
+    min-height:0;        /* allow inner scroll regions to bound */
+    height:100%;
+    overflow:hidden;
+  }
+
+  .topbar{
+    padding:16px 28px;
+    border-bottom:1px solid var(--line);
+    display:flex; justify-content:space-between; align-items:center;
+    gap:16px;
+  }
+  .topbar .title{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:17px;
+    font-weight:500;
+    color:var(--ink-2);
+    letter-spacing:0.005em;
+  }
+  .topbar .meta{
+    font-family:var(--mono);
+    font-size:10px; color:var(--mute-2);
+    letter-spacing:0.06em;
+    display:flex; gap:14px; align-items:center;
+  }
+  .topbar .meta .dot{
+    width:5px;height:5px;border-radius:50%;background:var(--brass);
+    display:inline-block; margin-right:5px; vertical-align:middle;
+  }
+
+  /* messages */
+  .thread{
+    flex:1 1 auto;
+    min-height:0;        /* critical: lets the flex child actually scroll */
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding:32px 0 24px;
+    scroll-behavior:smooth;
+  }
+  .thread-inner{
+    max-width:720px;
+    margin:0 auto;
+    padding:0 28px;
+    display:flex; flex-direction:column; gap:28px;
+  }
+
+  .turn{display:flex; flex-direction:column; gap:8px}
+  .turn + .turn{
+    border-top:1px solid var(--line);
+    padding-top:28px;
+  }
+
+  .who{
+    display:flex; align-items:center; gap:8px;
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--mute-2);
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+  }
+  .who .seal{display:inline-flex; align-items:center; justify-content:center}
+
+  .msg{
+    font-size:17.5px;
+    font-weight:450;
+    line-height:1.65;
+    color:var(--ink);
+    text-wrap:pretty;
+  }
+  .msg p{margin:0 0 12px}
+  .msg p:last-child{margin-bottom:0}
+  .msg em{color:var(--ink-2)}
+  .msg strong{color:var(--ink); font-weight:600}
+  .msg blockquote{
+    margin:14px 0 14px 6px;
+    padding:2px 0 2px 16px;
+    border-left:1px solid var(--bordeaux);
+    font-style:italic;
+    font-size:17px;
+    font-weight:450;
+    line-height:1.65;
+    color:var(--ink-2);
+  }
+  .msg ul{margin:6px 0 12px; padding-left:20px}
+  .msg ul li{margin:4px 0}
+  .msg code{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--brass);
+    background:#15100f;
+    padding:1px 5px;
+    border-radius:3px;
+    border:1px solid var(--line-2);
+  }
+  .msg .ornament{
+    display:block;
+    text-align:center;
+    color:var(--mute-2);
+    font-size:14px;
+    letter-spacing:1.2em;
+    margin:8px 0 0 -1.2em;
+  }
+
+  /* user message: subtle differentiator without bubble */
+  .turn.user .msg{color:var(--ink)}
+  .turn.user .msg::before{
+    content:"";
+    display:block;
+    width:18px; height:1px;
+    background:var(--brass);
+    opacity:.45;
+    margin-bottom:10px;
+  }
+
+  /* citation footer for model answers */
+  .cite{
+    margin-top:14px;
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--mute-2);
+    letter-spacing:0.06em;
+    display:flex; gap:14px; flex-wrap:wrap;
+  }
+  .cite span b{color:var(--ink-3); font-weight:500}
+
+  /* typing indicator */
+  .typing{
+    display:inline-flex; gap:5px; align-items:center;
+    padding:4px 0;
+  }
+  .typing i{
+    width:5px;height:5px;border-radius:50%;background:var(--brass);
+    display:inline-block;
+    animation:blink 1.2s ease-in-out infinite;
+    opacity:.35;
+  }
+  .typing i:nth-child(2){animation-delay:.18s}
+  .typing i:nth-child(3){animation-delay:.36s}
+  @keyframes blink{
+    0%,80%,100%{opacity:.25; transform:translateY(0)}
+    40%{opacity:1; transform:translateY(-1px)}
+  }
+
+  /* ---------- composer ---------- */
+  .composer-wrap{
+    flex:0 0 auto;       /* never get squeezed out */
+    padding:16px 28px 22px;
+    border-top:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(15,11,10,0) 0%, var(--bg) 30%);
+  }
+  .composer-inner{
+    max-width:720px; margin:0 auto;
+  }
+  .composer{
+    background:var(--bg-3);
+    border:1px solid var(--line-2);
+    border-radius:6px;
+    display:flex; align-items:flex-end;
+    padding:10px 12px;
+    gap:10px;
+    transition:border-color .18s;
+  }
+  .composer:focus-within{border-color:var(--bordeaux)}
+  .composer textarea{
+    flex:1;
+    background:transparent;
+    border:0; outline:none; resize:none;
+    color:var(--ink);
+    font-family:var(--serif);
+    font-size:17px;
+    font-weight:450;
+    line-height:1.55;
+    padding:5px 0;
+    max-height:160px;
+    min-height:26px;
+  }
+  .composer textarea::placeholder{
+    color:var(--mute-2);
+    font-style:italic;
+  }
+  .icon-btn{
+    background:transparent;
+    border:1px solid transparent;
+    color:var(--mute);
+    width:30px;height:30px;
+    border-radius:4px;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:color .15s, border-color .15s, background .15s;
+  }
+  .icon-btn:hover{color:var(--brass); border-color:var(--line-2)}
+  .send-btn{
+    background:var(--bg-hover);
+    border:1px solid var(--bordeaux);
+    color:var(--brass);
+    width:32px;height:32px;
+    border-radius:4px;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:background .15s, color .15s, border-color .15s;
+  }
+  .send-btn:hover{background:var(--bordeaux); color:var(--ink)}
+  .send-btn:active{transform:translateY(0.5px)}
+
+  .hint-row{
+    display:flex; justify-content:space-between;
+    margin-top:9px;
+    font-family:var(--mono);
+    font-size:9.5px;
+    color:var(--mute-2);
+    letter-spacing:0.05em;
+  }
+  .hint-row kbd{
+    font-family:var(--mono);
+    border:1px solid var(--line-2);
+    border-radius:3px;
+    padding:0 5px;
+    color:var(--ink-3);
+    background:#15100f;
+    font-size:9.5px;
+  }
+
+  /* small-screen graceful: collapse sidebar */
+  @media (max-width: 760px){
+    .shell{grid-template-columns: 1fr}
+    .side{display:none}
+  }
+</style>
+</head>
+<body>
+
+<h2 class="sr-only">Abraxas — interface principal de chat hermético rodando modelo local</h2>
+
+<div class="shell">
+
+  <!-- ============== SIDEBAR ============== -->
+  <aside class="side" data-screen-label="01 Sidebar">
+    <div class="brand">
+      <svg class="glyph" width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <circle cx="16" cy="16" r="13" stroke="#b89968" stroke-width="0.9" fill="none"/>
+        <circle cx="16" cy="16" r="9.5" stroke="#7d2233" stroke-width="0.7" fill="none"/>
+        <line x1="16" y1="1.5" x2="16" y2="30.5" stroke="#b89968" stroke-width="0.9"/>
+        <line x1="11" y1="16" x2="21" y2="16" stroke="#7d2233" stroke-width="0.7"/>
+        <circle cx="16" cy="11" r="1.4" fill="#b89968"/>
+      </svg>
+      <div style="display:flex;flex-direction:column">
+        <span class="name">ABRAXAS</span>
+        <span class="tag">v.0 · local</span>
+      </div>
+    </div>
+
+    <button class="new-btn" id="newBtn">+ nova conversa</button>
+
+    <nav class="conv-scroll" aria-label="Conversas">
+      <div>
+        <div class="group-label">— hoje</div>
+        <div class="conv active" data-title="o pássaro e o ovo">o pássaro e o ovo</div>
+        <div class="conv" data-title="privacidade em modelos locais">privacidade em modelos locais</div>
+        <div class="conv" data-title="gnose e linguagem">gnose e linguagem</div>
+      </div>
+      <div>
+        <div class="group-label">— esta semana</div>
+        <div class="conv" data-title="notas sobre Hesse">notas sobre Hesse</div>
+        <div class="conv" data-title="como funciona quantização">como funciona quantização</div>
+        <div class="conv" data-title="alquimia interior, leituras">alquimia interior, leituras</div>
+        <div class="conv" data-title="o silêncio dos pitagóricos">o silêncio dos pitagóricos</div>
+      </div>
+      <div>
+        <div class="group-label">— mais antigas</div>
+        <div class="conv" data-title="cabala e combinatória">cabala e combinatória</div>
+        <div class="conv" data-title="rascunho de ensaio: o duplo">rascunho de ensaio: o duplo</div>
+        <div class="conv" data-title="Jung, Eranos, sincronicidade">Jung, Eranos, sincronicidade</div>
+      </div>
+    </nav>
+
+    <div class="footer">
+      <div class="model-row"><span class="pulse"></span>llama-3.1-8b</div>
+      <div class="model-meta">7.3 GB · ram 12/16</div>
+    </div>
+  </aside>
+
+  <!-- ============== MAIN ============== -->
+  <main class="main" data-screen-label="02 Thread">
+
+    <header class="topbar">
+      <span class="title" id="threadTitle">o pássaro e o ovo</span>
+      <span class="meta">
+        <span><span class="dot"></span>offline</span>
+      </span>
+    </header>
+
+    <section class="thread" id="thread">
+      <div class="thread-inner" id="threadInner">
+
+        <!-- USER -->
+        <article class="turn user">
+          <div class="who">
+            <span>você</span>
+          </div>
+          <div class="msg">
+            <p>o que Hesse quis dizer com <em>"abraxas"</em> em Demian?</p>
+          </div>
+        </article>
+
+        <!-- ABRAXAS -->
+        <article class="turn">
+          <div class="who">
+            <span class="seal" aria-hidden="true">
+              <svg width="11" height="11" viewBox="0 0 32 32" fill="none">
+                <circle cx="16" cy="16" r="13" stroke="#7d2233" stroke-width="1.4" fill="none"/>
+                <line x1="16" y1="3" x2="16" y2="29" stroke="#7d2233" stroke-width="1.3"/>
+                <circle cx="16" cy="11" r="1.7" fill="#b89968"/>
+              </svg>
+            </span>
+            <span>abraxas</span>
+          </div>
+          <div class="msg">
+            <p>Em <em>Demian</em>, Abraxas é a divindade que reúne em si mesma o que a tradição cristã separou — luz e sombra, deus e demônio, criação e destruição. Hesse o invoca naquela passagem que você provavelmente já conhece:</p>
+            <blockquote>O pássaro luta para sair do ovo. O ovo é o mundo. Quem quiser nascer precisa primeiro destruir um mundo. O pássaro voa em direção a Deus. O nome de Deus é Abraxas.</blockquote>
+            <p>A figura é gnóstica — um deus de 365 nomes, anterior à divisão moral. Para o jovem Sinclair, descobrir Abraxas é o gesto inaugural de pensar fora das categorias herdadas.</p>
+            <div class="cite">
+              <span><b>fonte</b> · Hesse, <em>Demian</em>, cap. 5</span>
+              <span><b>contexto</b> · gnose, basilidianos</span>
+              <span><b>tokens</b> · 184</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- USER -->
+        <article class="turn user">
+          <div class="who"><span>você</span></div>
+          <div class="msg">
+            <p>e por que <em>365</em>? tem a ver com o ano?</p>
+          </div>
+        </article>
+
+        <!-- ABRAXAS -->
+        <article class="turn">
+          <div class="who">
+            <span class="seal" aria-hidden="true">
+              <svg width="11" height="11" viewBox="0 0 32 32" fill="none">
+                <circle cx="16" cy="16" r="13" stroke="#7d2233" stroke-width="1.4" fill="none"/>
+                <line x1="16" y1="3" x2="16" y2="29" stroke="#7d2233" stroke-width="1.3"/>
+                <circle cx="16" cy="11" r="1.7" fill="#b89968"/>
+              </svg>
+            </span>
+            <span>abraxas</span>
+          </div>
+          <div class="msg">
+            <p>Sim, e não exatamente. Os basilidianos — escola gnóstica do séc. II em Alexandria — leram <code>ΑΒΡΑΞΑΣ</code> como um nome cuja soma das letras gregas, pela <em>isopsefia</em>, dá <strong>365</strong>:</p>
+            <ul>
+              <li>α=1, β=2, ρ=100, α=1, ξ=60, α=1, ς=200 → <em>365</em></li>
+            </ul>
+            <p>Isso o vinculava aos 365 céus da cosmologia basilidiana, e por extensão ao ciclo solar — mas o número era <em>causa</em> da forma do nome, não consequência do calendário. O ano veio depois, na coincidência.</p>
+            <span class="ornament">· · ·</span>
+            <div class="cite">
+              <span><b>fonte</b> · Irineu, <em>Adv. Haer.</em> I.24</span>
+              <span><b>ver também</b> · Jung, <em>Sete Sermões</em></span>
+              <span><b>tokens</b> · 246</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- USER -->
+        <article class="turn user">
+          <div class="who"><span>você</span></div>
+          <div class="msg">
+            <p>me dá uma leitura curta para esta noite. nada acadêmico.</p>
+          </div>
+        </article>
+
+        <!-- ABRAXAS, currently "thinking" -->
+        <article class="turn" id="liveTurn">
+          <div class="who">
+            <span class="seal" aria-hidden="true">
+              <svg width="11" height="11" viewBox="0 0 32 32" fill="none">
+                <circle cx="16" cy="16" r="13" stroke="#7d2233" stroke-width="1.4" fill="none"/>
+                <line x1="16" y1="3" x2="16" y2="29" stroke="#7d2233" stroke-width="1.3"/>
+                <circle cx="16" cy="11" r="1.7" fill="#b89968"/>
+              </svg>
+            </span>
+            <span>abraxas <span style="color:var(--mute);letter-spacing:.05em;text-transform:none;font-style:italic;margin-left:6px">— pensando devagar</span></span>
+          </div>
+          <div class="msg">
+            <span class="typing" aria-label="modelo digitando"><i></i><i></i><i></i></span>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ============== COMPOSER ============== -->
+    <div class="composer-wrap">
+      <div class="composer-inner">
+        <div class="composer">
+          <button class="icon-btn" title="anexar fragmento" aria-label="anexar">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10.5 4.5L5.7 9.3a2 2 0 1 0 2.8 2.8l5.5-5.5a3.5 3.5 0 0 0-5-5L3 7.6a5 5 0 1 0 7 7l4.5-4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <textarea id="ta" rows="1" placeholder="pergunte ao abraxas…" autocomplete="off" spellcheck="false"></textarea>
+          <button class="send-btn" id="sendBtn" aria-label="enviar">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 13V3M8 3l-4 4M8 3l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="hint-row" style="display:none"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // --- thread autoscroll on load
+  const thread = document.getElementById('thread');
+  const inner  = document.getElementById('threadInner');
+  const liveTurn = document.getElementById('liveTurn');
+  const ta = document.getElementById('ta');
+  const sendBtn = document.getElementById('sendBtn');
+  const newBtn = document.getElementById('newBtn');
+  const title  = document.getElementById('threadTitle');
+
+  thread.scrollTop = thread.scrollHeight;
+
+  // --- after a beat, finish the "thinking" turn with a real reply
+  setTimeout(() => {
+    if (!liveTurn) return;
+    const msg = liveTurn.querySelector('.msg');
+    msg.innerHTML = `
+      <p>Apague tudo, deixe só o abajur.</p>
+      <p>Leia <em>Demian</em>, do capítulo quatro ao seis. Não para entender — para <strong>ouvir</strong>. Sinclair não argumenta, ele atravessa.</p>
+      <p>Quando o livro fechar, anote em uma linha qual mundo, hoje, te parece um ovo.</p>
+      <span class="ornament">· · ·</span>
+      <div class="cite">
+        <span><b>leitura</b> · ~22 min</span>
+        <span><b>humor</b> · noturno</span>
+        <span><b>tokens</b> · 92</span>
+      </div>`;
+    // remove "pensando devagar" suffix
+    const who = liveTurn.querySelector('.who');
+    who.innerHTML = who.innerHTML.replace(/<span style[^>]*>.*?<\/span>/, '');
+    thread.scrollTop = thread.scrollHeight;
+  }, 1800);
+
+  // --- textarea autosize
+  function autosize(){
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
+  }
+  ta.addEventListener('input', autosize);
+
+  // --- enable / disable send button reactively
+  function syncSend(){
+    const empty = !ta.value.trim();
+    sendBtn.disabled = empty;
+    sendBtn.style.opacity = empty ? .4 : 1;
+    sendBtn.style.cursor = empty ? 'default' : 'pointer';
+  }
+  ta.addEventListener('input', syncSend);
+  syncSend();
+
+  const SEAL = `
+    <span class="seal" aria-hidden="true">
+      <svg width="11" height="11" viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="16" r="13" stroke="#7d2233" stroke-width="1.4" fill="none"/>
+        <line x1="16" y1="3" x2="16" y2="29" stroke="#7d2233" stroke-width="1.3"/>
+        <circle cx="16" cy="11" r="1.7" fill="#b89968"/>
+      </svg>
+    </span>`;
+
+  // a small bag of in-character replies so it feels alive
+  const REPLIES = [
+    `<p>Aceito a pergunta. Deixe-a repousar; volto com ela quando o silêncio tiver dado forma.</p><span class="ornament">· · ·</span>`,
+    `<p>Há uma resposta — mas ela exige que você abandone primeiro a forma da pergunta.</p><p>Reformule, sem pressa.</p>`,
+    `<p>O que você nomeia já é metade do gesto. A outra metade é <em>esperar</em>.</p><span class="ornament">· · ·</span>`,
+    `<p>Curioso. Essa pergunta tem dois fundos:</p><ul><li>o que você quer saber</li><li>o que a pergunta quer que você descubra</li></ul><p>Qual deles vamos abrir?</p>`,
+    `<p>Anote isto antes que eu responda: <em>onde a sua pergunta dói?</em></p><p>Volto em seguida.</p>`,
+    `<p>Os gnósticos diriam que toda pergunta verdadeira já contém o seu opositor. Vejo o seu opositor aqui — quer que eu o nomeie?</p>`
+  ];
+  const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+
+  // --- send handler (echoes user message, then a brief model reply)
+  function send(){
+    const text = ta.value.trim();
+    if(!text) return;
+
+    const u = document.createElement('article');
+    u.className = 'turn user';
+    u.innerHTML = `<div class="who"><span>você</span></div><div class="msg"></div>`;
+    // preserve line breaks the user typed
+    const p = document.createElement('p');
+    p.textContent = text;
+    u.querySelector('.msg').appendChild(p);
+    inner.appendChild(u);
+
+    const a = document.createElement('article');
+    a.className = 'turn';
+    a.innerHTML = `
+      <div class="who">${SEAL}<span>abraxas</span></div>
+      <div class="msg"><span class="typing"><i></i><i></i><i></i></span></div>`;
+    inner.appendChild(a);
+
+    ta.value = ''; autosize(); syncSend();
+    thread.scrollTop = thread.scrollHeight;
+    ta.focus();
+
+    // simulate a thinking delay proportional to message length
+    const delay = 700 + Math.min(1800, text.length * 18);
+    setTimeout(() => {
+      a.querySelector('.msg').innerHTML = pick(REPLIES);
+      thread.scrollTop = thread.scrollHeight;
+    }, delay);
+  }
+
+  sendBtn.addEventListener('click', send);
+  ta.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault(); send();
+    }
+  });
+
+  // focus the input on load — it's a chat, the user should just start typing
+  window.addEventListener('load', () => ta.focus());
+
+  // --- conversation switching (cosmetic)
+  document.querySelectorAll('.conv').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.conv').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      title.textContent = el.dataset.title || el.textContent;
+    });
+  });
+
+  newBtn.addEventListener('click', () => {
+    document.querySelectorAll('.conv').forEach(c => c.classList.remove('active'));
+    title.textContent = 'nova conversa';
+    inner.innerHTML = '';
+    ta.focus();
+  });
+</script>
+</body>
+</html>

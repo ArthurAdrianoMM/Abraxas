@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Abraxas — nova conversa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_design-system.css">
+
+<style>
+  /* =========================================================================
+     NEW CONVERSATION — the empty state
+     A still page before the first word. The thread is replaced by a
+     centered invocation: a small spiral mark, an italic prompt, a tiny
+     gilded rule, and four "primeiras palavras" — seed prompts the user
+     can click to drop into the composer.
+     ========================================================================= */
+
+  /* the empty-state takes the full thread area */
+  .thread.empty{
+    display:grid;
+    place-items:center;
+    overflow:hidden;
+  }
+
+  .invocation{
+    display:flex; flex-direction:column; align-items:center;
+    gap:22px;
+    padding:0 28px;
+    max-width:540px;
+    text-align:center;
+    /* nudge optical center up so the composer feels supported by it */
+    margin-top:-32px;
+  }
+
+  .invocation .glyph-wrap{
+    width:48px; height:48px;
+    display:grid; place-items:center;
+    opacity:.92;
+    animation: glyph-in 1.4s ease-out both;
+  }
+  @keyframes glyph-in{
+    0%   { opacity:0; transform: scale(0.92); }
+    100% { opacity:.92; transform: scale(1); }
+  }
+
+  .invocation .kicker{
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:0.28em;
+    text-transform:uppercase;
+    color:var(--mute);
+    animation: fade-up 1.4s ease-out 0.1s both;
+  }
+
+  .invocation h1{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:42px;
+    line-height:1.1;
+    color:var(--ink);
+    margin:0;
+    letter-spacing:0.005em;
+    text-wrap:balance;
+    animation: fade-up 1.4s ease-out 0.2s both;
+  }
+  .invocation h1 .quiet{
+    color:var(--ink-3);
+    display:block;
+  }
+
+  .invocation .rule{
+    width:38px; height:1px;
+    background:var(--brass);
+    opacity:.55;
+    animation: fade-up 1.4s ease-out 0.35s both;
+  }
+
+  .invocation .gloss{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:15.5px;
+    line-height:1.55;
+    color:var(--ink-3);
+    margin:0;
+    max-width:42ch;
+    text-wrap:balance;
+    animation: fade-up 1.4s ease-out 0.45s both;
+  }
+
+  @keyframes fade-up{
+    0%   { opacity:0; transform: translateY(8px); }
+    100% { opacity:1; transform: translateY(0); }
+  }
+
+  /* the seed prompts — italic ghost chips, 2x2 grid */
+  .seeds{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:10px;
+    margin-top:14px;
+    width:100%;
+    max-width:520px;
+    animation: fade-up 1.4s ease-out 0.6s both;
+  }
+  .seed{
+    display:flex; align-items:flex-start; gap:12px;
+    padding:14px 16px;
+    background:transparent;
+    border:1px solid var(--line-2);
+    border-radius:4px;
+    color:var(--ink-2);
+    text-align:left;
+    cursor:pointer;
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14.5px;
+    line-height:1.45;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .seed:hover{
+    border-color:var(--bordeaux);
+    color:var(--ink);
+    background: rgba(28,22,20,0.35);
+  }
+  .seed .roman{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:15px;
+    color:var(--brass);
+    line-height:1.2;
+    flex-shrink:0;
+    width:18px;
+    letter-spacing:0.02em;
+  }
+  .seed .text{ min-width:0; }
+  .seed .text b{
+    font-family:var(--mono);
+    font-style:normal;
+    font-weight:500;
+    font-size:9.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute);
+    display:block;
+    margin-bottom:4px;
+  }
+
+  /* a final, smaller hint below the seeds */
+  .invocation .below-hint{
+    margin-top:6px;
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute-2);
+    animation: fade-up 1.4s ease-out 0.75s both;
+  }
+  .invocation .below-hint kbd{
+    font-family:var(--mono);
+    border:1px solid var(--line-2);
+    border-radius:3px;
+    padding:0 5px;
+    color:var(--ink-3);
+    background:#15100f;
+    font-size:9.5px;
+    letter-spacing:0.04em;
+    text-transform:none;
+  }
+</style>
+</head>
+<body data-page="new">
+
+<h2 class="sr-only">Abraxas — nova conversa, ainda sem palavras</h2>
+
+<div class="shell">
+
+  <!-- ============== SIDEBAR ============== -->
+  <aside class="side" data-screen-label="01 Sidebar">
+    <div class="brand">
+      <svg class="glyph" width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <circle cx="16" cy="16" r="13" stroke="#b89968" stroke-width="0.9" fill="none"/>
+        <circle cx="16" cy="16" r="9.5" stroke="#7d2233" stroke-width="0.7" fill="none"/>
+        <line x1="16" y1="1.5" x2="16" y2="30.5" stroke="#b89968" stroke-width="0.9"/>
+        <line x1="11" y1="16" x2="21" y2="16" stroke="#7d2233" stroke-width="0.7"/>
+        <circle cx="16" cy="11" r="1.4" fill="#b89968"/>
+      </svg>
+      <div style="display:flex;flex-direction:column">
+        <span class="name">ABRAXAS</span>
+        <span class="tag">v.0 · local</span>
+      </div>
+    </div>
+
+    <button class="new-btn" id="newBtn">+ nova conversa</button>
+
+    <nav class="conv-scroll" aria-label="Conversas">
+      <div>
+        <div class="group-label">— hoje</div>
+        <div class="conv active" data-title="nova conversa" style="font-style:italic;color:var(--ink-3)">nova conversa</div>
+      </div>
+      <div>
+        <div class="group-label">— esta semana</div>
+        <div class="conv" data-title="notas sobre Hesse">notas sobre Hesse</div>
+        <div class="conv" data-title="alquimia interior, leituras">alquimia interior, leituras</div>
+      </div>
+    </nav>
+
+    <div class="footer">
+      <div class="model-row"><span class="pulse"></span>llama-3.1-8b</div>
+      <div class="model-meta">7.3 GB · ram 12/16</div>
+    </div>
+  </aside>
+
+  <!-- ============== MAIN ============== -->
+  <main class="main" data-screen-label="02 Empty Thread">
+
+    <header class="topbar">
+      <span class="title" id="threadTitle"><em style="opacity:.6">nova conversa</em></span>
+      <span class="meta">
+        <span><span class="dot"></span>offline</span>
+      </span>
+    </header>
+
+    <section class="thread empty" id="thread">
+
+      <div class="invocation">
+
+        <div class="glyph-wrap" aria-hidden="true">
+          <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="13" stroke="#b89968" stroke-width="0.7" fill="none"/>
+            <circle cx="16" cy="16" r="9.5" stroke="#7d2233" stroke-width="0.55" fill="none"/>
+            <line x1="16" y1="1.5" x2="16" y2="30.5" stroke="#b89968" stroke-width="0.7"/>
+            <line x1="11" y1="16" x2="21" y2="16" stroke="#7d2233" stroke-width="0.55"/>
+            <circle cx="16" cy="11" r="1.2" fill="#b89968"/>
+          </svg>
+        </div>
+
+        <span class="kicker">i · um silêncio sem palavras</span>
+
+        <h1>
+          <span>Diga a primeira palavra.</span>
+          <span class="quiet">o resto vem.</span>
+        </h1>
+
+        <span class="rule" aria-hidden="true"></span>
+
+        <p class="gloss">
+          Abraxas escuta em silêncio até você falar. Pergunte, peça uma leitura, traga um
+          fragmento — ou comece por uma das passagens abaixo.
+        </p>
+
+        <!-- seeds -->
+        <div class="seeds" id="seeds">
+          <button class="seed" data-prompt="Me explique, sem academicismo, o que significa Abraxas em Demian de Hesse.">
+            <span class="roman">I</span>
+            <span class="text">
+              <b>leitura</b>
+              o que Hesse quis dizer com <em>“abraxas”</em>?
+            </span>
+          </button>
+          <button class="seed" data-prompt="Reescreva este parágrafo como se Borges o estivesse anotando na margem.">
+            <span class="roman">II</span>
+            <span class="text">
+              <b>escrita</b>
+              reescreva como uma nota de margem
+            </span>
+          </button>
+          <button class="seed" data-prompt="Explique de forma honesta o que é quantização de modelos e por que importa para rodar localmente.">
+            <span class="roman">III</span>
+            <span class="text">
+              <b>técnica</b>
+              o que é quantização, em voz baixa
+            </span>
+          </button>
+          <button class="seed" data-prompt="Me dê uma rotina contemplativa de 20 minutos para esta noite.">
+            <span class="roman">IV</span>
+            <span class="text">
+              <b>conselho</b>
+              uma rotina contemplativa para hoje
+            </span>
+          </button>
+        </div>
+
+        <span class="below-hint">
+          <kbd>↵</kbd>
+          enviar · <kbd>shift</kbd>+<kbd>↵</kbd> quebrar linha
+        </span>
+
+      </div>
+
+    </section>
+
+    <!-- composer (same as chat) -->
+    <div class="composer-wrap">
+      <div class="composer-inner">
+        <div class="composer">
+          <button class="icon-btn" title="anexar fragmento" aria-label="anexar">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10.5 4.5L5.7 9.3a2 2 0 1 0 2.8 2.8l5.5-5.5a3.5 3.5 0 0 0-5-5L3 7.6a5 5 0 1 0 7 7l4.5-4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <textarea id="ta" rows="1" placeholder="diga a primeira palavra…" autocomplete="off" spellcheck="false"></textarea>
+          <button class="send-btn" id="sendBtn" aria-label="enviar">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 13V3M8 3l-4 4M8 3l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  const ta      = document.getElementById('ta');
+  const sendBtn = document.getElementById('sendBtn');
+  const seeds   = document.getElementById('seeds');
+
+  function autosize(){
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
+  }
+  function syncSend(){
+    const empty = !ta.value.trim();
+    sendBtn.disabled = empty;
+    sendBtn.style.opacity = empty ? .4 : 1;
+    sendBtn.style.cursor  = empty ? 'default' : 'pointer';
+  }
+  ta.addEventListener('input', () => { autosize(); syncSend(); });
+  syncSend();
+
+  // clicking a seed drops it into the composer (does not send — they choose)
+  seeds.addEventListener('click', e => {
+    const btn = e.target.closest('.seed');
+    if (!btn) return;
+    ta.value = btn.dataset.prompt;
+    autosize(); syncSend(); ta.focus();
+  });
+
+  // Enter → "send" — for the mock, we go to the real chat with the prompt prefilled
+  function send(){
+    const text = ta.value.trim();
+    if (!text) return;
+    // pass-through to chat via session: a real app would do this in-state
+    try { sessionStorage.setItem('abraxas:seed', text); } catch {}
+    window.location.href = 'Abraxas Chat.html';
+  }
+  sendBtn.addEventListener('click', send);
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+  });
+  window.addEventListener('load', () => ta.focus());
+</script>
+<script src="_sidebar-nav.js"></script>
+</body>
+</html>

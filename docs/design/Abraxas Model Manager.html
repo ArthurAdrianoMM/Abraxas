@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Abraxas — modelos instalados</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_design-system.css">
+
+<style>
+  /* =========================================================================
+     MODEL MANAGER — "o ateliê"
+     Installed models, listed as scriptorium entries. Each row is a numbered
+     codex with size, params, install date, status (default ★), and a quiet
+     action menu (definir padrão / abrir pasta / remover). Footer holds disk
+     summary and the "procurar no catálogo" entry-point.
+     ========================================================================= */
+
+  /* a wider reading column — manager is a ledger, not a thread */
+  .manager-column{
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+    padding:36px 0 24px;
+  }
+  .manager-inner{
+    max-width:860px;
+    margin:0 auto;
+    padding:0 36px;
+    display:flex; flex-direction:column;
+    gap:28px;
+  }
+
+  /* header */
+  .mhead{
+    display:flex; flex-direction:column;
+    gap:10px;
+    padding-bottom:6px;
+  }
+  .mhead .kicker{
+    display:flex; align-items:center; gap:14px;
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.24em;
+    text-transform:uppercase;
+    color:var(--mute);
+  }
+  .mhead .kicker .step{ color:var(--brass); }
+  .mhead .kicker .sep{ color:var(--mute-2); opacity:.6; }
+
+  .mhead h1{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:40px;
+    line-height:1.1;
+    color:var(--ink);
+    letter-spacing:0.005em;
+    margin:0;
+    text-wrap:balance;
+  }
+  .mhead h1 .quiet{ color:var(--ink-3); }
+  .mhead .gloss{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:15.5px;
+    line-height:1.55;
+    color:var(--ink-3);
+    margin:6px 0 0;
+    max-width:54ch;
+  }
+
+  /* disk usage row — quiet meter */
+  .disk{
+    display:flex; flex-direction:column;
+    gap:10px;
+    padding:14px 16px;
+    border:1px solid var(--line-2);
+    border-radius:4px;
+    background:rgba(28,22,20,0.25);
+  }
+  .disk .top{
+    display:flex; justify-content:space-between; align-items:baseline; gap:14px;
+  }
+  .disk .lhs{
+    font-family:var(--serif); font-size:14.5px; color:var(--ink-2);
+  }
+  .disk .lhs b{ color:var(--ink); font-weight:500; }
+  .disk .rhs{
+    font-family:var(--mono); font-size:10px;
+    letter-spacing:0.18em; text-transform:uppercase;
+    color:var(--mute);
+  }
+  .disk .meter{
+    position:relative;
+    height:3px; background:#1a1311;
+    border-radius:2px; overflow:hidden;
+  }
+  .disk .meter .filled{
+    position:absolute; top:0; left:0; bottom:0;
+    background: var(--brass);
+    opacity:.55;
+  }
+
+  /* entries header label */
+  .entries-head{
+    display:flex; justify-content:space-between; align-items:baseline;
+    border-bottom:1px solid var(--line);
+    padding-bottom:10px;
+  }
+  .entries-head .left{
+    font-family:var(--mono); font-size:10px;
+    letter-spacing:0.22em; text-transform:uppercase;
+    color:var(--mute-2);
+  }
+  .entries-head .right{
+    font-family:var(--mono); font-size:10px;
+    letter-spacing:0.16em; text-transform:uppercase;
+    color:var(--mute-2);
+    display:flex; gap:18px;
+  }
+
+  /* the rows */
+  .entries{ display:flex; flex-direction:column; }
+  .row{
+    display:grid;
+    grid-template-columns: 28px 28px 1fr auto;
+    gap:18px;
+    align-items:flex-start;
+    padding:20px 0;
+    border-bottom:1px solid var(--line);
+    transition: background .15s;
+  }
+  .row:hover{ background: rgba(28,22,20,0.22); }
+
+  .row .roman{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:16px;
+    color:var(--brass);
+    opacity:.7;
+    letter-spacing:0.04em;
+    line-height:1.4;
+  }
+  .row .seal{
+    width:14px; height:14px;
+    margin-top:4px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .row .seal .star{
+    color:var(--brass);
+    font-size:14px;
+    line-height:1;
+  }
+  .row[data-default="false"] .seal .star{ opacity:0; }
+
+  .row .body{
+    display:flex; flex-direction:column;
+    gap:6px; min-width:0;
+  }
+  .row .name-row{
+    display:flex; align-items:baseline; gap:14px;
+    flex-wrap:wrap;
+  }
+  .row .name{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:22px;
+    color:var(--ink);
+    line-height:1.1;
+    letter-spacing:0.005em;
+  }
+  .row[data-default="true"] .name::after{
+    content:"padrão";
+    font-family:var(--mono);
+    font-style:normal;
+    font-size:9px;
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin-left:12px;
+    padding:2px 7px;
+    border:1px solid rgba(184,153,104,0.45);
+    border-radius:3px;
+    vertical-align:middle;
+  }
+  .row .id{
+    font-family:var(--mono); font-size:10px;
+    letter-spacing:0.16em; text-transform:uppercase;
+    color:var(--mute);
+  }
+  .row .tags{
+    display:flex; flex-wrap:wrap; gap:6px;
+    margin-top:2px;
+  }
+  .row .tag{
+    font-family:var(--mono);
+    font-size:9px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--ink-3);
+    border:1px solid var(--line-2);
+    border-radius:3px;
+    padding:3px 7px;
+    background:rgba(28,22,20,0.4);
+  }
+  .row .tag b{ color:var(--brass); font-weight:500; letter-spacing:0.08em; }
+  .row .tag.warn b{ color:var(--ink-3); }
+
+  .row .meta{
+    display:flex; gap:18px; flex-wrap:wrap;
+    margin-top:6px;
+    font-family:var(--mono); font-size:10px;
+    letter-spacing:0.14em; text-transform:uppercase;
+    color:var(--mute-2);
+  }
+  .row .meta b{ color:var(--ink-3); font-weight:500; }
+
+  /* the right column: actions */
+  .row .actions{
+    display:flex; flex-direction:column;
+    align-items:flex-end; gap:8px;
+    min-width:0;
+  }
+  .row .size{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:22px;
+    color:var(--ink-2);
+    line-height:1;
+    letter-spacing:0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+  .row .size .sym{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.18em;
+    color:var(--mute);
+    text-transform:uppercase;
+    margin-left:4px;
+    vertical-align:0.18em;
+  }
+  .row .verbs{
+    display:flex; gap:14px; align-items:center;
+    margin-top:2px;
+  }
+  .verb-link{
+    background:transparent; border:0;
+    color:var(--mute);
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:13px;
+    cursor:pointer;
+    padding:4px 2px;
+    letter-spacing:0.01em;
+    transition: color .15s;
+  }
+  .verb-link:hover{ color:var(--brass); }
+  .verb-link.danger:hover{ color:var(--bordeaux); }
+  .verb-link[disabled]{ opacity:.35; cursor:default; }
+  .verb-link[disabled]:hover{ color:var(--mute); }
+  .verb-sep{
+    color:var(--mute-2); opacity:.5;
+    font-family:var(--mono); font-size:10px;
+  }
+
+  /* footer: browse catalog ghost-button-as-row */
+  .catalog-row{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:18px;
+    padding:18px 0;
+    border-bottom:1px solid var(--line);
+    color:var(--brass);
+    cursor:pointer;
+    transition: color .15s, background .15s;
+  }
+  .catalog-row:hover{ background: rgba(28,22,20,0.22); color:var(--ink); }
+  .catalog-row .left{
+    display:flex; align-items:center; gap:18px;
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:17px;
+  }
+  .catalog-row .left .plus{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:22px;
+    color:var(--brass);
+    width:28px; text-align:center;
+  }
+  .catalog-row:hover .plus{ color:var(--ink); }
+  .catalog-row .right{
+    font-family:var(--mono); font-size:10px;
+    letter-spacing:0.18em; text-transform:uppercase;
+    color:var(--mute-2);
+    display:flex; align-items:center; gap:8px;
+  }
+
+  /* topbar override — back link on the left, page name center */
+  .topbar.mtopbar{ padding:14px 28px; }
+  .topbar.mtopbar .back-link{
+    background:transparent; border:0;
+    color:var(--mute);
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:14px;
+    cursor:pointer;
+    padding:4px 2px;
+    display:inline-flex; align-items:center; gap:8px;
+    transition: color .15s;
+  }
+  .topbar.mtopbar .back-link:hover{ color:var(--brass); }
+</style>
+</head>
+<body data-page="manager">
+
+<h2 class="sr-only">Abraxas — gerenciador de modelos instalados</h2>
+
+<div class="shell">
+
+  <!-- ============== SIDEBAR ============== -->
+  <aside class="side" data-screen-label="01 Sidebar">
+    <div class="brand">
+      <svg class="glyph" width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <circle cx="16" cy="16" r="13" stroke="#b89968" stroke-width="0.9" fill="none"/>
+        <circle cx="16" cy="16" r="9.5" stroke="#7d2233" stroke-width="0.7" fill="none"/>
+        <line x1="16" y1="1.5" x2="16" y2="30.5" stroke="#b89968" stroke-width="0.9"/>
+        <line x1="11" y1="16" x2="21" y2="16" stroke="#7d2233" stroke-width="0.7"/>
+        <circle cx="16" cy="11" r="1.4" fill="#b89968"/>
+      </svg>
+      <div style="display:flex;flex-direction:column">
+        <span class="name">ABRAXAS</span>
+        <span class="tag">v.0 · local</span>
+      </div>
+    </div>
+
+    <button class="new-btn">+ nova conversa</button>
+
+    <nav class="conv-scroll" aria-label="Conversas">
+      <div>
+        <div class="group-label">— hoje</div>
+        <div class="conv" data-title="o pássaro e o ovo">o pássaro e o ovo</div>
+        <div class="conv" data-title="privacidade em modelos locais">privacidade em modelos locais</div>
+      </div>
+      <div>
+        <div class="group-label">— esta semana</div>
+        <div class="conv" data-title="notas sobre Hesse">notas sobre Hesse</div>
+        <div class="conv" data-title="alquimia interior, leituras">alquimia interior, leituras</div>
+      </div>
+    </nav>
+
+    <div class="footer">
+      <div class="model-row"><span class="pulse"></span>llama-3.1-8b</div>
+      <div class="model-meta">7.3 GB · ram 12/16</div>
+    </div>
+  </aside>
+
+  <!-- ============== MAIN ============== -->
+  <main class="main" data-screen-label="02 Model Manager">
+
+    <header class="topbar mtopbar">
+      <button class="back-link" onclick="window.location.href='Abraxas Chat.html'">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13 8H3M7 4L3 8l4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        voltar ao estúdio
+      </button>
+      <span class="meta">
+        <span><span class="dot"></span>offline</span>
+        <span>modelos</span>
+      </span>
+    </header>
+
+    <section class="manager-column">
+      <div class="manager-inner">
+
+        <!-- header -->
+        <div class="mhead">
+          <div class="kicker">
+            <span class="step">o ateliê</span><span class="sep">·</span><span>modelos instalados</span>
+          </div>
+          <h1>
+            <span>Os modelos da casa.</span>
+            <span class="quiet">leves, médios, e os que pesam.</span>
+          </h1>
+          <p class="gloss">
+            Cada modelo é um codex carregado do firmamento e guardado neste computador.
+            Quatro estão prontos para conversar; nada sai daqui sem você pedir.
+          </p>
+        </div>
+
+        <!-- disk usage -->
+        <div class="disk" role="group" aria-label="Espaço em disco">
+          <div class="top">
+            <div class="lhs">
+              <b>22.4 GB</b> consagrados aos modelos
+              <span style="color:var(--mute);font-style:italic;font-size:13.5px"> · 187 GB livres no disco</span>
+            </div>
+            <div class="rhs">10.7% do disco</div>
+          </div>
+          <div class="meter"><div class="filled" style="width:10.7%"></div></div>
+        </div>
+
+        <!-- entries -->
+        <div>
+          <div class="entries-head">
+            <span class="left">— os codices · 4 instalados</span>
+            <span class="right">
+              <span>tamanho</span>
+            </span>
+          </div>
+
+          <div class="entries">
+
+            <!-- I — default -->
+            <article class="row" data-default="true">
+              <span class="roman">I</span>
+              <span class="seal" title="modelo padrão"><span class="star">★</span></span>
+              <div class="body">
+                <div class="name-row">
+                  <span class="name">Llama 3.1</span>
+                  <span class="id">meta · llama-3.1-8b · q4_k_m</span>
+                </div>
+                <div class="tags">
+                  <span class="tag"><b>8B</b> parâmetros</span>
+                  <span class="tag"><b>q4_k_m</b> · quantização</span>
+                  <span class="tag"><b>cpu</b> + metal</span>
+                  <span class="tag"><b>128k</b> · contexto</span>
+                </div>
+                <div class="meta">
+                  <span>instalado · <b>há 6 dias</b></span>
+                  <span>usado por último · <b>hoje · 14:32</b></span>
+                  <span>conversas · <b>27</b></span>
+                </div>
+              </div>
+              <div class="actions">
+                <span class="size">7.3<span class="sym">gb</span></span>
+                <div class="verbs">
+                  <button class="verb-link" disabled>já é padrão</button>
+                  <span class="verb-sep">·</span>
+                  <button class="verb-link">abrir pasta</button>
+                  <span class="verb-sep">·</span>
+                  <button class="verb-link danger">remover</button>
+                </div>
+              </div>
+            </article>
+
+            <!-- II -->
+            <article class="row" data-default="false">
+              <span class="roman">II</span>
+              <span class="seal"><span class="star">★</span></span>
+              <div class="body">
+                <div class="name-row">
+                  <span class="name">Mistral 7B</span>
+                  <span class="id">mistralai · mistral-7b-instruct-v0.3 · q5_k_m</span>
+                </div>
+                <div class="tags">
+                  <span class="tag"><b>7B</b> parâmetros</span>
+                  <span class="tag"><b>q5_k_m</b> · quantização</span>
+                  <span class="tag"><b>cpu</b> + metal</span>
+                </div>
+                <div class="meta">
+                  <span>instalado · <b>há 12 dias</b></span>
+                  <span>usado por último · <b>ontem</b></span>
+                  <span>conversas · <b>11</b></span>
+                </div>
+              </div>
+              <div class="actions">
+                <span class="size">5.1<span class="sym">gb</span></span>
+                <div class="verbs">
+                  <button class="verb-link">tornar padrão</button>
+                  <span class="verb-sep">·</span>
+                  <button class="verb-link">abrir pasta</button>
+                  <span class="verb-sep">·</span>
+                  <button class="verb-link danger">remover</button>
+                </div>
+              </div>
+            </article>
+
+            <!-- III -->
+            <article class="row" data-default="false">
+              <span class="roman">III</span>
+              <span class="seal"><span class="star">★</span></span>
+              <div class="body">
+                <div class="name-row">
+                  <span class="name">Phi-3 Mini</span>
+                  <span class="id">microsoft · phi-3-mini-4k-instruct · q8_0</span>
+                </div>
+                <div class="tags">
+                  <span class="tag"><b>3.8B</b> parâmetros</span>
+                  <span class="tag"><b>q8_0</b> · quantização</span>
+                  <span class="tag warn"><b>leve</b> · primeiro recurso</span>
+                </div>
+                <div class="meta">
+                  <span>instalado · <b>há 3 semanas</b></span>
+                  <span>usado por último · <b>há 9 dias</b></span>
+                  <span>conversas · <b>4</b></span>
+                </div>
+              </div>
+              <div class="actions">
+                <span class="size">3.8<span class="sym">gb</span></span>
+                <div class="verbs">
+                  <button class="verb-link">tornar padrão</button>
+                  <span class="verb-sep">·</span>
+                  <button class="verb-link">abrir pasta</button>
+                  <span class="verb-sep">·</span>
+                  <button class="verb-link danger">remover</button>
+                </div>
+              </div>
+            </article>
+
+            <!-- IV -->
+            <article class="row" data-default="false">
+              <span class="roman">IV</span>
+              <span class="seal"><span class="star">★</span></span>
+              <div class="body">
+                <div class="name-row">
+                  <span class="name">Qwen 2.5</span>
+                  <span class="id">alibaba · qwen2.5-14b-instruct · q4_0</span>
+                </div>
+                <div class="tags">
+                  <span class="tag"><b>14B</b> parâmetros</span>
+                  <span class="tag"><b>q4_0</b> · quantização</span>
+                  <span class="tag warn"><b>pesado</b> · usa swap</span>
+                </div>
+                <div class="meta">
+                  <span>instalado · <b>há 1 mês</b></span>
+                  <span>usado por último · <b>há 11 dias</b></span>
+                  <span>conversas · <b>9</b></span>
+                </div>
+              </div>
+              <div class="actions">
+                <span class="size">6.2<span class="sym">gb</span></span>
+                <div class="verbs">
+                  <button class="verb-link">tornar padrão</button>
+                  <span class="verb-sep">·</span>
+                  <button class="verb-link">abrir pasta</button>
+                  <span class="verb-sep">·</span>
+                  <button class="verb-link danger">remover</button>
+                </div>
+              </div>
+            </article>
+
+            <!-- catalog entry -->
+            <a class="catalog-row" href="Abraxas Model Catalog.html">
+              <span class="left">
+                <span class="plus">+</span>
+                <span>procurar no catálogo</span>
+              </span>
+              <span class="right">
+                <span>compêndio remoto</span>
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                  <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  // tornar padrão — delegated, so relabeled buttons keep working after a swap
+  document.querySelector('.entries').addEventListener('click', (e) => {
+    const btn = e.target.closest('.verb-link');
+    if (!btn || btn.disabled || btn.textContent.trim() !== 'tornar padrão') return;
+    const row = btn.closest('.row');
+    document.querySelectorAll('.row').forEach(r => {
+      r.dataset.default = String(r === row);
+      const link = r.querySelector('.verbs .verb-link:first-child');
+      const isDefault = r === row;
+      link.textContent = isDefault ? 'já é padrão' : 'tornar padrão';
+      link.disabled = isDefault;
+    });
+  });
+</script>
+<script src="_sidebar-nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Abraxas — despertando o oráculo</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="_design-system.css">
+
+<style>
+  /* =========================================================================
+     LOAD MODEL — "despertando o oráculo"
+     Final step of the onboarding before the chat opens. A single hermetic
+     seal breathes at the center while the model is being lifted into memory.
+     Underneath, the four labors of awakening are checked off in sequence.
+     ========================================================================= */
+  body{ overflow:hidden; }
+
+  .page{
+    position:fixed; inset:0;
+    display:grid; place-items:center;
+    background:
+      radial-gradient(140% 100% at 50% 50%, #100b0a 0%, #080605 65%, #050302 100%);
+    overflow:hidden;
+    isolation:isolate;
+  }
+
+  /* faint spiral figure */
+  .page .figure{
+    position:absolute; inset:0;
+    display:grid; place-items:center;
+    z-index:0;
+    pointer-events:none;
+  }
+  .page .figure img{
+    width:min(82vh, 82vmin);
+    height:auto;
+    filter: invert(1) hue-rotate(180deg) sepia(0.55) brightness(0.95);
+    opacity:0.12;
+    mix-blend-mode:screen;
+    animation: drift 30s ease-in-out infinite alternate;
+  }
+  @keyframes drift{
+    0%   { transform: rotate(-0.4deg) scale(1.00); }
+    100% { transform: rotate( 0.4deg) scale(1.04); }
+  }
+  .page::before{
+    content:"";
+    position:absolute; inset:0;
+    background:
+      radial-gradient(60% 60% at 50% 50%, transparent 0%, rgba(8,6,5,0.45) 70%, rgba(8,6,5,0.92) 100%);
+    z-index:1; pointer-events:none;
+  }
+
+  /* corner meta */
+  .corner{
+    position:absolute; z-index:5;
+    font-family:var(--mono); font-size:9.5px;
+    color:var(--mute-2);
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    pointer-events:none;
+  }
+  .corner.tl{ top:22px; left:28px; }
+  .corner.bl{ bottom:20px; left:28px; }
+  .corner.br{ bottom:20px; right:28px; display:flex; gap:8px; align-items:center; }
+  .corner.br .pulse{ width:5px; height:5px; }
+
+  /* stage */
+  .stage{
+    position:relative; z-index:2;
+    display:flex; flex-direction:column;
+    align-items:center;
+    gap:42px;
+    padding:0 28px;
+    max-width:560px;
+    text-align:center;
+  }
+
+  /* small mark-row */
+  .mark-row{
+    display:flex; align-items:center;
+    gap:14px;
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.24em;
+    color:var(--mute);
+    text-transform:uppercase;
+  }
+  .mark-row .step{ color:var(--brass); }
+  .mark-row .sep{ color:var(--mute-2); opacity:.6; }
+
+  /* the seal */
+  .seal{
+    position:relative;
+    width:300px; height:300px;
+    display:grid; place-items:center;
+  }
+  .seal svg{ position:absolute; inset:0; width:100%; height:100%; }
+  .seal .ring-outer{
+    fill:none;
+    stroke: rgba(184,153,104,0.10);
+    stroke-width: 0.6;
+  }
+  .seal .ring-inner{
+    fill:none;
+    stroke: rgba(184,153,104,0.18);
+    stroke-width: 0.6;
+  }
+  .seal .ticks line{
+    stroke: rgba(184,153,104,0.22);
+    stroke-width: 0.6;
+  }
+  .seal .ticks line.cardinal{ stroke: rgba(184,153,104,0.55); }
+
+  /* the slow-turning awakening arc */
+  .seal .arc{
+    fill:none;
+    stroke: var(--brass);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    transform-origin: 50% 50%;
+    animation: revolve 3.6s linear infinite;
+  }
+  @keyframes revolve{
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  /* faint counter-rotating second arc */
+  .seal .arc-2{
+    fill:none;
+    stroke: rgba(125,34,51,0.55);
+    stroke-width: 0.9;
+    stroke-linecap: round;
+    transform-origin: 50% 50%;
+    animation: revolve-back 6.4s linear infinite;
+  }
+  @keyframes revolve-back{
+    from { transform: rotate(360deg); }
+    to   { transform: rotate(0deg); }
+  }
+
+  /* the centered glyph + sub-text */
+  .seal .center{
+    position:relative; z-index:2;
+    display:flex; flex-direction:column;
+    align-items:center; gap:10px;
+  }
+  .seal .glyph-c{
+    width:42px; height:42px;
+    animation: breathe 3.2s ease-in-out infinite;
+  }
+  @keyframes breathe{
+    0%,100% { opacity:.65; transform:scale(0.98); }
+    50%     { opacity:1;   transform:scale(1.04); }
+  }
+  .seal .sub{
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:0.28em;
+    text-transform:uppercase;
+    color:var(--mute);
+  }
+
+  /* verb line */
+  .verb{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:500;
+    font-size:46px;
+    line-height:1.1;
+    color:var(--ink);
+    letter-spacing:0.005em;
+    margin:0;
+    text-wrap:balance;
+  }
+  .verb .quiet{ color:var(--ink-3); display:block; }
+
+  /* the four labors */
+  .labors{
+    display:flex; flex-direction:column;
+    gap:9px;
+    width:100%;
+    max-width:380px;
+    margin-top:2px;
+  }
+  .labor{
+    display:grid;
+    grid-template-columns: 14px 1fr auto;
+    gap:14px;
+    align-items:baseline;
+    text-align:left;
+    font-family:var(--mono);
+    font-size:10.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--mute-2);
+    transition: color .4s ease;
+  }
+  .labor .mark{
+    width:6px; height:6px; border-radius:50%;
+    background:transparent;
+    border:1px solid var(--line-2);
+    transform: translateY(2px);
+    transition: background .4s ease, border-color .4s ease, box-shadow .4s ease;
+  }
+  .labor .aside{
+    font-family:var(--mono);
+    font-size:9.5px;
+    color:var(--mute-2);
+    letter-spacing:0.14em;
+  }
+  .labor.active{
+    color:var(--brass);
+  }
+  .labor.active .mark{
+    background:var(--brass);
+    border-color:var(--brass);
+    box-shadow:0 0 0 0 rgba(184,153,104,.55);
+    animation: pulse 1.6s ease-out infinite;
+  }
+  .labor.done{
+    color:var(--ink-3);
+  }
+  .labor.done .mark{
+    background:var(--brass);
+    border-color:var(--brass);
+    box-shadow:none;
+  }
+  .labor.done .aside{ color:var(--mute); }
+
+  /* the chosen model row at the bottom — quiet, like a margin note */
+  .chosen{
+    display:flex; align-items:center; gap:14px;
+    margin-top:4px;
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:13.5px;
+    color:var(--mute);
+    border-top:1px solid var(--line);
+    padding-top:18px;
+  }
+  .chosen b{
+    color:var(--ink-2); font-weight:500;
+    font-style:normal;
+    font-family:var(--display);
+    font-size:16px;
+    letter-spacing:0.01em;
+  }
+  .chosen .mono{
+    font-family:var(--mono);
+    font-style:normal;
+    font-size:9.5px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--mute-2);
+  }
+
+  @media (max-width: 640px){
+    .seal{ width:240px; height:240px; }
+    .verb{ font-size:34px; }
+    .labors{ max-width:300px; }
+    .corner.bl{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<h2 class="sr-only">Abraxas — preparando o modelo na memória</h2>
+
+<span class="corner tl">abraxas · v.0</span>
+<span class="corner bl">passo 04 / 04</span>
+<span class="corner br"><span class="pulse"></span>local · offline</span>
+
+<div class="page" data-screen-label="01 Load Model">
+
+  <div class="figure" aria-hidden="true">
+    <img src="assets/fibonacci.gif" alt="">
+  </div>
+
+  <div class="stage">
+
+    <div class="mark-row">
+      <span class="step">passo iv</span><span class="sep">·</span><span>despertar</span>
+    </div>
+
+    <!-- the seal -->
+    <div class="seal" role="img" aria-label="modelo carregando">
+      <svg viewBox="0 0 300 300" aria-hidden="true">
+        <!-- outer + inner rings -->
+        <circle class="ring-outer" cx="150" cy="150" r="138"/>
+        <circle class="ring-inner" cx="150" cy="150" r="110"/>
+
+        <!-- cardinal + minor ticks -->
+        <g class="ticks">
+          <!-- 12 minor ticks every 30deg, with cardinals at 0/90/180/270 -->
+          <line class="cardinal" x1="150" y1="6"  x2="150" y2="22"/>
+          <line             x1="225" y1="26" x2="221" y2="38"/>
+          <line             x1="274" y1="75" x2="262" y2="79"/>
+          <line class="cardinal" x1="294" y1="150" x2="278" y2="150"/>
+          <line             x1="274" y1="225" x2="262" y2="221"/>
+          <line             x1="225" y1="274" x2="221" y2="262"/>
+          <line class="cardinal" x1="150" y1="294" x2="150" y2="278"/>
+          <line             x1="75"  y1="274" x2="79"  y2="262"/>
+          <line             x1="26"  y1="225" x2="38"  y2="221"/>
+          <line class="cardinal" x1="6"   y1="150" x2="22"  y2="150"/>
+          <line             x1="26"  y1="75"  x2="38"  y2="79"/>
+          <line             x1="75"  y1="26"  x2="79"  y2="38"/>
+        </g>
+
+        <!-- breathing arcs (defined via stroke-dasharray to draw segments) -->
+        <!-- outer arc: ~110° brass -->
+        <circle class="arc"
+                cx="150" cy="150" r="128"
+                stroke-dasharray="246 558"
+                stroke-dashoffset="0"/>
+        <!-- inner counter-arc: ~60° bordeaux -->
+        <circle class="arc-2"
+                cx="150" cy="150" r="96"
+                stroke-dasharray="100 503"
+                stroke-dashoffset="0"/>
+      </svg>
+
+      <div class="center">
+        <svg class="glyph-c" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <circle cx="16" cy="16" r="13" stroke="#b89968" stroke-width="0.9" fill="none"/>
+          <circle cx="16" cy="16" r="9.5" stroke="#7d2233" stroke-width="0.7" fill="none"/>
+          <line x1="16" y1="1.5" x2="16" y2="30.5" stroke="#b89968" stroke-width="0.9"/>
+          <line x1="11" y1="16" x2="21" y2="16" stroke="#7d2233" stroke-width="0.7"/>
+          <circle cx="16" cy="11" r="1.4" fill="#b89968"/>
+        </svg>
+        <span class="sub" id="seal-sub">preparando</span>
+      </div>
+    </div>
+
+    <h1 class="verb">
+      <span>Despertando o oráculo,</span>
+      <span class="quiet">um instante apenas.</span>
+    </h1>
+
+    <!-- the four labors of awakening -->
+    <ol class="labors" id="labors" aria-live="polite">
+      <li class="labor done" data-key="weights">
+        <span class="mark"></span>
+        <span>abrindo os pesos</span>
+        <span class="aside">7.3 gb</span>
+      </li>
+      <li class="labor done" data-key="memory">
+        <span class="mark"></span>
+        <span>alocando a memória</span>
+        <span class="aside">5.4 gb · ram</span>
+      </li>
+      <li class="labor active" data-key="context">
+        <span class="mark"></span>
+        <span>semeando o contexto</span>
+        <span class="aside">4 096 tokens</span>
+      </li>
+      <li class="labor" data-key="warmup">
+        <span class="mark"></span>
+        <span>aquecendo o forno</span>
+        <span class="aside">—</span>
+      </li>
+    </ol>
+
+    <!-- which model -->
+    <div class="chosen">
+      <span>carregando</span>
+      <b>Llama 3.1</b>
+      <span class="mono">8B · q4_k_m</span>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  // reflect the model chosen in the switcher / download, if any
+  try {
+    const m = JSON.parse(localStorage.getItem('abraxas:model') || 'null');
+    if (m && m.name){
+      document.querySelector('.chosen b').textContent = m.name;
+      document.querySelector('.chosen .mono').textContent = (m.id || '').toUpperCase();
+    }
+    localStorage.setItem('abraxas:ready', '1');
+  } catch (e) {}
+
+  // walk through the labors slowly so the screen feels alive
+  const labors = [...document.querySelectorAll('.labor')];
+  const sub = document.getElementById('seal-sub');
+  const SUBTITLES = {
+    context: 'semeando',
+    warmup:  'aquecendo',
+    done:    'pronto'
+  };
+
+  function advance(){
+    const idx = labors.findIndex(l => l.classList.contains('active'));
+    if (idx < 0) return;
+    labors[idx].classList.remove('active');
+    labors[idx].classList.add('done');
+    labors[idx].querySelector('.aside').textContent = 'concluído';
+
+    const next = labors[idx + 1];
+    if (next){
+      next.classList.add('active');
+      const key = next.dataset.key;
+      sub.textContent = SUBTITLES[key] || 'preparando';
+    } else {
+      sub.textContent = SUBTITLES.done;
+      // after a beat, hand off to the chat
+      setTimeout(() => {
+        // soft fade before navigation
+        document.body.style.transition = 'opacity .5s ease';
+        document.body.style.opacity = '0';
+        setTimeout(() => { window.location.href = 'Abraxas Chat.html'; }, 500);
+      }, 900);
+    }
+  }
+
+  // First advance after a small beat, then walk through the rest.
+  setTimeout(advance, 1600);
+  setTimeout(advance, 3200);
+  // a final settle so the 'pronto' sub is visible briefly before navigation
+</script>
+</body>
+</html>
