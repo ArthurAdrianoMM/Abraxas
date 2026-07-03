@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { commands, type InstalledModel } from "../lib/tauri/bindings";
 import { describeError, unwrap } from "../lib/tauri/result";
+import { useSettingsStore } from "./settings";
 
 export type ModelStatus =
   | "unknown" // haven't asked the backend yet
@@ -27,8 +28,8 @@ interface ModelState {
   error: string | null;
 
   /** List installed models and reconcile with what the engine reports as
-   *  loaded. Auto-loads the first installed model when nothing is resident
-   *  (Fase 6.2 will make "last used" configurable). */
+   *  loaded. Auto-loads the configured default model when nothing is
+   *  resident, falling back to the first installed. */
   init: () => Promise<void>;
   refreshInstalled: () => Promise<void>;
   load: (modelId: string, presentation?: LoadPresentation) => Promise<boolean>;
@@ -61,7 +62,10 @@ export const useModelStore = create<ModelState>((set, get) => ({
       ]);
       set({ installed, loadedId, status: statusFor(installed, loadedId) });
       if (!loadedId && installed.length > 0) {
-        await get().load(installed[0].id, "toast");
+        await useSettingsStore.getState().init();
+        const defaultId = useSettingsStore.getState().settings?.default_model_id;
+        const target = installed.find((m) => m.id === defaultId) ?? installed[0];
+        await get().load(target.id, "toast");
       }
     } catch (e) {
       set({ status: "error", error: describeError(e) });

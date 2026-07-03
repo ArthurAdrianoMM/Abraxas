@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useSettingsStore } from "../../stores/settings";
 import { useUiStore, type View } from "../../stores/ui";
 import { ChatView } from "../../views/ChatView";
 import { ModelsView } from "../../views/ModelsView";
@@ -15,7 +17,14 @@ const VIEWS: Record<View, () => React.ReactNode> = {
 
 export function AppShell() {
   const view = useUiStore((s) => s.view);
+  const initSettings = useSettingsStore((s) => s.init);
   const ActiveView = VIEWS[view];
+
+  // Settings gate presentation (font size) and the default model, so they
+  // load with the shell rather than with any particular view.
+  useEffect(() => {
+    void initSettings();
+  }, [initSettings]);
 
   return (
     <div className="shell">
