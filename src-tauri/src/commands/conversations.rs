@@ -17,7 +17,15 @@ pub async fn create_conversation(
     title: Option<String>,
     model_id: Option<String>,
 ) -> Result<conversations::Conversation, CommandError> {
-    let settings = app_settings::get(db.pool()).await.map_err(AppError::Db)?;
+    create_conversation_with_defaults(db.pool(), title, model_id).await
+}
+
+async fn create_conversation_with_defaults(
+    pool: &sqlx::SqlitePool,
+    title: Option<String>,
+    model_id: Option<String>,
+) -> Result<conversations::Conversation, CommandError> {
+    let settings = app_settings::get(pool).await.map_err(AppError::Db)?;
     let params = conversations::ConversationGenerationParams {
         temperature: Some(settings.default_temperature),
         top_p: Some(settings.default_top_p),
@@ -26,10 +34,10 @@ pub async fn create_conversation(
         ..Default::default()
     };
 
-    let mut conversation = conversations::create(db.pool(), title, model_id)
+    let mut conversation = conversations::create(pool, title, model_id)
         .await
         .map_err(AppError::Db)?;
-    conversations::update_generation_params(db.pool(), &conversation.id, params)
+    conversations::update_generation_params(pool, &conversation.id, params)
         .await
         .map_err(AppError::Db)?;
 
@@ -191,7 +199,48 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
+        sqlx::query(
+            "CREATE TABLE app_settings (
+                key   TEXT PRIMARY KEY NOT NULL,
+                value TEXT NOT NULL
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
         pool
+    }
+
+    #[tokio::test]
+    async fn create_conversation_stamps_current_defaults_and_leaves_old_rows() {
+        let pool = test_pool().await;
+
+        // With no stored settings, the built-in defaults get stamped.
+        let first = create_conversation_with_defaults(&pool, None, None)
+            .await
+            .unwrap();
+        assert_eq!(first.temperature, Some(0.8));
+        assert_eq!(first.top_p, Some(0.95));
+        assert_eq!(first.max_completion_tokens, Some(512));
+        assert_eq!(first.seed, None);
+
+        // Change the defaults; only conversations created afterwards see them.
+        let settings = crate::db::app_settings::AppSettings {
+            default_temperature: 1.2,
+            default_seed: Some(42),
+            ..Default::default()
+        };
+        crate::db::app_settings::set(&pool, &settings).await.unwrap();
+
+        let second = create_conversation_with_defaults(&pool, None, None)
+            .await
+            .unwrap();
+        assert_eq!(second.temperature, Some(1.2));
+        assert_eq!(second.seed, Some(42));
+
+        let first_again = conversations::get(&pool, &first.id).await.unwrap().unwrap();
+        assert_eq!(first_again.temperature, Some(0.8));
+        assert_eq!(first_again.seed, None);
     }
 
     #[tokio::test]

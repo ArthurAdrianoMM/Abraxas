@@ -57,16 +57,22 @@ pub struct AppSettings {
 
 impl Default for AppSettings {
     fn default() -> Self {
-        let sampling = SamplingParams::default();
-        Self {
+        // Exact f64 literals instead of casting the f32s from
+        // `SamplingParams::default()` (0.8f32 as f64 = 0.80000001…, which
+        // would be stamped onto conversations and shown to the user). The
+        // debug assertion below keeps the two in sync.
+        let defaults = Self {
             font_size: FontSize::Comoda,
             default_model_id: None,
-            default_temperature: sampling.temperature as f64,
-            default_top_p: sampling.top_p as f64,
+            default_temperature: 0.8,
+            default_top_p: 0.95,
             default_max_completion_tokens: DEFAULT_MAX_COMPLETION_TOKENS,
             default_seed: None,
             last_integrity_check: None,
-        }
+        };
+        debug_assert_eq!(defaults.default_temperature as f32, SamplingParams::default().temperature);
+        debug_assert_eq!(defaults.default_top_p as f32, SamplingParams::default().top_p);
+        defaults
     }
 }
 
