@@ -29,6 +29,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             super::models::delete_model,
             super::models::is_model_installed,
             super::models::load_installed_model,
+            super::models::get_loaded_model,
         ])
         .events(collect_events![
             crate::events::GenerationEvent,

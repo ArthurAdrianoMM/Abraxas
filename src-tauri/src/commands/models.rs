@@ -386,6 +386,26 @@ pub async fn load_installed_model(
     Ok(())
 }
 
+/// Report which installed model (if any) is currently resident in the
+/// inference engine. The manager tracks the loaded *path*; this resolves it
+/// back to a registry `model_id` so the frontend can reflect ground truth on
+/// startup instead of tracking its own load calls. Returns `None` when
+/// nothing is loaded or the loaded path no longer maps to a registry row
+/// (e.g. a legacy dev load).
+#[tauri::command]
+#[specta::specta]
+pub async fn get_loaded_model(
+    db: State<'_, Db>,
+    manager: State<'_, Arc<ModelManager>>,
+) -> Result<Option<String>, CommandError> {
+    let Some(loaded) = manager.current().await else {
+        return Ok(None);
+    };
+    let loaded_path = loaded.path.to_string_lossy();
+    let rows = registry::list(db.pool()).await.map_err(AppError::Db)?;
+    Ok(rows.into_iter().find(|r| r.path == loaded_path).map(|r| r.id))
+}
+
 /// Fast check: is `model_id` present in the installed-models registry?
 /// The frontend uses this to decide whether to show "Download" or "Load".
 #[tauri::command]

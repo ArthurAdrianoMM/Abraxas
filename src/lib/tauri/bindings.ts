@@ -95,6 +95,15 @@ export const commands = {
 	 *  invariant from Fase 3.3 is preserved by the manager itself.
 	 */
 	loadInstalledModel: (modelId: string) => typedError<null, CommandError>(__TAURI_INVOKE("load_installed_model", { modelId })),
+	/**
+	 *  Report which installed model (if any) is currently resident in the
+	 *  inference engine. The manager tracks the loaded *path*; this resolves it
+	 *  back to a registry `model_id` so the frontend can reflect ground truth on
+	 *  startup instead of tracking its own load calls. Returns `None` when
+	 *  nothing is loaded or the loaded path no longer maps to a registry row
+	 *  (e.g. a legacy dev load).
+	 */
+	getLoadedModel: () => typedError<string | null, CommandError>(__TAURI_INVOKE("get_loaded_model")),
 };
 
 /** Events */
