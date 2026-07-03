@@ -1,9 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { InstalledModel, ModelEntry } from "../../lib/tauri/bindings";
 import { describeError } from "../../lib/tauri/result";
 import { ago, contextK, gb, roman } from "../../lib/format";
 import { useCatalogStore } from "../../stores/catalog";
+import { useDiskStore } from "../../stores/disk";
 import { useModelStore } from "../../stores/model";
+import { useSettingsStore } from "../../stores/settings";
 import { useUiStore } from "../../stores/ui";
 import { ErrorAction, ErrorCard, ErrorLink } from "./ErrorCard";
 import styles from "./ManagerPane.module.css";
@@ -22,16 +25,21 @@ function ManagerRow({
   const status = useModelStore((s) => s.status);
   const load = useModelStore((s) => s.load);
   const remove = useModelStore((s) => s.remove);
+  const defaultModelId = useSettingsStore((s) => s.settings?.default_model_id ?? null);
+  const saveSettings = useSettingsStore((s) => s.save);
   const [confirming, setConfirming] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
   const isLoaded = loadedId === installed.id;
+  const isDefault = defaultModelId === installed.id;
   const loading = status === "loading";
 
   const handleRemove = async () => {
     setConfirming(false);
     try {
       await remove(installed.id);
+      // A removed model can't be the startup default anymore.
+      if (isDefault) void saveSettings({ default_model_id: null });
     } catch (e) {
       const kind = (e as { kind?: string })?.kind;
       setRemoveError(
@@ -43,7 +51,7 @@ function ManagerRow({
   };
 
   return (
-    <article className={styles.row} data-loaded={isLoaded}>
+    <article className={styles.row} data-loaded={isLoaded} data-default={isDefault}>
       <span className={styles.roman}>{roman(index)}</span>
       <span className={styles.sealMark} title={isLoaded ? "voz desperta" : undefined}>
         <span className={styles.star}>★</span>
@@ -51,6 +59,11 @@ function ManagerRow({
       <div className={styles.body}>
         <div className={styles.nameRow}>
           <span className={styles.name}>{entry?.name ?? installed.id}</span>
+          {isDefault && (
+            <span className={styles.defaultTag} title="acorda com o app">
+              padrão
+            </span>
+          )}
           <span className={styles.id}>
             {entry
               ? `${entry.publisher} · ${installed.id} · ${entry.quantization.toLowerCase()}`
@@ -113,6 +126,22 @@ function ManagerRow({
             </button>
             <span className={styles.verbSep}>·</span>
             <button
+              className={styles.verbLink}
+              disabled={isDefault}
+              title={isDefault ? undefined : "acordar esta voz ao abrir o app"}
+              onClick={() => void saveSettings({ default_model_id: installed.id })}
+            >
+              {isDefault ? "já é padrão" : "tornar padrão"}
+            </button>
+            <span className={styles.verbSep}>·</span>
+            <button
+              className={styles.verbLink}
+              onClick={() => void revealItemInDir(installed.path).catch(() => undefined)}
+            >
+              abrir pasta
+            </button>
+            <span className={styles.verbSep}>·</span>
+            <button
               className={`${styles.verbLink} ${styles.verbDanger}`}
               disabled={isLoaded}
               title={isLoaded ? "desperte outra voz antes de remover esta" : undefined}
@@ -136,6 +165,14 @@ export function ManagerPane() {
   const load = useModelStore((s) => s.load);
   const catalogModels = useCatalogStore((s) => s.models);
   const setModelsPane = useUiStore((s) => s.setModelsPane);
+  const usage = useDiskStore((s) => s.usage);
+  const refreshDisk = useDiskStore((s) => s.refresh);
+  const initSettings = useSettingsStore((s) => s.init);
+
+  useEffect(() => {
+    void refreshDisk();
+    void initSettings();
+  }, [refreshDisk, initSettings, installed.length]);
 
   const entriesById = useMemo(() => {
     const map = new Map<string, ModelEntry>();
@@ -202,11 +239,27 @@ export function ManagerPane() {
             <div className={styles.diskTop}>
               <div className={styles.diskLhs}>
                 <b>{gb(totalBytes, 1)} GB</b> consagrados aos modelos
+                {usage && usage.total_bytes > 0 && (
+                  <span className={styles.diskFree}>
+                    {" "}
+                    · {gb(usage.free_bytes, 0)} GB livres no disco
+                  </span>
+                )}
               </div>
               <div className={styles.diskRhs}>
-                {installed.length} {installed.length === 1 ? "codex" : "codices"}
+                {usage && usage.total_bytes > 0
+                  ? `${((totalBytes / usage.total_bytes) * 100).toFixed(1).replace(".", ",")}% do disco`
+                  : `${installed.length} ${installed.length === 1 ? "codex" : "codices"}`}
               </div>
             </div>
+            {usage && usage.total_bytes > 0 && (
+              <div className={styles.diskMeter} aria-hidden="true">
+                <div
+                  className={styles.diskMeterFilled}
+                  style={{ width: `${Math.min(100, (totalBytes / usage.total_bytes) * 100)}%` }}
+                />
+              </div>
+            )}
           </div>
         )}
 

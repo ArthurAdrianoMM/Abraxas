@@ -95,6 +95,26 @@
   text-transform: uppercase;
   color: var(--mute);
 }
+.diskFree {
+  color: var(--mute);
+  font-style: italic;
+  font-size: 13.5px;
+}
+.diskMeter {
+  position: relative;
+  height: 3px;
+  background: #1a1311;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.diskMeterFilled {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: var(--brass);
+  opacity: 0.55;
+}
 
 /* entries header */
 .entriesHead {
@@ -201,6 +221,20 @@
   text-transform: uppercase;
   color: var(--brass);
   margin-left: 12px;
+  padding: 2px 7px;
+  border: 1px solid rgba(184, 153, 104, 0.45);
+  border-radius: 3px;
+  vertical-align: middle;
+}
+/* "padrão" badge — the model that wakes with the app (mirrors the loaded
+   "desperta" tag, but rendered as a span so both can coexist). */
+.defaultTag {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--brass);
   padding: 2px 7px;
   border: 1px solid rgba(184, 153, 104, 0.45);
   border-radius: 3px;
