@@ -1,0 +1,52 @@
+/* Shared chrome for the onboarding ceremony: full-bleed dark stage,
+   corner micro-meta, and the cross-fade between steps. */
+
+.flow {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(140% 100% at 50% -10%, #100b0a 0%, #080605 65%, #050302 100%);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.corner {
+  position: absolute;
+  z-index: 6;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--mute-2);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.cornerTl {
+  top: 22px;
+  left: 28px;
+}
+.cornerBl {
+  bottom: 20px;
+  left: 28px;
+}
+.cornerBr {
+  bottom: 20px;
+  right: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepHost {
+  position: absolute;
+  inset: 0;
+  animation: stepIn 0.65s ease-out both;
+}
+@keyframes stepIn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

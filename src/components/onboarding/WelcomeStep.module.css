@@ -1,0 +1,177 @@
+/* Welcome — ported from "Abraxas Welcome.html". */
+
+.welcome {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(120% 80% at 50% 50%, #100b0a 0%, #080605 65%, #050302 100%);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* the fibonacci gif as background — large, centered, very subtle */
+.figure {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 0;
+  pointer-events: none;
+}
+.figure img {
+  width: min(92vh, 92vmin);
+  height: auto;
+  /* warm the white drawing into parchment — clearer, still atmospheric */
+  filter: invert(1) hue-rotate(180deg) sepia(0.45) brightness(1.05) contrast(1);
+  opacity: 0.35;
+  mix-blend-mode: screen;
+  animation: drift 24s ease-in-out infinite alternate;
+}
+@keyframes drift {
+  0% {
+    transform: rotate(-0.6deg) scale(1);
+  }
+  100% {
+    transform: rotate(0.6deg) scale(1.04);
+  }
+}
+
+/* faint inner vignette so the spiral fades at the edges of the page */
+.welcome::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    65% 65% at 50% 50%,
+    transparent 0%,
+    rgba(8, 6, 5, 0.4) 70%,
+    rgba(8, 6, 5, 0.92) 100%
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+.stage {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 34px;
+  padding: 0 28px;
+  text-align: center;
+}
+
+.mark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+.glyph {
+  width: 88px;
+  height: 88px;
+  animation: glyphIn 1.6s ease-out both;
+}
+@keyframes glyphIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.wordmark {
+  font-family: var(--display);
+  font-size: 64px;
+  letter-spacing: 0.32em;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1;
+  /* nudge optical centering against the wide tracking */
+  padding-left: 0.32em;
+  animation: fadeUp 1.6s ease-out 0.15s both;
+}
+.invocation {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--ink-3);
+  max-width: 42ch;
+  text-wrap: balance;
+  margin: 0;
+  animation: fadeUp 1.6s ease-out 0.35s both;
+}
+@keyframes fadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rule {
+  width: 34px;
+  height: 1px;
+  background: var(--brass);
+  opacity: 0.55;
+  margin: 2px 0;
+  animation: fadeUp 1.6s ease-out 0.5s both;
+}
+
+.enterBtn {
+  background: transparent;
+  border: 1px solid var(--line-2);
+  color: var(--brass);
+  padding: 14px 26px;
+  font-family: var(--serif);
+  font-size: 17px;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  transition: border-color 0.2s, color 0.2s, background 0.2s, gap 0.2s;
+  animation: fadeUp 1.6s ease-out 0.65s both;
+}
+.enterBtn:hover {
+  border-color: var(--bordeaux);
+  color: var(--ink);
+  gap: 16px;
+}
+.arrow {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+
+.altLink {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+  margin-top: -14px;
+  padding: 4px;
+  transition: color 0.2s;
+  animation: fadeUp 1.6s ease-out 0.8s both;
+}
+.altLink:hover {
+  color: var(--brass);
+}
