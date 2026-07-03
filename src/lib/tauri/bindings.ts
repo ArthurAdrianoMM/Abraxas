@@ -40,11 +40,12 @@ export const commands = {
 	max_completion_tokens: number | null,
 	// Sampling parameters. `None` uses `SamplingParams::default()`.
 	sampling: SamplingParams | null,
-} | null) => typedError<string, CommandError>(__TAURI_INVOKE("start_generation", { messages, options })),
+} | null, conversationId: string | null) => typedError<string, CommandError>(__TAURI_INVOKE("start_generation", { messages, options, conversationId })),
 	cancelGeneration: (generationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_generation", { generationId })),
 	createConversation: (title: string | null, modelId: string | null) => typedError<Conversation, CommandError>(__TAURI_INVOKE("create_conversation", { title, modelId })),
 	listConversations: () => typedError<Conversation[], CommandError>(__TAURI_INVOKE("list_conversations")),
 	deleteConversation: (conversationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("delete_conversation", { conversationId })),
+	updateConversationGenerationParams: (conversationId: string, params: ConversationGenerationParams) => typedError<Conversation, CommandError>(__TAURI_INVOKE("update_conversation_generation_params", { conversationId, params })),
 	appendMessage: (conversationId: string, role: ChatRole, content: string) => typedError<StoredMessage, CommandError>(__TAURI_INVOKE("append_message", { conversationId, role, content })),
 	listMessages: (conversationId: string) => typedError<StoredMessage[], CommandError>(__TAURI_INVOKE("list_messages", { conversationId })),
 	fetchCatalog: () => typedError<CatalogResponse, CommandError>(__TAURI_INVOKE("fetch_catalog")),
@@ -195,17 +196,39 @@ export type CompatibilityTier =
 // System RAM < 75 % of `min_ram_mb`. Likely OOM.
 "NotSupported";
 
+export type ComputeCapability = {
+	major: number,
+	minor: number,
+};
+
 export type Conversation = {
 	id: string,
 	title: string,
 	model_id: string | null,
 	created_at: string,
 	updated_at: string,
+	temperature: number | null,
+	top_p: number | null,
+	top_k: number | null,
+	repeat_penalty: number | null,
+	repeat_last_n: number | null,
+	seed: number | null,
+	max_completion_tokens: number | null,
 };
 
-export type ComputeCapability = {
-	major: number,
-	minor: number,
+/**
+ *  Patch payload for `update_generation_params`. Every field is `Option`:
+ *  `Some(value)` writes the column, `None` clears it back to NULL (so the
+ *  resolver falls through to defaults).
+ */
+export type ConversationGenerationParams = {
+	temperature: number | null,
+	top_p: number | null,
+	top_k: number | null,
+	repeat_penalty: number | null,
+	repeat_last_n: number | null,
+	seed: number | null,
+	max_completion_tokens: number | null,
 };
 
 export type CpuFeatures = {
@@ -340,26 +363,27 @@ export type VulkanVendor = "amd" | "intel" | "nvidia" | "other";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
-    try {
-        return { status: "ok", data: await result };
-    } catch (e) {
-        if (e instanceof Error) throw e;
-        return { status: "error", error: e as any };
-    }
+	try {
+		return { status: "ok", data: await result };
+	} catch (e) {
+		if (e instanceof Error) throw e;
+		return { status: "error", error: e as any };
+	}
 }
 
 function makeEvent<T>(name: string) {
-    const base = {
-        listen: (cb: __TAURI_EVENT.EventCallback<T>) => __TAURI_EVENT.listen(name, cb),
-        once: (cb: __TAURI_EVENT.EventCallback<T>) => __TAURI_EVENT.once(name, cb),
-        emit: ((payload: T) => __TAURI_EVENT.emit(name, payload) as unknown) as (T extends null ? () => Promise<void> : (payload: T) => Promise<void>)
-    };
+	const base = {
+		listen: (cb: __TAURI_EVENT.EventCallback<T>) => __TAURI_EVENT.listen(name, cb),
+		once: (cb: __TAURI_EVENT.EventCallback<T>) => __TAURI_EVENT.once(name, cb),
+		emit: ((payload: T) => __TAURI_EVENT.emit(name, payload) as unknown) as (T extends null ? () => Promise<void> : (payload: T) => Promise<void>)
+	};
 
-    const fn = (target: import("@tauri-apps/api/webview").Webview | import("@tauri-apps/api/window").Window) => ({
-        listen: (cb: __TAURI_EVENT.EventCallback<T>) => target.listen(name, cb),
-        once: (cb: __TAURI_EVENT.EventCallback<T>) => target.once(name, cb),
-        emit: ((payload: T) => target.emit(name, payload) as unknown) as (T extends null ? () => Promise<void> : (payload: T) => Promise<void>)
-    });
+	const fn = (target: import("@tauri-apps/api/webview").Webview | import("@tauri-apps/api/window").Window) => ({
+		listen: (cb: __TAURI_EVENT.EventCallback<T>) => target.listen(name, cb),
+		once: (cb: __TAURI_EVENT.EventCallback<T>) => target.once(name, cb),
+		emit: ((payload: T) => target.emit(name, payload) as unknown) as (T extends null ? () => Promise<void> : (payload: T) => Promise<void>)
+	});
 
-    return Object.assign(fn, base);
+	return Object.assign(fn, base);
 }
+
