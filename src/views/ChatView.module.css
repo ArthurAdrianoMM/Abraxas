@@ -1,0 +1,54 @@
+/* Inline notices that sit between the thread and the composer. */
+
+.modelNotice,
+.genError {
+  flex: 0 0 auto;
+  max-width: 720px;
+  width: calc(100% - 56px);
+  margin: 0 auto 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: var(--bg-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+.modelNoticeLink {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--brass);
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.modelNoticeLink:hover {
+  color: var(--ink);
+}
+
+.genError {
+  border-color: var(--bordeaux);
+  color: var(--ink-2);
+}
+.genErrorDismiss {
+  background: transparent;
+  border: 0;
+  color: var(--mute);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  transition: color 0.15s;
+}
+.genErrorDismiss:hover {
+  color: var(--ink);
+}

@@ -1,0 +1,366 @@
+/* "Ordens desta conversa" drawer, ported from _chat-extras.css.
+   Per-conversation generation params over the thread; closed by default. */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 6, 5, 0.55);
+  z-index: 8;
+  backdrop-filter: blur(1.5px);
+  animation: scrim-in 0.25s ease-out;
+}
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 480px;
+  max-width: 96vw;
+  z-index: 9;
+  background: var(--bg-2);
+  border-left: 1px solid var(--line-2);
+  box-shadow: -28px 0 60px -28px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  animation: drawer-in 0.32s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes drawer-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.head {
+  padding: 22px 28px 18px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.kicker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.step {
+  color: var(--brass);
+}
+.close {
+  background: transparent;
+  border: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--mute);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+}
+.close:hover {
+  color: var(--ink);
+  background: var(--bg-hover);
+}
+.heading {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 28px;
+  line-height: 1.15;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: 0.005em;
+  text-wrap: balance;
+}
+.convName {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14.5px;
+  color: var(--ink-3);
+}
+.convName b {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  color: var(--ink-2);
+  font-size: 16px;
+  margin-right: 4px;
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sectionName {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+.sectionGloss {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13.5px;
+  color: var(--mute);
+  margin: 0;
+}
+.sectionHead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.field:last-child {
+  border-bottom: 0;
+}
+.fieldTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+.label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.fieldMuted .label {
+  color: var(--mute-2);
+}
+.inherit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--mute);
+  transition: color 0.15s;
+}
+.inherit:hover {
+  color: var(--brass);
+}
+.checkbox {
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--line-2);
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+.inheritOn .checkbox {
+  border-color: var(--brass);
+  background: rgba(184, 153, 104, 0.18);
+}
+.inheritOn .checkbox::after {
+  content: "";
+  width: 5px;
+  height: 5px;
+  background: var(--brass);
+  border-radius: 1px;
+}
+.fieldMuted .valueArea {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.sliderRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sliderTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  color: var(--mute-2);
+  text-transform: uppercase;
+}
+.reading {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 20px;
+  color: var(--ink-2);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+.readingVs {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 9px;
+  color: var(--mute-2);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-left: 8px;
+}
+.sliderTrack {
+  position: relative;
+  height: 2px;
+  background: #1a1311;
+  border-radius: 2px;
+  cursor: pointer;
+  touch-action: none;
+  /* widen the hit area without changing the visual line */
+  background-clip: content-box;
+  padding: 6px 0;
+}
+.sliderFill {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  height: 2px;
+  background: var(--brass);
+  opacity: 0.6;
+  border-radius: 2px;
+}
+.sliderThumb {
+  position: absolute;
+  top: 7px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1.5px solid var(--brass);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+.numBox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  padding: 8px 12px;
+  background: var(--bg-3);
+  max-width: 240px;
+}
+.numBox input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.numBox input::placeholder {
+  color: var(--mute-2);
+  font-style: italic;
+}
+.numUnit {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+.foot {
+  flex-shrink: 0;
+  border-top: 1px solid var(--line);
+  padding: 14px 28px 16px;
+  background: var(--bg-2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+.verbLink {
+  background: transparent;
+  border: 0;
+  color: var(--mute);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 2px;
+  letter-spacing: 0.01em;
+  transition: color 0.15s;
+}
+.verbLink:hover {
+  color: var(--brass);
+}
+.applyBtn {
+  background: transparent;
+  border: 1px solid var(--bordeaux);
+  color: var(--brass);
+  padding: 9px 16px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, gap 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.applyBtn:hover {
+  background: var(--bordeaux);
+  color: var(--ink);
+  gap: 14px;
+}
+
+@media (max-width: 540px) {
+  .drawer {
+    width: 100vw;
+  }
+}

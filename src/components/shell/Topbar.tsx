@@ -1,3 +1,5 @@
+import { useConversationsStore } from "../../stores/conversations";
+import { useModelStore } from "../../stores/model";
 import { useUiStore, type View } from "../../stores/ui";
 import styles from "./Topbar.module.css";
 
@@ -24,19 +26,34 @@ function Meta({ children }: { children: React.ReactNode }) {
 
 function ChatTopbar() {
   const setView = useUiStore((s) => s.setView);
+  const setOrdersOpen = useUiStore((s) => s.setOrdersOpen);
+  const activeId = useConversationsStore((s) => s.activeId);
+  const conversations = useConversationsStore((s) => s.conversations);
+  const modelStatus = useModelStore((s) => s.status);
+  const loadedId = useModelStore((s) => s.loadedId);
+
+  const active = conversations.find((c) => c.id === activeId) ?? null;
+
   return (
     <header className={`topbar ${styles.chatTopbar}`}>
-      <span className={`title ${styles.title}`}>nova conversa</span>
+      {active ? (
+        <span className={`title ${styles.title}`}>{active.title}</span>
+      ) : (
+        <span className={`title ${styles.title}`}>
+          <em style={{ opacity: 0.6 }}>nova conversa</em>
+        </span>
+      )}
 
-      {/* model pill — Fase 5.5 wires the switcher popover; for now it opens the atelier */}
+      {/* model pill — the switcher popover lands with the Models phase; opens the atelier */}
       <button
         className={styles.modelPill}
         title="trocar a voz"
         onClick={() => setView("models")}
       >
         <span className="pulse"></span>
-        <span className={styles.modelPillName}>Llama 3.1</span>
-        <span className={styles.modelPillId}>8b · q4_k_m</span>
+        <span className={styles.modelPillName}>
+          {modelStatus === "loaded" && loadedId ? loadedId : "sem voz"}
+        </span>
         <svg className={styles.modelPillChev} width="11" height="11" viewBox="0 0 16 16" fill="none">
           <path
             d="M4 6l4 4 4-4"
@@ -48,7 +65,14 @@ function ChatTopbar() {
         </svg>
       </button>
 
-      <button className={styles.toolBtn} title="ordens desta conversa">
+      <button
+        className={styles.toolBtn}
+        title="ordens desta conversa"
+        aria-haspopup="dialog"
+        disabled={!active}
+        style={!active ? { opacity: 0.35, cursor: "default" } : undefined}
+        onClick={() => active && setOrdersOpen(true)}
+      >
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <line x1="2" y1="4.5" x2="14" y2="4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
           <line x1="2" y1="11.5" x2="14" y2="11.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />

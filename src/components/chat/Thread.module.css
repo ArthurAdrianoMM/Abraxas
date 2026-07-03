@@ -1,0 +1,8 @@
+/* The "— pensando devagar" aside on the live turn (inline style in the mock). */
+.thinking {
+  color: var(--mute);
+  letter-spacing: 0.05em;
+  text-transform: none;
+  font-style: italic;
+  margin-left: 6px;
+}

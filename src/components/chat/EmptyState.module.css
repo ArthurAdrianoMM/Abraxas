@@ -1,0 +1,177 @@
+/* New-conversation empty state, ported from "Abraxas New Conversation.html".
+   The still page before the first word: spiral mark, italic invocation,
+   gilded rule, and the four "primeiras palavras" seed chips. */
+
+.empty {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.invocation {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  padding: 0 28px;
+  max-width: 540px;
+  text-align: center;
+  /* nudge optical center up so the composer feels supported by it */
+  margin-top: -32px;
+}
+
+.glyphWrap {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  opacity: 0.92;
+  animation: glyph-in 1.4s ease-out both;
+}
+@keyframes glyph-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 0.92;
+    transform: scale(1);
+  }
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--mute);
+  animation: fade-up 1.4s ease-out 0.1s both;
+}
+
+.title {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 42px;
+  line-height: 1.1;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: 0.005em;
+  text-wrap: balance;
+  animation: fade-up 1.4s ease-out 0.2s both;
+}
+.quiet {
+  color: var(--ink-3);
+  display: block;
+}
+
+.rule {
+  width: 38px;
+  height: 1px;
+  background: var(--brass);
+  opacity: 0.55;
+  animation: fade-up 1.4s ease-out 0.35s both;
+}
+
+.gloss {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 15.5px;
+  line-height: 1.55;
+  color: var(--ink-3);
+  margin: 0;
+  max-width: 42ch;
+  text-wrap: balance;
+  animation: fade-up 1.4s ease-out 0.45s both;
+}
+
+@keyframes fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* the seed prompts — italic ghost chips, 2x2 grid */
+.seeds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+  width: 100%;
+  max-width: 520px;
+  animation: fade-up 1.4s ease-out 0.6s both;
+}
+.seed {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14.5px;
+  line-height: 1.45;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.seed:hover {
+  border-color: var(--bordeaux);
+  color: var(--ink);
+  background: rgba(28, 22, 20, 0.35);
+}
+.roman {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--brass);
+  line-height: 1.2;
+  flex-shrink: 0;
+  width: 18px;
+  letter-spacing: 0.02em;
+}
+.text {
+  min-width: 0;
+}
+.text b {
+  font-family: var(--mono);
+  font-style: normal;
+  font-weight: 500;
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mute);
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* a final, smaller hint below the seeds */
+.belowHint {
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+  animation: fade-up 1.4s ease-out 0.75s both;
+}
+.belowHint kbd {
+  font-family: var(--mono);
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  padding: 0 5px;
+  color: var(--ink-3);
+  background: #15100f;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}

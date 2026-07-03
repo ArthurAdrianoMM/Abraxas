@@ -12,6 +12,95 @@
   cursor: pointer;
 }
 
+.modelIdle {
+  color: var(--mute-2);
+  font-style: italic;
+}
+
+/* conversation rows — the shared .conv primitive plus a hover-reveal delete */
+.convRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.convTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.convDelete {
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  padding: 2px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mute-2);
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0;
+  transition: color 0.15s, opacity 0.15s;
+}
+.convRow:hover .convDelete {
+  opacity: 1;
+}
+.convDelete:hover {
+  color: var(--bordeaux);
+}
+
+/* inline destructive confirmation, kept in the row's own voice */
+.convConfirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: default;
+  border-left-color: var(--bordeaux);
+  background: var(--bg-hover);
+}
+.confirmLabel {
+  font-style: italic;
+  color: var(--ink-3);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.confirmActions {
+  display: inline-flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.confirmYes,
+.confirmNo {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: color 0.15s;
+}
+.confirmYes {
+  color: var(--bordeaux);
+}
+.confirmYes:hover {
+  color: var(--ink);
+}
+.confirmNo {
+  color: var(--mute);
+}
+.confirmNo:hover {
+  color: var(--ink);
+}
+
 .footerNav {
   display: flex;
   gap: 12px;
