@@ -51,6 +51,10 @@
   font-size: 15px;
   color: inherit;
   letter-spacing: 0.01em;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .modelPillId {
   font-family: var(--mono);
