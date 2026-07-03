@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { commands } from "../../lib/tauri/bindings";
 import { eta, gb, mbps, size } from "../../lib/format";
+import { useDiskStore } from "../../stores/disk";
 import { useDownloadsStore } from "../../stores/downloads";
 import { useModelStore } from "../../stores/model";
 import { useUiStore } from "../../stores/ui";
@@ -33,14 +33,13 @@ export function DownloadPane() {
   const load = useModelStore((s) => s.load);
   const setModelsPane = useUiStore((s) => s.setModelsPane);
 
-  const [modelsDir, setModelsDir] = useState<string | null>(null);
+  const usage = useDiskStore((s) => s.usage);
+  const refreshDisk = useDiskStore((s) => s.refresh);
   const [recoveryDismissed, setRecoveryDismissed] = useState(false);
 
   useEffect(() => {
-    void commands.appInfo().then((r) => {
-      if (r.status === "ok") setModelsDir(`${r.data.app_data_dir}/models`);
-    });
-  }, []);
+    void refreshDisk();
+  }, [refreshDisk]);
 
   // Nothing to show — the user landed here without picking a model.
   useEffect(() => {
@@ -147,12 +146,13 @@ export function DownloadPane() {
             </div>
           </div>
 
-          <div className={styles.storage}>
-            <div className={styles.storageTop}>
-              <span className={styles.storagePath}>{modelsDir ?? "…"}</span>
-              <span className={styles.storageRhs}>+{gb(model.size_bytes)} gb</span>
-            </div>
-          </div>
+          <StorageRow
+            modelsDir={usage?.models_dir ?? null}
+            freeBytes={usage && usage.total_bytes > 0 ? usage.free_bytes : null}
+            totalBytes={usage && usage.total_bytes > 0 ? usage.total_bytes : null}
+            incomingBytes={model.size_bytes}
+            remainingBytes={phase === "confirm" ? model.size_bytes : remaining}
+          />
         </div>
       </div>
 
@@ -356,6 +356,67 @@ export function DownloadPane() {
         )}
       </div>
     </section>
+  );
+}
+
+/** The storage row: models dir, free-space meter (filled = disk already
+ *  used, incoming = this model), and the disk-critical warning when what
+ *  still needs to land doesn't fit with a 1 GB breathing margin. */
+function StorageRow({
+  modelsDir,
+  freeBytes,
+  totalBytes,
+  incomingBytes,
+  remainingBytes,
+}: {
+  modelsDir: string | null;
+  freeBytes: number | null;
+  totalBytes: number | null;
+  incomingBytes: number;
+  remainingBytes: number;
+}) {
+  const MARGIN_BYTES = 1e9;
+  const hasDisk = freeBytes !== null && totalBytes !== null;
+  const warn = hasDisk && remainingBytes + MARGIN_BYTES > freeBytes;
+  const usedPct = hasDisk ? ((totalBytes - freeBytes) / totalBytes) * 100 : 0;
+  const incomingPct = hasDisk ? Math.min(100 - usedPct, (incomingBytes / totalBytes) * 100) : 0;
+  const afterBytes = hasDisk ? freeBytes - remainingBytes : 0;
+
+  return (
+    <div className={styles.storage} data-warn={warn}>
+      <div className={styles.storageTop}>
+        <span className={styles.storagePath}>{modelsDir ?? "…"}</span>
+        <span className={styles.storageRhs}>
+          {hasDisk
+            ? `${gb(totalBytes - freeBytes, 0)} / ${gb(totalBytes, 0)} gb`
+            : `+${gb(incomingBytes)} gb`}
+        </span>
+      </div>
+      {hasDisk && (
+        <>
+          <div className={styles.storageMeter} aria-hidden="true">
+            <div className={styles.storageFilled} style={{ width: `${usedPct}%` }} />
+            <div
+              className={styles.storageIncoming}
+              style={{ left: `${usedPct}%`, width: `${incomingPct}%` }}
+            />
+          </div>
+          {warn ? (
+            <span className={styles.storageWarnLine}>
+              espaço crítico — libere pelo menos{" "}
+              {gb(Math.max(0, remainingBytes + MARGIN_BYTES - freeBytes), 1)} gb ou escolha um
+              modelo menor.
+            </span>
+          ) : (
+            <div className={styles.storageFoot}>
+              <span className={styles.storageVerdictOk}>
+                cabe com folga · restam {gb(afterBytes, 0)} gb depois
+              </span>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
