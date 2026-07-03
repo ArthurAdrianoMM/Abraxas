@@ -90,8 +90,11 @@ function ensureListener() {
           downloadedBytes: payload.downloaded_bytes,
           totalBytes: payload.total_bytes,
           ...(speed !== undefined ? { speedBps: speed } : {}),
-          // First progress of a resumed session lands well past zero.
-          ...(session.phase === "starting" && payload.downloaded_bytes > 0 && session.resumedFrom == null
+          // A resumed session's first progress lands at the `.part` offset —
+          // well past the first chunk of a fresh download.
+          ...(session.phase === "starting" &&
+          session.resumedFrom == null &&
+          payload.downloaded_bytes > Math.max(64e6, payload.total_bytes * 0.01)
             ? { resumedFrom: payload.downloaded_bytes }
             : {}),
         });
