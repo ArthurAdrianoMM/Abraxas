@@ -136,6 +136,13 @@ pub async fn update_generation_params(
     Ok(result.rows_affected() > 0)
 }
 
+/// Removes every conversation; messages go with them via `ON DELETE CASCADE`.
+/// Returns the number of conversations removed.
+pub async fn delete_all(pool: &SqlitePool) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM conversations").execute(pool).await?;
+    Ok(result.rows_affected())
+}
+
 /// Returns `true` if a row for `id` existed and was removed.
 pub async fn delete(pool: &SqlitePool, id: &str) -> Result<bool, sqlx::Error> {
     let result = sqlx::query("DELETE FROM conversations WHERE id = ?1")

@@ -3,9 +3,13 @@
 use tauri::State;
 
 use crate::chat::templates::ChatRole;
-use crate::db::{conversations, messages, Db};
+use crate::db::{app_settings, conversations, messages, Db};
 use crate::error::{AppError, CommandError};
 
+/// Creates the conversation and stamps the app-wide default generation
+/// params onto it (Fase 6.2). Stamping at creation time — instead of
+/// resolving defaults at generation time — keeps existing conversations
+/// untouched when the user later changes a default.
 #[tauri::command]
 #[specta::specta]
 pub async fn create_conversation(
@@ -13,9 +17,27 @@ pub async fn create_conversation(
     title: Option<String>,
     model_id: Option<String>,
 ) -> Result<conversations::Conversation, CommandError> {
-    conversations::create(db.pool(), title, model_id)
+    let settings = app_settings::get(db.pool()).await.map_err(AppError::Db)?;
+    let params = conversations::ConversationGenerationParams {
+        temperature: Some(settings.default_temperature),
+        top_p: Some(settings.default_top_p),
+        max_completion_tokens: Some(settings.default_max_completion_tokens as i64),
+        seed: settings.default_seed,
+        ..Default::default()
+    };
+
+    let mut conversation = conversations::create(db.pool(), title, model_id)
         .await
-        .map_err(|e| AppError::Db(e).into())
+        .map_err(AppError::Db)?;
+    conversations::update_generation_params(db.pool(), &conversation.id, params)
+        .await
+        .map_err(AppError::Db)?;
+
+    conversation.temperature = params.temperature;
+    conversation.top_p = params.top_p;
+    conversation.max_completion_tokens = params.max_completion_tokens;
+    conversation.seed = params.seed;
+    Ok(conversation)
 }
 
 #[tauri::command]

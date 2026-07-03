@@ -42,6 +42,12 @@ export const commands = {
 	sampling: SamplingParams | null,
 } | null, conversationId: string | null) => typedError<string, CommandError>(__TAURI_INVOKE("start_generation", { messages, options, conversationId })),
 	cancelGeneration: (generationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_generation", { generationId })),
+	/**
+	 *  Creates the conversation and stamps the app-wide default generation
+	 *  params onto it (Fase 6.2). Stamping at creation time — instead of
+	 *  resolving defaults at generation time — keeps existing conversations
+	 *  untouched when the user later changes a default.
+	 */
 	createConversation: (title: string | null, modelId: string | null) => typedError<Conversation, CommandError>(__TAURI_INVOKE("create_conversation", { title, modelId })),
 	listConversations: () => typedError<Conversation[], CommandError>(__TAURI_INVOKE("list_conversations")),
 	deleteConversation: (conversationId: string) => typedError<null, CommandError>(__TAURI_INVOKE("delete_conversation", { conversationId })),
@@ -104,6 +110,25 @@ export const commands = {
 	 *  (e.g. a legacy dev load).
 	 */
 	getLoadedModel: () => typedError<string | null, CommandError>(__TAURI_INVOKE("get_loaded_model")),
+	getAppSettings: () => typedError<AppSettings, CommandError>(__TAURI_INVOKE("get_app_settings")),
+	setAppSettings: (settings: AppSettings) => typedError<AppSettings, CommandError>(__TAURI_INVOKE("set_app_settings", { settings })),
+	diskUsage: () => typedError<DiskUsage, CommandError>(__TAURI_INVOKE("disk_usage")),
+	/**
+	 *  Re-hash every installed model file against the registry's SHA256
+	 *  ("conferir integridade"). Persists the result as `last_integrity_check`
+	 *  and returns it. Missing files count as corrupt.
+	 */
+	verifyInstalledModels: () => typedError<IntegrityCheck, CommandError>(__TAURI_INVOKE("verify_installed_models")),
+	/**
+	 *  "Apagar todo o histórico": every conversation and (via cascade) every
+	 *  message. Models and preferences stay.
+	 */
+	clearConversations: () => typedError<null, CommandError>(__TAURI_INVOKE("clear_conversations")),
+	/**
+	 *  "Queimar tudo": unloads the model, deletes every model file, then wipes
+	 *  conversations, the installed-models registry, and all preferences.
+	 */
+	clearAllData: () => typedError<null, CommandError>(__TAURI_INVOKE("clear_all_data")),
 };
 
 /** Events */
@@ -117,6 +142,27 @@ export type AppInfo = {
 	version: string,
 	app_data_dir: string,
 	log_dir: string,
+};
+
+/**
+ *  The full set of app-wide preferences. Defaults must match what the app
+ *  already does when no setting exists (see `SamplingParams::default()` and
+ *  `DEFAULT_MAX_COMPLETION_TOKENS`).
+ */
+export type AppSettings = {
+	font_size: FontSize,
+	// Model auto-loaded on startup. `None` = first installed model.
+	default_model_id: string | null,
+	/**
+	 *  Stamped onto new conversations at creation time (existing
+	 *  conversations keep whatever they already have).
+	 */
+	default_temperature: number,
+	default_top_p: number,
+	default_max_completion_tokens: number,
+	// `None` = random seed per conversation (NULL column, llama.cpp default).
+	default_seed: number | null,
+	last_integrity_check: IntegrityCheck | null,
 };
 
 export type BackendChoice = {
@@ -254,12 +300,29 @@ export type CpuInfo = {
 };
 
 /**
+ *  Free/total bytes of the disk that holds the models directory, plus the
+ *  directory path itself. Drives the manager's disk row and the download
+ *  pane's storage meter.
+ */
+export type DiskUsage = {
+	models_dir: string,
+	free_bytes: number,
+	total_bytes: number,
+};
+
+/**
  *  Model-download progress (Fase 4.3/4.4). Keyed by `model_id` so multiple
  *  future concurrent downloads (post-MVP) don't need a separate channel.
  */
 export type DownloadEvent = { type: "started"; model_id: string; total_bytes: number } | { type: "progress"; model_id: string; downloaded_bytes: number; total_bytes: number } |
 // Emitted during SHA256 verification after the download completes.
 { type: "verifying"; model_id: string; hashed_bytes: number; total_bytes: number } | { type: "completed"; model_id: string; final_path: string } | { type: "failed"; model_id: string; kind: string; message: string } | { type: "cancelled"; model_id: string };
+
+/**
+ *  Reading-size preset for chat prose. Purely presentational; the frontend
+ *  maps it onto a root data attribute.
+ */
+export type FontSize = "compacta" | "comoda" | "ampla";
 
 export type GenerationEvent = { type: "started"; generation_id: string } | { type: "token"; generation_id: string; text: string } | { type: "end"; generation_id: string; reason: StopReasonDto } | { type: "failed"; generation_id: string; kind: string; message: string } | { type: "cancelled"; generation_id: string };
 
@@ -293,6 +356,17 @@ export type InstalledModel = {
 	size_bytes: number,
 	sha256: string,
 	installed_at: string,
+};
+
+// Result of the last "conferir integridade" run over installed models.
+export type IntegrityCheck = {
+	// RFC3339 timestamp of when the check finished.
+	at: string,
+	/**
+	 *  Model ids whose file hash no longer matches the registry (or whose
+	 *  file is missing). Empty = everything intact.
+	 */
+	corrupt: string[],
 };
 
 export type MemoryInfo = {

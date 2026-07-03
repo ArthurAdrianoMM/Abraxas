@@ -30,6 +30,12 @@ pub fn builder() -> Builder<tauri::Wry> {
             super::models::is_model_installed,
             super::models::load_installed_model,
             super::models::get_loaded_model,
+            super::settings::get_app_settings,
+            super::settings::set_app_settings,
+            super::settings::disk_usage,
+            super::settings::verify_installed_models,
+            super::settings::clear_conversations,
+            super::settings::clear_all_data,
         ])
         .events(collect_events![
             crate::events::GenerationEvent,

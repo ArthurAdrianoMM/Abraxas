@@ -31,7 +31,7 @@ use crate::models::download::{self, DownloadError};
 use crate::models::download_manager::DownloadManager;
 use crate::models::registry::{self, InstalledModel};
 
-const MODELS_DIR: &str = "models";
+pub(crate) const MODELS_DIR: &str = "models";
 
 #[tauri::command]
 #[specta::specta]
