@@ -92,10 +92,12 @@ jobs:
   rust:
     # Fast lane: fmt, clippy, check, test on all 3 OS using the CPU-only
     # default feature set. The CUDA + Vulkan compile is a ~30 min nvcc job
-    # that recompiles on every cache miss (the GitHub cache service is
-    # flaky on Windows; "Failed to restore: Cache service responded with
-    # 400" was seen in practice). Tests don't exercise GPU code paths, so
-    # forcing every PR to wait on full GPU compile is pure overhead.
+    # on a cache miss. Tests don't exercise GPU code paths, so forcing every
+    # PR to wait on a full GPU compile is pure overhead.
+    # (Nota historica: o "Failed to restore: Cache service responded with 400"
+    # que aparecia aqui foi diagnosticado — nao e instabilidade do runner
+    # Windows, e o cache interno do `Jimver/cuda-toolkit` batendo na v1 da API
+    # de cache, ja desligada. Ver o job `gpu-build`.)
     # The dedicated `gpu-build` job below validates the GPU feature combo.
     name: Rust (${{ matrix.os }})
     strategy:
@@ -219,13 +221,55 @@ jobs:
       #     `cuda-cublas-*` names and apt fails with "Unable to locate
       #     package". Install nvcc+cudart via the action and pull cuBLAS
       #     from apt directly.
-      - name: Install CUDA Toolkit (Windows)
+      #
+      # O instalador do CUDA no Windows custa ~5 min por run. A action tem
+      # cache proprio (`use-github-cache`, default true), mas ele fala com a
+      # v1 da API de cache do GitHub, que foi desligada — o passo loga
+      # `##[warning]Failed to restore: Cache service responded with 400` e
+      # rebaixa pra download completo em *toda* execucao. (Esse e o mesmo 400
+      # que o comentario do job `rust` acima atribuia a instabilidade do
+      # runner Windows; nao e intermitente, e a API morta.) Por isso o
+      # `use-github-cache: false` — desliga a tentativa inutil — e o cache
+      # real fica por conta do `actions/cache@v4`, que usa a v2.
+      #
+      # A chave nao tem `hashFiles`: o conteudo depende so da versao do CUDA e
+      # da lista de sub-pacotes, ambos literais aqui. Mudou um, muda a chave.
+      - name: Cache CUDA Toolkit (Windows)
+        id: cuda-cache
         if: matrix.os == 'windows-2022'
+        uses: actions/cache@v4
+        with:
+          path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6
+          key: cuda-12.6.0-windows-2022-nvcc-cudart-cublas-v1
+
+      - name: Install CUDA Toolkit (Windows)
+        if: matrix.os == 'windows-2022' && steps.cuda-cache.outputs.cache-hit != 'true'
         uses: Jimver/cuda-toolkit@v0.2.21
         with:
           cuda: '12.6.0'
           method: 'network'
           sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
+          use-github-cache: false
+
+      # Num cache hit o passo acima nao roda, entao ninguem exporta as
+      # variaveis que a action normalmente define. O `FindCUDAToolkit` do CMake
+      # localiza o toolkit por `CUDA_PATH` ou por `nvcc` no PATH; os dois sao
+      # suficientes sob o gerador Ninja. O que o cache *nao* traz de volta e o
+      # `visual_studio_integration` (ele instala .props/.targets dentro do
+      # diretorio do VS, fora do dir do CUDA) — irrelevante aqui, porque esses
+      # arquivos so sao lidos pelo gerador Visual Studio, que abandonamos.
+      - name: Expose cached CUDA Toolkit (Windows)
+        if: matrix.os == 'windows-2022' && steps.cuda-cache.outputs.cache-hit == 'true'
+        shell: bash
+        run: |
+          root='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6'
+          echo "CUDA_PATH=$root" >> "$GITHUB_ENV"
+          echo "$root\\bin" >> "$GITHUB_PATH"
+          nvcc="$root\\bin\\nvcc.exe"
+          if [[ ! -f "/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin/nvcc.exe" ]]; then
+            echo "::error::Cache hit mas $nvcc nao existe — cache corrompido."
+            exit 1
+          fi
 
       - name: Install CUDA Toolkit (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -234,6 +278,7 @@ jobs:
           cuda: '12.6.0'
           method: 'network'
           sub-packages: '["nvcc", "cudart"]'
+          use-github-cache: false
 
       - name: Install cuBLAS (Linux)
         if: matrix.os == 'ubuntu-latest'
