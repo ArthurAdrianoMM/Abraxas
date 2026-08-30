@@ -187,6 +187,30 @@ jobs:
           cache: true
           stripdown: true
 
+      # llama.cpp builds `vulkan-shaders-gen` as a host tool through
+      # `ExternalProject_Add`. Under the Visual Studio generator MSBuild runs
+      # that target's custom build steps on parallel nodes without honoring
+      # their order: the `install` step fires before `configure` has written
+      # `cmake_install.cmake`, and the build dies with
+      #   CMake error : Not a file: .../vulkan-shaders-gen-build/cmake_install.cmake
+      #   error MSB8066: Custom build for '...vulkan-shaders-gen-install.rule'
+      # Ninja walks the ExternalProject stamp graph in dependency order, so the
+      # race is gone. The `cmake` crate honors `CMAKE_GENERATOR`: it then drops
+      # `-G "Visual Studio 17 2022"`/`-Ax64` and instead passes the absolute
+      # `cl.exe` path via `-DCMAKE_{C,CXX,ASM}_COMPILER` plus the MSVC
+      # INCLUDE/LIB environment, which is what nvcc and glslc need anyway.
+      # Ninja is preinstalled on the windows-2022 image. Linux keeps the
+      # default Unix Makefiles generator, which never had the problem.
+      #
+      # Must run before `rust-cache` so the var lands in the cache key (the
+      # action hashes every env var prefixed `CMAKE`): a cache saved under the
+      # old generator holds `llama-cpp-sys-2`'s OUT_DIR, and the `cmake` crate
+      # skips reconfiguration whenever `CMakeCache.txt` already exists.
+      - name: Use Ninja generator (Windows)
+        if: matrix.os == 'windows-2022'
+        shell: bash
+        run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2

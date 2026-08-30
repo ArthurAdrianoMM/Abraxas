@@ -183,6 +183,19 @@ jobs:
         shell: bash
         run: echo "CMAKE_CUDA_ARCHITECTURES=61;70;75;80;86;89;90" >> "$GITHUB_ENV"
 
+      # Mesmo motivo do ci.yml: o `vulkan-shaders-gen` do llama.cpp e um
+      # `ExternalProject_Add`, e o MSBuild do gerador Visual Studio roda os
+      # custom build steps dele em nos paralelos fora de ordem — o `install`
+      # dispara antes de o `configure` escrever o `cmake_install.cmake` e o
+      # build morre em MSB8066. O Ninja respeita o grafo de stamps do
+      # ExternalProject; o crate `cmake` obedece `CMAKE_GENERATOR` e passa o
+      # caminho absoluto do cl.exe em `-DCMAKE_{C,CXX,ASM}_COMPILER`. Ninja ja
+      # vem instalado no runner windows-2022; o Linux fica no Unix Makefiles.
+      - name: Use Ninja generator (Windows)
+        if: matrix.os == 'windows-2022'
+        shell: bash
+        run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10.33.2
