@@ -42,3 +42,7 @@ cargo run --locked --bin export_bindings --features cuda,vulkan
 ```
 
 This rewrites `src/lib/tauri/bindings.ts`. CI fails if the file drifts from the regenerated output.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

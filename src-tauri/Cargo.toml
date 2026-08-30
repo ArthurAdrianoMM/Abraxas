@@ -2,6 +2,7 @@
 name = "abraxas"
 version = "0.1.0"
 description = "Abraxas — local-first desktop chat with open-source LLMs."
+license = "MIT"
 edition = "2021"
 default-run = "abraxas"
 
