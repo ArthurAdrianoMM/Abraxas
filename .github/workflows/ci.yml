@@ -4,12 +4,67 @@ on:
   push:
     branches: [main]
   pull_request:
+  # O `gpu-build` roda com cache quente quase sempre, o que significa que ele
+  # valida o *nosso* codigo mas nao revalida a toolchain (CUDA, Vulkan SDK,
+  # imagem do runner, deps transitivas do llama.cpp). Uma vez por semana ele
+  # roda frio, do zero, pra que apodrecimento de toolchain apareca num job
+  # agendado em vez de estourar na primeira tag de release.
+  schedule:
+    - cron: '0 6 * * 1'
+  # Pra disparar o CI a mao (o `gpu-build` roda sempre aqui, sem o filtro de
+  # paths) antes de cortar uma tag.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    # Portao de ~15s pro `gpu-build`. Nada fora de `src-tauri/` e do proprio
+    # workflow consegue quebrar o link do combo `cuda,vulkan` — mudanca de
+    # frontend, de docs ou do catalogo nao justifica acordar um runner Windows
+    # com CUDA Toolkit. Job pulado por `if:` conta como sucesso em branch
+    # protection, entao isso nao trava merge.
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      gpu: ${{ steps.filter.outputs.gpu }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Fora de push/PR (schedule, workflow_dispatch) nao existe diff pra
+          # comparar: roda sempre. Idem quando a base e desconhecida (primeiro
+          # push de uma branch, force-push) — na duvida, rodar.
+          case "${{ github.event_name }}" in
+            pull_request) base="${{ github.event.pull_request.base.sha }}" ;;
+            push)         base="${{ github.event.before }}" ;;
+            *)            base="" ;;
+          esac
+
+          if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]] \
+             || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "Base indisponivel — rodando gpu-build por precaucao."
+            echo "gpu=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed=$(git diff --name-only "$base" "${{ github.sha }}")
+          echo "Arquivos alterados:"; echo "$changed"
+
+          if grep -qE '^(src-tauri/|\.github/workflows/ci\.yml$)' <<<"$changed"; then
+            echo "gpu=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "gpu=false" >> "$GITHUB_OUTPUT"
+          fi
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
@@ -117,6 +172,11 @@ jobs:
     # workflow, not here) should use the full arch list so end-user GPUs
     # of any generation are supported; CI just needs to prove it links.
     name: GPU build (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.gpu == 'true'
+    # Sem isso o default e 6h. O caminho quente e ~3 min e o frio (semanal) fica
+    # em ~35 min; 45 mata job travado sem matar o build agendado legitimo.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -237,7 +297,41 @@ jobs:
           # (`path.join(root, target)`), so it cannot follow CARGO_TARGET_DIR
           # out to `D:\ct`. Leaving this on would silently archive an empty
           # `src-tauri\target` on Windows. The cargo registry is still cached.
+          # O passo `actions/cache` abaixo cobre `D:\ct` no lugar dele.
           cache-targets: ${{ matrix.os == 'windows-2022' && 'false' || 'true' }}
+
+      # O que torna este job caro no Windows nao e o Rust — e o OUT_DIR do
+      # `llama-cpp-sys-2`: o CMake do llama.cpp compilando kernels CUDA com
+      # nvcc e gerando os shaders Vulkan. Sem cache isso e ~26 min em *todo*
+      # push (medido no run 33316912563, cancelado antes de terminar). Com
+      # cache o `cmake` crate ve o `CMakeCache.txt` e pula reconfiguracao e
+      # recompilacao, exatamente como ja acontece no runner Linux — onde o job
+      # inteiro fecha em 1m24s.
+      #
+      # Precisa ser `actions/cache` e nao o `rust-cache`: o alvo esta em
+      # `D:\ct` (ver o passo de MAX_PATH acima) e o `rust-cache` so enxerga
+      # caminhos sob a workspace.
+      #
+      # A chave inclui o proprio `ci.yml` porque `CMAKE_GENERATOR`,
+      # `CMAKE_CUDA_ARCHITECTURES` e as versoes de CUDA/Vulkan vivem nele: se
+      # qualquer um mudar, o `CMakeCache.txt` antigo esta errado e reusa-lo
+      # produziria um build silenciosamente configurado com os valores velhos.
+      # As `restore-keys` degradam de proposito — um hit parcial (Cargo.lock
+      # novo, ci.yml igual) ainda entrega o llama.cpp compilado, que e 90% do
+      # custo; so os crates Rust recompilam.
+      #
+      # O run agendado ignora o cache de proposito pra validar o caminho frio
+      # (ver o `schedule:` no topo). Ele ainda salva, entao a semana seguinte
+      # comeca quente.
+      - name: Cache llama.cpp CUDA/Vulkan build output (Windows)
+        if: matrix.os == 'windows-2022' && github.event_name != 'schedule'
+        uses: actions/cache@v4
+        with:
+          path: D:\ct
+          key: gpu-ct-${{ matrix.os }}-${{ hashFiles('.github/workflows/ci.yml') }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            gpu-ct-${{ matrix.os }}-${{ hashFiles('.github/workflows/ci.yml') }}-
+            gpu-ct-${{ matrix.os }}-
 
       - name: Check (cuda,vulkan)
         run: cargo check --locked --features cuda,vulkan
