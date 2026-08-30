@@ -107,7 +107,11 @@ jobs:
             target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin --features metal --bundles dmg
           - name: Windows (CUDA + Vulkan)
-            os: windows-latest
+            # `windows-2022`, nao `windows-latest`: o `windows-latest` migrou pro
+            # Windows Server 2025 com Visual Studio 2026, e o
+            # `visual_studio_integration` do CUDA 12.6 so cobre ate o VS2022 —
+            # o CMake do llama.cpp morre em "No CUDA toolset found".
+            os: windows-2022
             args: --features cuda,vulkan --bundles nsis,msi
           - name: Linux (CUDA + Vulkan)
             # 22.04, nao `ubuntu-latest`: o AppImage herda a glibc do runner que
@@ -143,7 +147,7 @@ jobs:
       # CUDA do VS2022) e cuBLAS via apt no Linux (os aliases da action apontam
       # pros nomes antigos `cuda-cublas-*`).
       - name: Install CUDA Toolkit (Windows)
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         uses: Jimver/cuda-toolkit@v0.2.21
         with:
           cuda: '12.6.0'

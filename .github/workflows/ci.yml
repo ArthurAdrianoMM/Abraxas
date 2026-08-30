@@ -120,7 +120,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # `windows-2022`, nao `windows-latest`: o `windows-latest` migrou pro
+        # Windows Server 2025 com Visual Studio 2026, e o pacote
+        # `visual_studio_integration` do CUDA 12.6 so instala o toolset MSBuild
+        # ate o VS2022. Com o VS2026 o CMake aborta em `enable_language(CUDA)`
+        # com "No CUDA toolset found". Repin quando o CUDA passar a suportar VS2026.
+        os: [ubuntu-latest, windows-2022]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -155,7 +160,7 @@ jobs:
       #     package". Install nvcc+cudart via the action and pull cuBLAS
       #     from apt directly.
       - name: Install CUDA Toolkit (Windows)
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         uses: Jimver/cuda-toolkit@v0.2.21
         with:
           cuda: '12.6.0'
