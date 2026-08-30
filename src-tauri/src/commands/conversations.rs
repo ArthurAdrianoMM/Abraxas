@@ -230,7 +230,9 @@ mod tests {
             default_seed: Some(42),
             ..Default::default()
         };
-        crate::db::app_settings::set(&pool, &settings).await.unwrap();
+        crate::db::app_settings::set(&pool, &settings)
+            .await
+            .unwrap();
 
         let second = create_conversation_with_defaults(&pool, None, None)
             .await

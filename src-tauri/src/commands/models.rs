@@ -403,7 +403,10 @@ pub async fn get_loaded_model(
     };
     let loaded_path = loaded.path.to_string_lossy();
     let rows = registry::list(db.pool()).await.map_err(AppError::Db)?;
-    Ok(rows.into_iter().find(|r| r.path == loaded_path).map(|r| r.id))
+    Ok(rows
+        .into_iter()
+        .find(|r| r.path == loaded_path)
+        .map(|r| r.id))
 }
 
 /// Fast check: is `model_id` present in the installed-models registry?

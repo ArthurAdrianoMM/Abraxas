@@ -76,8 +76,14 @@ impl Default for AppSettings {
             default_seed: None,
             last_integrity_check: None,
         };
-        debug_assert_eq!(defaults.default_temperature as f32, SamplingParams::default().temperature);
-        debug_assert_eq!(defaults.default_top_p as f32, SamplingParams::default().top_p);
+        debug_assert_eq!(
+            defaults.default_temperature as f32,
+            SamplingParams::default().temperature
+        );
+        debug_assert_eq!(
+            defaults.default_top_p as f32,
+            SamplingParams::default().top_p
+        );
         defaults
     }
 }
@@ -140,7 +146,9 @@ pub async fn set(pool: &SqlitePool, settings: &AppSettings) -> Result<(), sqlx::
 
 /// Removes every settings row ("queimar tudo" resets preferences too).
 pub async fn clear(pool: &SqlitePool) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM app_settings").execute(pool).await?;
+    sqlx::query("DELETE FROM app_settings")
+        .execute(pool)
+        .await?;
     Ok(())
 }
 

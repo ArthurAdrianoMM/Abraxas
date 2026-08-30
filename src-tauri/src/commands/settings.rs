@@ -198,7 +198,12 @@ pub async fn clear_all_data(
         .join(super::models::MODELS_DIR);
     if let Ok(mut entries) = tokio::fs::read_dir(&models_dir).await {
         while let Ok(Some(entry)) = entries.next_entry().await {
-            if entry.file_type().await.map(|t| t.is_file()).unwrap_or(false) {
+            if entry
+                .file_type()
+                .await
+                .map(|t| t.is_file())
+                .unwrap_or(false)
+            {
                 if let Err(e) = tokio::fs::remove_file(entry.path()).await {
                     if e.kind() != std::io::ErrorKind::NotFound {
                         let name = entry.file_name().to_string_lossy().into_owned();

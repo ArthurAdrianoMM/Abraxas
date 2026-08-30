@@ -139,7 +139,9 @@ pub async fn update_generation_params(
 /// Removes every conversation; messages go with them via `ON DELETE CASCADE`.
 /// Returns the number of conversations removed.
 pub async fn delete_all(pool: &SqlitePool) -> Result<u64, sqlx::Error> {
-    let result = sqlx::query("DELETE FROM conversations").execute(pool).await?;
+    let result = sqlx::query("DELETE FROM conversations")
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected())
 }
 
@@ -282,13 +284,11 @@ mod tests {
         assert_eq!(stored.max_completion_tokens, Some(256));
 
         // Clearing all back to NULL.
-        assert!(update_generation_params(
-            &pool,
-            &conv.id,
-            ConversationGenerationParams::default()
-        )
-        .await
-        .unwrap());
+        assert!(
+            update_generation_params(&pool, &conv.id, ConversationGenerationParams::default())
+                .await
+                .unwrap()
+        );
         let cleared = get(&pool, &conv.id).await.unwrap().expect("row exists");
         assert!(cleared.temperature.is_none());
         assert!(cleared.seed.is_none());
