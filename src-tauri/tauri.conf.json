@@ -27,12 +27,34 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Arthur Adriano",
+    "copyright": "Copyright (c) 2026 Arthur Adriano",
+    "license": "MIT",
+    "category": "Productivity",
+    "shortDescription": "Chat local com modelos de linguagem open-source.",
+    "longDescription": "Abraxas roda modelos de linguagem open-source inteiramente na sua maquina. Sem nuvem, sem chaves de API, sem telemetria: as conversas nunca saem do seu computador. O aplicativo detecta o hardware e escolhe sozinho o melhor backend de inferencia disponivel.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0"
+        ]
+      }
+    }
   }
 }
