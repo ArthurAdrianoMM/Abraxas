@@ -442,18 +442,26 @@ jobs:
     # Features default (CPU): nenhum SDK de GPU envolvido. O que esta sendo
     # testado e o empacotamento, nao o backend de inferencia.
     #
-    # `deb` sozinho, sem `appimage`: o AppImage baixa o linuxdeploy e precisa
-    # de FUSE, minutos e flakiness que nao acrescentam cobertura ao que este
-    # job existe pra pegar.
+    # `deb,appimage` e `ubuntu-22.04` espelham exatamente o job Linux do
+    # release.yml. Na v0.1.2 este job cobria so o `deb` e passou, enquanto o
+    # release quebrou no `appimage` (`failed to run linuxdeploy`) — um smoke
+    # test de empacotamento que nao empacota o mesmo conjunto de alvos do
+    # release nao e um smoke test do release.
+    #
+    # `--verbose` de proposito: o erro do linuxdeploy chega ao log do tauri sem
+    # a saida do subprocesso, e sem ela um AppImage quebrado custa uma iteracao
+    # inteira pra diagnosticar.
     name: Bundle smoke test
     needs: changes
     if: needs.changes.outputs.src_tauri == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Linux system dependencies
+        # `libfuse2` como no release.yml: o linuxdeploy e distribuido como
+        # AppImage e precisa de FUSE 2 pra se automontar.
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -462,7 +470,8 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libssl-dev \
-            libclang-dev
+            libclang-dev \
+            libfuse2
 
       - uses: pnpm/action-setup@v4
         with:
@@ -483,7 +492,14 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Bundle (debug, CPU-only)
-        run: pnpm tauri build --debug --bundles deb
+        run: pnpm tauri build --verbose --debug --bundles deb,appimage
+
+      - name: Show disk usage
+        # O binario de release com a lista de arquiteturas CUDA passa de meio
+        # giga, e o linuxdeploy copia tudo pro AppDir antes de comprimir. Se o
+        # AppImage falhar por espaco, o numero tem que estar no log.
+        if: always()
+        run: df -h . && du -sh src-tauri/target/debug/bundle/* 2>/dev/null || true
 
       # O bundler nao falha se um binario *extra* entrar no pacote — ele so o
       # copia junto, que foi como a v0.1.0 despachou 13 MB de `export_bindings`
@@ -527,4 +543,14 @@ jobs:
             exit 1
           fi
 
-          echo "OK: pacote montado, com o binario da aplicacao e sem ferramentas de desenvolvimento."
+          # O AppImage nao e inspecionado por dentro (exigiria montar/extrair);
+          # o que importa aqui e que o linuxdeploy rodou ate o fim, que e onde o
+          # release da v0.1.2 morreu.
+          appimage=$(ls src-tauri/target/debug/bundle/appimage/*.AppImage 2>/dev/null)
+          if [[ -z "$appimage" ]]; then
+            echo "::error::o bundler nao produziu um .AppImage — ver a saida do linuxdeploy acima."
+            exit 1
+          fi
+          echo "AppImage gerado: $appimage ($(du -h "$appimage" | cut -f1))"
+
+          echo "OK: pacotes montados, com o binario da aplicacao e sem ferramentas de desenvolvimento."
