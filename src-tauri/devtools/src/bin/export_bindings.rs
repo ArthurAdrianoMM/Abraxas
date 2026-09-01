@@ -1,30 +1,33 @@
 //! Regenerates `src/lib/tauri/bindings.ts` from the shared `tauri_specta`
-//! builder. Lives in `src/bin/` (not `examples/` or `tests/`) because on
-//! Windows those targets fail to launch with `STATUS_ENTRYPOINT_NOT_FOUND`
-//! in this crate's cdylib setup, while `src/bin/` binaries link the same
-//! way as `src/main.rs` and run cleanly.
+//! builder.
 //!
-//! Local: `cargo run --locked --bin export_bindings` — writes the file.
+//! Local: `cargo run --locked -p abraxas-devtools --bin export_bindings`.
 //! CI: same invocation, followed by `git diff --exit-code ../src/lib/tauri/bindings.ts`.
+
+use std::path::{Path, PathBuf};
 
 use specta_typescript::Typescript;
 
-const BINDINGS_PATH: &str = "../src/lib/tauri/bindings.ts";
+/// Resolved from `CARGO_MANIFEST_DIR` (`<repo>/src-tauri/devtools`) instead of
+/// the process CWD, so the binary writes the same file whether it is invoked
+/// from the repo root, from `src-tauri/`, or by an editor.
+fn bindings_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../src/lib/tauri/bindings.ts")
+}
 
 fn main() {
+    let path = bindings_path();
+
     abraxas_lib::__specta_builder()
-        .export(
-            Typescript::default().header("// @ts-nocheck\n"),
-            BINDINGS_PATH,
-        )
+        .export(Typescript::default().header("// @ts-nocheck\n"), &path)
         .expect("failed to export specta bindings");
 
-    normalize_bindings_file(BINDINGS_PATH).expect("failed to normalize specta bindings");
+    normalize_bindings_file(&path).expect("failed to normalize specta bindings");
 
     println!("bindings written to src/lib/tauri/bindings.ts");
 }
 
-fn normalize_bindings_file(path: &str) -> std::io::Result<()> {
+fn normalize_bindings_file(path: &Path) -> std::io::Result<()> {
     let contents = std::fs::read_to_string(path)?;
     let normalized = normalize_generated_typescript(&contents);
 

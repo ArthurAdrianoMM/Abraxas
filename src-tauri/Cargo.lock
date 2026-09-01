@@ -42,6 +42,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "abraxas-devtools"
+version = "0.0.0"
+dependencies = [
+ "abraxas",
+ "specta-typescript",
+ "tauri",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

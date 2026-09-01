@@ -2,14 +2,14 @@
 //! the `InferenceBackend` trait (Fase 3.2).
 //!
 //! Usage:
-//!   cargo run --release --bin llama_smoke -- \
+//!   cargo run --release -p abraxas-devtools --bin llama_smoke -- \
 //!     --model <path.gguf> \
 //!     --prompt "<text>" \
 //!     [--max-tokens N] [--n-ctx N] [--seed N] \
 //!     [--gpu-layers N | --cpu]
 //!
-//! Lives in `src/bin/` (not `examples/` or `tests/`) for the same reason
-//! `export_bindings` does — see the doc comment at the top of that file.
+//! Add the GPU feature you build the app with (`--features metal`,
+//! `--features cuda,vulkan`, ...); this crate forwards it to `abraxas_lib`.
 //!
 //! By default the smoke test mirrors the app: it runs hardware detection and
 //! uses GPU-first auto fallback when one is available. `--cpu` forces CPU-only;

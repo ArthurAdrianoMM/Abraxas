@@ -37,16 +37,37 @@ pnpm exec tsc --noEmit  # frontend type check (no Rust build)
 After changing any `#[tauri::command]` or `#[derive(Event)]`:
 
 ```bash
-cargo run --locked --bin export_bindings --features dev-bins,cuda,vulkan
-# or whichever GPU feature combo you've been building with
+cargo run --locked -p abraxas-devtools --bin export_bindings
 ```
 
 This rewrites `src/lib/tauri/bindings.ts`. CI fails if the file drifts from the regenerated output.
 
-The `dev-bins` feature is required: `export_bindings` and `llama_smoke` are gated
-behind it so that `cargo tauri build` compiles only the `abraxas` binary. Without
-the gate every binary in the target dir gets copied into the installer, and with
-`cuda,vulkan` each one carries its own copy of llama.cpp.
+### Dev tools
+
+`src-tauri/devtools/` is a separate workspace member holding the binaries that
+are useful during development but must never ship:
+
+| Binary | What it does |
+|---|---|
+| `export_bindings` | Regenerates `src/lib/tauri/bindings.ts` (above) |
+| `llama_smoke` | Loads a GGUF model and streams tokens to stdout, exercising the same hardware detection → backend selection path as the app |
+
+```bash
+cargo run --release -p abraxas-devtools --bin llama_smoke --features abraxas-devtools/metal -- \
+  --model ~/models/tinyllama.gguf --prompt "hello"
+```
+
+The crate forwards `cuda` / `vulkan` / `metal` to the app crate, so pass whichever
+combo you build the app with.
+
+They live outside the `abraxas` package on purpose. The Tauri bundler copies
+**every** `[[bin]]` target of the app package into the installer and ignores
+`required-features`, so a helper binary declared there either bloats the bundle
+(v0.1.0 shipped a 13 MB `export_bindings` inside `Abraxas.app`) or breaks
+`cargo tauri build` outright (v0.1.1, which tried to gate them behind a feature
+and died with `Failed to copy binary from .../export_bindings: does not exist`).
+In a separate crate the bundler simply never sees them. CI enforces this: the
+`abraxas` package must declare exactly one binary.
 
 ## Cutting a release
 

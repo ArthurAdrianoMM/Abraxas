@@ -3,8 +3,8 @@ mod commands;
 mod db;
 mod error;
 mod events;
-// `pub` so internal binaries (e.g., `bin/llama_smoke`) can run the same
-// detection + selection pipeline as the app. Not stable public API.
+// `pub` so the dev tools (e.g., `devtools/src/bin/llama_smoke.rs`) can run the
+// same detection + selection pipeline as the app. Not stable public API.
 pub mod hardware;
 pub mod inference;
 mod logging;
@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 use tauri::Manager;
 
-/// Re-exported so the `src/bin/export_bindings.rs` binary can regenerate
-/// `src/lib/tauri/bindings.ts`. Not part of the public API.
+/// Re-exported so the `abraxas-devtools` `export_bindings` binary can
+/// regenerate `src/lib/tauri/bindings.ts`. Not part of the public API.
 #[doc(hidden)]
 pub use commands::specta::builder as __specta_builder;
 

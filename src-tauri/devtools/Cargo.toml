@@ -1,0 +1,50 @@
+# Ferramentas de desenvolvimento: `export_bindings` (regenera os tipos TS) e
+# `llama_smoke` (smoke test de inferencia na linha de comando).
+#
+# Por que um crate separado, e nao `src/bin/` do `abraxas` com
+# `required-features`: o bundler do Tauri enumera os alvos `[[bin]]` do
+# manifesto do app pra decidir o que copiar pro instalador e *ignora*
+# `required-features`. Com os auxiliares declarados la, `cargo tauri build`
+# compilava so o `abraxas` e depois morria procurando binarios que nunca
+# existiram ("Failed to copy binary from .../export_bindings: does not
+# exist") — foi assim que a v0.1.1 quebrou nos tres OS. Antes disso, sem o
+# gate, os dois entravam no bundle carregando cada um a sua copia do
+# llama.cpp.
+#
+# Fora do pacote `abraxas` o bundler simplesmente nao os enxerga: nao ha
+# feature pra manter em sincronia nem exclusao pra configurar.
+[package]
+name = "abraxas-devtools"
+# `0.0.0` de proposito: nao e distribuido e nao acompanha a versao do app, o
+# que o mantem fora do `scripts/bump-version.sh` e do version guard do
+# release.
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+# O nome do pacote e `abraxas`; a lib dentro dele chama `abraxas_lib` (sufixo
+# exigido pra nao colidir com o binario no Windows), que e como os dois
+# binarios daqui a referenciam.
+abraxas = { path = ".." }
+
+# `export_bindings`
+specta-typescript = "0.0.11"
+
+# `llama_smoke`. `tauri` entra por causa do `async_runtime`: o
+# `LlamaCppBackend` agenda o trabalho de inferencia com
+# `tauri::async_runtime::spawn_blocking`, entao o driver precisa bloquear no
+# mesmo runtime global, e nao num `tokio::Runtime` proprio.
+tauri = { version = "2", features = [] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+[features]
+default = []
+# Repassadas pro crate do app, que por sua vez as repassa pro `llama-cpp-2`.
+# Sem isso, `cargo build -p abraxas-devtools --features cuda` nao teria como
+# ligar o backend de GPU no `llama_smoke`.
+cuda = ["abraxas/cuda"]
+vulkan = ["abraxas/vulkan"]
+metal = ["abraxas/metal"]
