@@ -1,6 +1,6 @@
 //! Shared `tauri_specta` builder — single source of truth for the command
 //! surface. Used both at runtime (`invoke_handler` + `mount_events`) and by
-//! the integration test in `tests/export_bindings.rs` that regenerates
+//! the `abraxas-devtools` `export_bindings` binary that regenerates
 //! `src/lib/tauri/bindings.ts`.
 
 use tauri_specta::{collect_commands, collect_events, Builder};

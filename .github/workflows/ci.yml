@@ -21,15 +21,16 @@ concurrency:
 
 jobs:
   changes:
-    # Portao de ~15s pro `gpu-build`. Nada fora de `src-tauri/` e do proprio
-    # workflow consegue quebrar o link do combo `cuda,vulkan` — mudanca de
-    # frontend, de docs ou do catalogo nao justifica acordar um runner Windows
-    # com CUDA Toolkit. Job pulado por `if:` conta como sucesso em branch
-    # protection, entao isso nao trava merge.
+    # Portao de ~15s pros dois jobs caros: `gpu-build` e `bundle`. Nada fora de
+    # `src-tauri/` e do proprio workflow consegue quebrar o link do combo
+    # `cuda,vulkan` nem o empacotamento — mudanca de frontend, de docs ou do
+    # catalogo nao justifica acordar um runner Windows com CUDA Toolkit. Job
+    # pulado por `if:` conta como sucesso em branch protection, entao isso nao
+    # trava merge.
     name: Detect changed paths
     runs-on: ubuntu-latest
     outputs:
-      gpu: ${{ steps.filter.outputs.gpu }}
+      src_tauri: ${{ steps.filter.outputs.src_tauri }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,8 +52,8 @@ jobs:
 
           if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]] \
              || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
-            echo "Base indisponivel — rodando gpu-build por precaucao."
-            echo "gpu=true" >> "$GITHUB_OUTPUT"
+            echo "Base indisponivel — rodando os jobs caros por precaucao."
+            echo "src_tauri=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -60,9 +61,9 @@ jobs:
           echo "Arquivos alterados:"; echo "$changed"
 
           if grep -qE '^(src-tauri/|\.github/workflows/ci\.yml$)' <<<"$changed"; then
-            echo "gpu=true" >> "$GITHUB_OUTPUT"
+            echo "src_tauri=true" >> "$GITHUB_OUTPUT"
           else
-            echo "gpu=false" >> "$GITHUB_OUTPUT"
+            echo "src_tauri=false" >> "$GITHUB_OUTPUT"
           fi
 
   frontend:
@@ -139,34 +140,58 @@ jobs:
       # install, negligible build cost). Linux/Windows use no GPU features
       # here — that's what the `gpu-build` job covers.
       #
-      # `dev-bins` is always on here. The helper binaries carry
-      # `required-features = ["dev-bins"]` so they stay out of the installer
-      # (see src-tauri/Cargo.toml), which also means `clippy --all-targets` and
-      # `cargo test` would silently skip them — including the unit tests inside
-      # `export_bindings` — unless the feature is enabled.
+      # As features vem qualificadas por pacote (`abraxas/metal`,
+      # `abraxas-devtools/metal`) porque os comandos abaixo usam `--workspace`:
+      # com mais de um pacote selecionado, um nome nu seria ambiguo. O
+      # `abraxas-devtools` so repassa a feature pro `abraxas`, mas listar os
+      # dois deixa explicito que ambos compilam com o mesmo backend.
       - name: Set features for this OS
         id: features
         shell: bash
         run: |
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            echo "flags=--features metal,dev-bins" >> "$GITHUB_OUTPUT"
+            echo "flags=--features abraxas/metal,abraxas-devtools/metal" >> "$GITHUB_OUTPUT"
           else
-            echo "flags=--features dev-bins" >> "$GITHUB_OUTPUT"
+            echo "flags=" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Format check
         run: cargo fmt --all --check
 
+      # `--workspace`: as ferramentas de desenvolvimento vivem no membro
+      # `devtools/` (fora do alcance do bundler do Tauri — ver
+      # src-tauri/Cargo.toml). Sem a flag, clippy e os testes unitarios dentro
+      # do `export_bindings` seriam silenciosamente pulados.
       - name: Clippy
-        run: cargo clippy --all-targets --locked ${{ steps.features.outputs.flags }} -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked ${{ steps.features.outputs.flags }} -- -D warnings
 
       - name: Test
-        run: cargo test --locked ${{ steps.features.outputs.flags }}
+        run: cargo test --workspace --locked ${{ steps.features.outputs.flags }}
+
+      # Guarda contra a regressao que quebrou a v0.1.1 nos tres OS: o bundler
+      # do Tauri copia pro instalador todo alvo `[[bin]]` do pacote `abraxas` e
+      # ignora `required-features`, entao um `src/bin/foo.rs` novo ou vira peso
+      # morto no bundle ou faz o `cargo tauri build` morrer procurando um
+      # binario que ninguem compilou. Roda em ~1s, sem compilar nada.
+      - name: Guard against extra binaries in the app crate
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bins=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "abraxas") | .targets[]
+                     | select(.kind[] == "bin") | .name' \
+            | sort | paste -sd, -)
+          if [[ "$bins" != "abraxas" ]]; then
+            echo "::error::O pacote \`abraxas\` declara os binarios [$bins]; o bundler do Tauri espera exatamente um (\`abraxas\`) e copia os demais pro instalador. Mova ferramentas auxiliares pro crate src-tauri/devtools."
+            exit 1
+          fi
+          echo "OK: o pacote abraxas declara apenas o binario 'abraxas'."
 
       - name: Verify specta bindings are up to date
         if: matrix.os == 'ubuntu-latest'
         run: |
-          cargo run --locked --bin export_bindings ${{ steps.features.outputs.flags }}
+          cargo run --locked -p abraxas-devtools --bin export_bindings ${{ steps.features.outputs.flags }}
           git diff --exit-code ../src/lib/tauri/bindings.ts
 
   gpu-build:
@@ -186,7 +211,7 @@ jobs:
     # end-user arch list; CI just needs to prove it links.
     name: GPU build (${{ matrix.os }})
     needs: changes
-    if: needs.changes.outputs.gpu == 'true'
+    if: needs.changes.outputs.src_tauri == 'true'
     # Sem isso o default e 6h. O caminho quente e ~3 min e o frio (semanal) fica
     # em ~35 min; 45 mata job travado sem matar o build agendado legitimo.
     timeout-minutes: 45
@@ -401,3 +426,87 @@ jobs:
 
       - name: Build (cuda,vulkan)
         run: cargo build --locked --features cuda,vulkan
+
+  bundle:
+    # O buraco que deixou a v0.1.1 quebrar: nenhum job do CI chegava a rodar
+    # `tauri build`, entao a fase de *empacotamento* so era exercitada depois
+    # que uma tag ja tinha queimado ~90 min de nvcc. O `cargo build` do
+    # `gpu-build` compila e linka, mas nunca monta o `.app`/`.deb` — e era ali
+    # que o bundler morria procurando `export_bindings`.
+    #
+    # `--debug`: o bundler percorre exatamente o mesmo caminho (enumera os
+    # alvos `[[bin]]` do pacote, copia os binarios, monta o pacote) no perfil
+    # de debug, entao o valor de deteccao e o mesmo por uma fracao do tempo de
+    # um build release.
+    #
+    # Features default (CPU): nenhum SDK de GPU envolvido. O que esta sendo
+    # testado e o empacotamento, nao o backend de inferencia.
+    #
+    # `deb` sozinho, sem `appimage`: o AppImage baixa o linuxdeploy e precisa
+    # de FUSE, minutos e flakiness que nao acrescentam cobertura ao que este
+    # job existe pra pegar.
+    name: Bundle smoke test
+    needs: changes
+    if: needs.changes.outputs.src_tauri == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libclang-dev
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Bundle (debug, CPU-only)
+        run: pnpm tauri build --debug --bundles deb
+
+      # O bundler nao falha se um binario *extra* entrar no pacote — ele so o
+      # copia junto, que foi como a v0.1.0 despachou 13 MB de `export_bindings`
+      # dentro do `.app`. A checagem do conteudo tem que ser explicita.
+      - name: Verify the package ships only the app binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          deb=$(ls src-tauri/target/debug/bundle/deb/*.deb)
+          echo "Inspecionando $deb"
+
+          # `^\./usr/bin/.` exige ao menos um caractere depois da barra: a
+          # propria entrada de diretorio (`./usr/bin/`) nao conta.
+          shipped=$(dpkg-deb -c "$deb" | awk '{print $NF}' | grep '^\./usr/bin/.' | sed 's|.*/||' | sort)
+          count=$(grep -c . <<<"$shipped" || true)
+          echo "Binarios em /usr/bin: $(paste -sd, - <<<"$shipped")"
+
+          # A contagem, e nao o nome: o bundler renomeia o binario principal
+          # conforme o `productName`/plataforma, e travar a checagem na string
+          # exata daria falso negativo no dia em que esse nome mudar. Um unico
+          # binario ja e a propriedade que interessa.
+          if [[ "$count" != "1" ]]; then
+            echo "::error::O .deb instala $count binarios em /usr/bin [$(paste -sd, - <<<"$shipped")]; esperado exatamente 1. Ferramentas auxiliares devem viver em src-tauri/devtools, fora do pacote que o bundler enxerga."
+            exit 1
+          fi
+          echo "OK: o pacote instala apenas o binario da aplicacao."
