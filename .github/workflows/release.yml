@@ -305,3 +305,36 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           tauriScript: pnpm tauri
           args: ${{ matrix.args }}
+
+      - name: Verify macOS bundle is properly ad-hoc signed
+        if: matrix.os == 'macos-latest'
+        # O dmg da v0.1.0 subiu com o `.app` carregando apenas a assinatura
+        # ad-hoc que o linker do Rust deixa no executavel — sem `_CodeSignature`
+        # no bundle. `codesign --verify` recusava com "code has no resources but
+        # signature indicates they must be present", e o macOS traduz isso pro
+        # usuario como "'Abraxas.app' esta danificado e nao pode ser aberto",
+        # que nao tem bypass: o caminho de *Abrir mesmo assim* nem aparece.
+        #
+        # O `signingIdentity: "-"` no tauri.conf.json faz o bundler rodar
+        # `codesign --force -s -`, selando Info.plist e recursos. Este passo
+        # existe pra falhar a tag caso essa config se perca num refactor — o
+        # sintoma so apareceria na maquina do usuario.
+        #
+        # Nao substitui notarizacao: o app continua nao notarizado e o Gatekeeper
+        # continua exigindo *Abrir mesmo assim* na primeira execucao (esperado,
+        # CLAUDE.md 2.5). A diferenca e que agora esse caminho existe.
+        shell: bash
+        run: |
+          set -euo pipefail
+          dmg=$(ls src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg)
+          mnt=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly "$dmg" -mountpoint "$mnt" >/dev/null
+          trap 'hdiutil detach "$mnt" >/dev/null || true' EXIT
+
+          codesign --verify --deep --strict --verbose=2 "$mnt/Abraxas.app"
+
+          if ! codesign -dvv "$mnt/Abraxas.app" 2>&1 | grep -q 'Sealed Resources version='; then
+            echo "::error::Abraxas.app nao tem recursos selados — o macOS vai reportar 'danificado'."
+            exit 1
+          fi
+          echo "Assinatura ad-hoc valida e recursos selados."

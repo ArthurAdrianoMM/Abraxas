@@ -13,7 +13,11 @@ anual que este projeto pessoal não paga. O sistema vai avisar que o
 desenvolvedor é desconhecido. É esperado:
 
 - **Windows** — na tela azul do SmartScreen: *Mais informações* → *Executar assim mesmo*.
-- **macOS** — clique com o botão direito no app → *Abrir* → *Abrir*. Ou: *Ajustes do Sistema* → *Privacidade e Segurança* → *Abrir assim mesmo*.
+- **macOS** — arraste o app do `.dmg` pra pasta *Aplicativos* e abra. O macOS vai
+  bloquear na primeira tentativa. Vá em *Ajustes do Sistema* → *Privacidade e
+  Segurança*, role até o fim e clique em *Abrir mesmo assim*. (No macOS 15 e
+  posteriores o antigo truque de clicar com o botão direito → *Abrir* não
+  funciona mais; o caminho é esse.)
 - **Linux** — dê permissão de execução ao AppImage: `chmod +x Abraxas_*.AppImage`.
 
 ### O que vem dentro
