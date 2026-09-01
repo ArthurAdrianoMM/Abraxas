@@ -1,6 +1,6 @@
 [package]
 name = "abraxas"
-version = "0.1.1"
+version = "0.1.2"
 description = "Abraxas — local-first desktop chat with open-source LLMs."
 license = "MIT"
 edition = "2021"
