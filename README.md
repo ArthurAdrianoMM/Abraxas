@@ -48,6 +48,32 @@ behind it so that `cargo tauri build` compiles only the `abraxas` binary. Withou
 the gate every binary in the target dir gets copied into the installer, and with
 `cuda,vulkan` each one carries its own copy of llama.cpp.
 
+## Cutting a release
+
+The version lives in four files — `package.json`, `src-tauri/tauri.conf.json`,
+`src-tauri/Cargo.toml` and `src-tauri/Cargo.lock` — and the release workflow's
+version guard aborts the tag if any of them disagrees with it. Don't edit them by
+hand; bump all four, commit and tag in one step:
+
+```bash
+./scripts/bump-version.sh 0.1.1
+git push origin main --follow-tags
+```
+
+Pushing the `vX.Y.Z` tag builds the three installers and attaches them to a
+**draft** GitHub Release — nothing is published until the draft is reviewed and
+released by hand. A tag with a suffix (`v0.1.1-rc.1`) is marked pre-release and
+exercises the whole pipeline without burning the final version; the suffix exists
+only in the tag, never in the manifests.
+
+If a tag was pushed at the wrong commit, delete it locally and remotely (and
+delete the draft release it created) before re-tagging:
+
+```bash
+git tag -d v0.1.1 && git push origin :refs/tags/v0.1.1
+gh release delete v0.1.1 --yes   # only if a draft was created
+```
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

@@ -40,12 +40,15 @@ jobs:
           pkg=$(node -p "require('./package.json').version")
           conf=$(node -p "require('./src-tauri/tauri.conf.json').version")
           cargo=$(grep -m1 '^version = ' src-tauri/Cargo.toml | cut -d'"' -f2)
+          # Cargo.lock carrega a versao do proprio crate; se ela ficar atras, o
+          # primeiro `cargo build` do release edita um arquivo versionado.
+          lock=$(grep -A1 '^name = "abraxas"$' src-tauri/Cargo.lock | grep -m1 '^version = ' | cut -d'"' -f2)
 
-          echo "tag=$tag (base $base)  package.json=$pkg  tauri.conf.json=$conf  Cargo.toml=$cargo"
+          echo "tag=$tag (base $base)  package.json=$pkg  tauri.conf.json=$conf  Cargo.toml=$cargo  Cargo.lock=$lock"
 
-          for pair in "package.json:$pkg" "tauri.conf.json:$conf" "Cargo.toml:$cargo"; do
+          for pair in "package.json:$pkg" "tauri.conf.json:$conf" "Cargo.toml:$cargo" "Cargo.lock:$lock"; do
             if [[ "${pair#*:}" != "$base" ]]; then
-              echo "::error::${pair%%:*} declara ${pair#*:}, mas a tag e $GITHUB_REF_NAME"
+              echo "::error::${pair%%:*} declara ${pair#*:}, mas a tag e $GITHUB_REF_NAME. Bumpe tudo de uma vez com ./scripts/bump-version.sh $base"
               exit 1
             fi
           done
