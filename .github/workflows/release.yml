@@ -150,7 +150,7 @@ jobs:
         if: matrix.os == 'windows-2022'
         uses: Jimver/cuda-toolkit@v0.2.21
         with:
-          cuda: '12.6.0'
+          cuda: '12.8.0'
           method: 'network'
           sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
 
@@ -158,13 +158,13 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         uses: Jimver/cuda-toolkit@v0.2.21
         with:
-          cuda: '12.6.0'
+          cuda: '12.8.0'
           method: 'network'
           sub-packages: '["nvcc", "cudart"]'
 
       - name: Install cuBLAS (Linux)
         if: matrix.os == 'ubuntu-22.04'
-        run: sudo apt-get install -y libcublas-12-6 libcublas-dev-12-6
+        run: sudo apt-get install -y libcublas-12-8 libcublas-dev-12-8
 
       - name: Install Vulkan SDK
         if: matrix.os != 'macos-latest'
@@ -175,13 +175,85 @@ jobs:
           cache: true
           stripdown: true
 
-      - name: Set CUDA architectures
+      - name: Set CUDA build flags
         if: matrix.os != 'macos-latest'
-        # O ci.yml usa `75` (uma arquitetura) so pra provar que linka. Num
-        # release isso deixaria a maioria das GPUs NVIDIA sem kernel e caindo
-        # em CPU silenciosamente. Aqui: Pascal (GTX 10xx) ate Hopper/Ada.
+        # O ci.yml usa `75-real` (uma arquitetura) so pra provar que compila e
+        # linka. Num release precisamos de cobertura real de GPU — mas nao da
+        # lista inteira: `61;70;75;80;86;89;90` gera cubin *e* PTX pra cada uma
+        # das 7 arquiteturas e produziu um `abraxas.exe` de 1,29 GB, no qual o
+        # makensis morre em "Internal compiler error #12345: error mmapping
+        # file (1293887906, 33554432) is out of range".
+        #
+        # A lista abaixo e `-real` (so cubin, sem PTX por arch) nas quatro
+        # geracoes de GPU de consumidor + Blackwell, mais um unico
+        # `90-virtual` que deixa PTX embarcado como rede de seguranca pra
+        # arquiteturas >= 9.0 que nao existiam neste build:
+        #
+        #   sm_61  Pascal      GTX 10xx
+        #   sm_75  Turing      RTX 20xx, GTX 16xx
+        #   sm_86  Ampere      RTX 30xx        (cobre sm_87 tambem)
+        #   sm_89  Ada         RTX 40xx
+        #   sm_120 Blackwell   RTX 50xx        (exige nvcc >= 12.8)
+        #   compute_90 (PTX)   Hopper e o que vier depois, via JIT
+        #
+        # O que ficou fora — Maxwell (5.x), P100 (6.0), Volta (7.0) e A100
+        # (8.0) — nao tem kernel neste binario. `hardware::gpu::detect`
+        # conhece essa lista (`ComputeCapability::has_cuda_kernel`) e manda
+        # essas GPUs pro Vulkan em vez de deixar o ggml estourar em runtime
+        # com "no kernel image is available for execution on the device".
+        # Mexer numa lista sem mexer na outra e bug: elas sao um par.
+        #
+        # CMAKE_POSITION_INDEPENDENT_CODE: os objetos `.cu` do llama.cpp sao
+        # compilados sem -fPIC por default e o link do executavel (PIE, no
+        # Linux) falha com "relocation R_X86_64_PC32 cannot be used against
+        # symbol 'stderr'; recompile with -fPIC". O CMake traduz isso pra
+        # `-Xcompiler=-fPIC` no nvcc. O `build.rs` do llama-cpp-sys-2 repassa
+        # qualquer variavel de ambiente `CMAKE_*` como `-D` pro CMake.
         shell: bash
-        run: echo "CMAKE_CUDA_ARCHITECTURES=61;70;75;80;86;89;90" >> "$GITHUB_ENV"
+        run: |
+          echo "CMAKE_CUDA_ARCHITECTURES=61-real;75-real;86-real;89-real;120-real;90-virtual" >> "$GITHUB_ENV"
+          echo "CMAKE_POSITION_INDEPENDENT_CODE=ON" >> "$GITHUB_ENV"
+
+      - name: Check nvcc supports every arch in the list
+        if: matrix.os != 'macos-latest'
+        # Roda em ~5s e falha cedo. `sm_120` (Blackwell) exige nvcc >= 12.8: se
+        # o toolkit for repinado pra baixo, ou uma arquitetura nova entrar na
+        # lista antes de o compilador conhece-la, sem este passo a descoberta
+        # vem depois de ~90 min de nvcc, no fim do job.
+        #
+        # `--list-gpu-code` / `--list-gpu-arch` em vez de compilar um `.cu` de
+        # teste: no Windows o runner roda bash sem o ambiente do MSVC, e
+        # qualquer compilacao de verdade morreria em "Cannot find compiler
+        # 'cl.exe' in PATH" — um falso negativo pior que o bug que estamos
+        # tentando pegar. Estas duas flags nao tocam no host compiler.
+        #
+        # A lista vem do `$GITHUB_ENV` do passo anterior; nao existe segunda
+        # copia aqui pra sair de sincronia.
+        shell: bash
+        run: |
+          set -euo pipefail
+          nvcc --version | tail -2
+
+          codes=$(nvcc --list-gpu-code)
+          arches=$(nvcc --list-gpu-arch)
+          missing=()
+
+          IFS=';' read -ra archs <<<"$CMAKE_CUDA_ARCHITECTURES"
+          for arch in "${archs[@]}"; do
+            n="${arch%%-*}"
+            case "$arch" in
+              # `-virtual` embarca PTX: precisa existir como compute_NN.
+              *-virtual) grep -qx "compute_$n" <<<"$arches" || missing+=("compute_$n") ;;
+              # `-real` e a forma sem sufixo geram cubin: precisa de sm_NN.
+              *)         grep -qx "sm_$n"      <<<"$codes"  || missing+=("sm_$n") ;;
+            esac
+          done
+
+          if (( ${#missing[@]} )); then
+            echo "::error::nvcc nao suporta: ${missing[*]} (CMAKE_CUDA_ARCHITECTURES=$CMAKE_CUDA_ARCHITECTURES)"
+            exit 1
+          fi
+          echo "nvcc suporta todas as arquiteturas de $CMAKE_CUDA_ARCHITECTURES"
 
       # Mesmo motivo do ci.yml, os dois ajustes vem em par.
       #

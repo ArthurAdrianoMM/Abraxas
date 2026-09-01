@@ -170,15 +170,20 @@ jobs:
           git diff --exit-code ../src/lib/tauri/bindings.ts
 
   gpu-build:
-    # Validates the production feature combo (`cuda,vulkan`) compiles on
-    # Windows + Linux. Runs `cargo check` only — no clippy, no tests — to
-    # avoid duplicating work the `rust` job already did with CPU features.
+    # Validates the production feature combo (`cuda,vulkan`) builds *and links*
+    # on Windows + Linux. No clippy, no tests — that would duplicate the work
+    # the `rust` job already did with CPU features.
     #
-    # `CMAKE_CUDA_ARCHITECTURES=75` builds kernels for a single SM (Turing)
-    # instead of llama.cpp's default fat-binary set covering ~6 archs. This
-    # cuts nvcc time roughly 5-10x. Production release builds (separate
-    # workflow, not here) should use the full arch list so end-user GPUs
-    # of any generation are supported; CI just needs to prove it links.
+    # `cargo build`, nao `cargo check`: o `check` para na analise de tipos e
+    # nunca invoca o linker, que e onde os objetos CUDA do llama.cpp quebram
+    # (ver `CMAKE_POSITION_INDEPENDENT_CODE` no `env` abaixo). O custo extra e
+    # o codegen + link do proprio crate; o nvcc, que domina o tempo do job, ja
+    # rodava no `check` porque e trabalho de build script.
+    #
+    # `CMAKE_CUDA_ARCHITECTURES=75-real` builds kernels for a single SM
+    # (Turing) instead of llama.cpp's default fat-binary set covering ~6 archs.
+    # This cuts nvcc time roughly 5-10x. The release workflow uses the real
+    # end-user arch list; CI just needs to prove it links.
     name: GPU build (${{ matrix.os }})
     needs: changes
     if: needs.changes.outputs.gpu == 'true'
@@ -190,7 +195,7 @@ jobs:
       matrix:
         # `windows-2022`, nao `windows-latest`: o `windows-latest` migrou pro
         # Windows Server 2025 com Visual Studio 2026, e o pacote
-        # `visual_studio_integration` do CUDA 12.6 so instala o toolset MSBuild
+        # `visual_studio_integration` do CUDA 12.8 so instala o toolset MSBuild
         # ate o VS2022. Com o VS2026 o CMake aborta em `enable_language(CUDA)`
         # com "No CUDA toolset found". Repin quando o CUDA passar a suportar VS2026.
         os: [ubuntu-latest, windows-2022]
@@ -199,7 +204,17 @@ jobs:
       run:
         working-directory: src-tauri
     env:
-      CMAKE_CUDA_ARCHITECTURES: '75'
+      # `-real` (cubin sem PTX) pelo mesmo motivo do release.yml, e uma unica
+      # arquitetura porque aqui o objetivo e provar que compila e *linka*, nao
+      # cobrir GPUs de usuario.
+      CMAKE_CUDA_ARCHITECTURES: '75-real'
+      # Sem isso o link do executavel falha no Linux com "relocation
+      # R_X86_64_PC32 cannot be used against symbol 'stderr'; recompile with
+      # -fPIC": os objetos `.cu` do llama.cpp nao sao PIC por default e o
+      # binario e PIE. Foi exatamente assim que a tag v0.1.0 morreu no Linux,
+      # depois de 1h25 de build — este job so nao pegou porque rodava
+      # `cargo check`, que nao chega a linkar.
+      CMAKE_POSITION_INDEPENDENT_CODE: 'ON'
     steps:
       - uses: actions/checkout@v4
 
@@ -222,7 +237,7 @@ jobs:
       #     fails with "No CUDA toolset found" when enabling the CUDA
       #     language for VS2022.
       #   - Linux (Ubuntu 24.04): NVIDIA renamed cuBLAS debs to
-      #     `libcublas-12-6` / `libcublas-dev-12-6`. The action's
+      #     `libcublas-12-8` / `libcublas-dev-12-8`. The action's
       #     `cublas`/`cublas_dev` aliases still resolve to the old
       #     `cuda-cublas-*` names and apt fails with "Unable to locate
       #     package". Install nvcc+cudart via the action and pull cuBLAS
@@ -245,14 +260,14 @@ jobs:
         if: matrix.os == 'windows-2022'
         uses: actions/cache@v4
         with:
-          path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6
-          key: cuda-12.6.0-windows-2022-nvcc-cudart-cublas-v1
+          path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8
+          key: cuda-12.8.0-windows-2022-nvcc-cudart-cublas-v1
 
       - name: Install CUDA Toolkit (Windows)
         if: matrix.os == 'windows-2022' && steps.cuda-cache.outputs.cache-hit != 'true'
         uses: Jimver/cuda-toolkit@v0.2.21
         with:
-          cuda: '12.6.0'
+          cuda: '12.8.0'
           method: 'network'
           sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
           use-github-cache: false
@@ -268,11 +283,11 @@ jobs:
         if: matrix.os == 'windows-2022' && steps.cuda-cache.outputs.cache-hit == 'true'
         shell: bash
         run: |
-          root='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6'
+          root='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8'
           echo "CUDA_PATH=$root" >> "$GITHUB_ENV"
           echo "$root\\bin" >> "$GITHUB_PATH"
           nvcc="$root\\bin\\nvcc.exe"
-          if [[ ! -f "/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin/nvcc.exe" ]]; then
+          if [[ ! -f "/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8/bin/nvcc.exe" ]]; then
             echo "::error::Cache hit mas $nvcc nao existe — cache corrompido."
             exit 1
           fi
@@ -281,14 +296,14 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         uses: Jimver/cuda-toolkit@v0.2.21
         with:
-          cuda: '12.6.0'
+          cuda: '12.8.0'
           method: 'network'
           sub-packages: '["nvcc", "cudart"]'
           use-github-cache: false
 
       - name: Install cuBLAS (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get install -y libcublas-12-6 libcublas-dev-12-6
+        run: sudo apt-get install -y libcublas-12-8 libcublas-dev-12-8
 
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1
@@ -384,5 +399,5 @@ jobs:
             gpu-ct-${{ matrix.os }}-${{ hashFiles('.github/workflows/ci.yml') }}-
             gpu-ct-${{ matrix.os }}-
 
-      - name: Check (cuda,vulkan)
-        run: cargo check --locked --features cuda,vulkan
+      - name: Build (cuda,vulkan)
+        run: cargo build --locked --features cuda,vulkan

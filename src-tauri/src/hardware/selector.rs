@@ -10,7 +10,10 @@
 //! probe is cfg-gated to always return `Metal`, and `Cuda` / `Vulkan`
 //! variants only appear on Windows/Linux. The selector is the pure
 //! consumer of that contract, so it just matches on `GpuBackend` without
-//! re-validating OS combinations.
+//! re-validating OS combinations. The same holds for CUDA kernel coverage:
+//! `detect` already downgrades an NVIDIA GPU with no shipped cubin to
+//! `Vulkan` (see `ComputeCapability::has_cuda_kernel`), so a `Cuda` variant
+//! reaching this function is always runnable.
 //!
 //! `system` is part of the public signature even though it's currently
 //! unused in the body — Fase 2.4+ will extend `reason` with RAM context
