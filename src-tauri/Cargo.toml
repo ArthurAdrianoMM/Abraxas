@@ -5,6 +5,27 @@ description = "Abraxas — local-first desktop chat with open-source LLMs."
 license = "MIT"
 edition = "2021"
 default-run = "abraxas"
+# Todo binario que existir no target dir entra no bundle: o `Abraxas.app` do
+# release v0.1.0 saiu com um `Contents/MacOS/export_bindings` de 13 MB dentro.
+# Em Windows/Linux com `cuda,vulkan` cada um desses binarios linka o llama.cpp
+# inteiro, o que multiplicaria o payload do instalador por 3. Desligar o
+# autodescobrimento e declarar os tres alvos permite pendurar
+# `required-features` nos dois auxiliares — ver a feature `dev-bins`.
+autobins = false
+
+[[bin]]
+name = "abraxas"
+path = "src/main.rs"
+
+[[bin]]
+name = "export_bindings"
+path = "src/bin/export_bindings.rs"
+required-features = ["dev-bins"]
+
+[[bin]]
+name = "llama_smoke"
+path = "src/bin/llama_smoke.rs"
+required-features = ["dev-bins"]
 
 [lib]
 # The `_lib` suffix is required so the lib name doesn't collide with the bin name on Windows.
@@ -94,6 +115,12 @@ default = []
 cuda = ["llama-cpp-2/cuda"]
 vulkan = ["llama-cpp-2/vulkan"]
 metal = ["llama-cpp-2/metal"]
+# Ferramentas de desenvolvimento (`export_bindings`, `llama_smoke`). Fora do
+# default de proposito: sem ela `cargo tauri build` compila so o `abraxas` e o
+# instalador nao carrega binarios auxiliares. O CI liga a feature onde precisa
+# (clippy `--all-targets`, `cargo test`, regeneracao dos bindings); localmente,
+# `cargo run --features dev-bins --bin llama_smoke -- ...`.
+dev-bins = []
 
 [dev-dependencies]
 # The main `tokio` dep already enables fs/io-util/sync/time/rt/macros; tests

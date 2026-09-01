@@ -37,11 +37,16 @@ pnpm exec tsc --noEmit  # frontend type check (no Rust build)
 After changing any `#[tauri::command]` or `#[derive(Event)]`:
 
 ```bash
-cargo run --locked --bin export_bindings --features cuda,vulkan
-# or whichever feature combo you've been building with
+cargo run --locked --bin export_bindings --features dev-bins,cuda,vulkan
+# or whichever GPU feature combo you've been building with
 ```
 
 This rewrites `src/lib/tauri/bindings.ts`. CI fails if the file drifts from the regenerated output.
+
+The `dev-bins` feature is required: `export_bindings` and `llama_smoke` are gated
+behind it so that `cargo tauri build` compiles only the `abraxas` binary. Without
+the gate every binary in the target dir gets copied into the installer, and with
+`cuda,vulkan` each one carries its own copy of llama.cpp.
 
 ## License
 

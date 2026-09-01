@@ -138,14 +138,20 @@ jobs:
       # macOS keeps `metal` because the frameworks ship with Xcode (no extra
       # install, negligible build cost). Linux/Windows use no GPU features
       # here — that's what the `gpu-build` job covers.
+      #
+      # `dev-bins` is always on here. The helper binaries carry
+      # `required-features = ["dev-bins"]` so they stay out of the installer
+      # (see src-tauri/Cargo.toml), which also means `clippy --all-targets` and
+      # `cargo test` would silently skip them — including the unit tests inside
+      # `export_bindings` — unless the feature is enabled.
       - name: Set features for this OS
         id: features
         shell: bash
         run: |
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            echo "flags=--features metal" >> "$GITHUB_OUTPUT"
+            echo "flags=--features metal,dev-bins" >> "$GITHUB_OUTPUT"
           else
-            echo "flags=" >> "$GITHUB_OUTPUT"
+            echo "flags=--features dev-bins" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Format check
