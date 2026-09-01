@@ -490,23 +490,41 @@ jobs:
       # dentro do `.app`. A checagem do conteudo tem que ser explicita.
       - name: Verify the package ships only the app binary
         shell: bash
+        # `-e`/`pipefail` de proposito fora: um `grep` sem match sai 1 e mataria
+        # o passo antes de imprimir o diagnostico. Os erros aqui sao tratados na
+        # mao.
         run: |
-          set -euo pipefail
-          deb=$(ls src-tauri/target/debug/bundle/deb/*.deb)
+          set -uo pipefail
+          deb=$(ls src-tauri/target/debug/bundle/deb/*.deb) || {
+            echo "::error::nenhum .deb em src-tauri/target/debug/bundle/deb/"
+            exit 1
+          }
           echo "Inspecionando $deb"
 
-          # `^\./usr/bin/.` exige ao menos um caractere depois da barra: a
-          # propria entrada de diretorio (`./usr/bin/`) nao conta.
-          shipped=$(dpkg-deb -c "$deb" | awk '{print $NF}' | grep '^\./usr/bin/.' | sed 's|.*/||' | sort)
-          count=$(grep -c . <<<"$shipped" || true)
-          echo "Binarios em /usr/bin: $(paste -sd, - <<<"$shipped")"
+          listing=$(dpkg-deb -c "$deb")
+          echo "--- conteudo do pacote ---"
+          echo "$listing"
+          echo "--------------------------"
 
-          # A contagem, e nao o nome: o bundler renomeia o binario principal
-          # conforme o `productName`/plataforma, e travar a checagem na string
-          # exata daria falso negativo no dia em que esse nome mudar. Um unico
-          # binario ja e a propriedade que interessa.
-          if [[ "$count" != "1" ]]; then
-            echo "::error::O .deb instala $count binarios em /usr/bin [$(paste -sd, - <<<"$shipped")]; esperado exatamente 1. Ferramentas auxiliares devem viver em src-tauri/devtools, fora do pacote que o bundler enxerga."
+          # Arquivos regulares apenas: no `dpkg-deb -c` a primeira coluna e o
+          # modo, e entradas de diretorio comecam com `d`.
+          files=$(awk '$1 !~ /^d/ { print $NF }' <<<"$listing")
+
+          # Sanidade primeiro: sem o binario da aplicacao, a checagem seguinte
+          # passaria alegremente num pacote vazio. Case-insensitive porque o
+          # bundler nomeia o executavel conforme o `productName` ("Abraxas") ou
+          # o alvo do cargo ("abraxas") dependendo da versao/plataforma.
+          if ! grep -qiE '/abraxas$' <<<"$files"; then
+            echo "::error::binario da aplicacao ausente no .deb — a verificacao abaixo nao teria valor."
             exit 1
           fi
-          echo "OK: o pacote instala apenas o binario da aplicacao."
+
+          # A propriedade que interessa: nenhuma ferramenta de desenvolvimento
+          # entrou no pacote. Vale em qualquer diretorio, entao continua correta
+          # se o bundler mudar o layout (/usr/bin vs /usr/lib/<app>).
+          if strays=$(grep -E '/(export_bindings|llama_smoke)$' <<<"$files"); then
+            echo "::error::o .deb carrega ferramentas de desenvolvimento: $(paste -sd, - <<<"$strays"). Elas devem viver em src-tauri/devtools, fora do pacote que o bundler enxerga."
+            exit 1
+          fi
+
+          echo "OK: pacote montado, com o binario da aplicacao e sem ferramentas de desenvolvimento."
