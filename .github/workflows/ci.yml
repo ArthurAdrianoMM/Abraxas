@@ -487,13 +487,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          # `ImageOS` (`ubuntu22`/`ubuntu24`) entra na chave porque a chave
-          # default do rust-cache so distingue `runner.os` ("Linux") e o id do
-          # job — nao a versao da imagem. Este job roda em 22.04 enquanto os
-          # demais rodam em `ubuntu-latest` (24.04), e sem isso o cache de um
-          # e restaurado no outro: os build scripts ja compilados vem linkados
-          # contra a glibc errada e morrem em "version `GLIBC_2.39' not found".
-          key: ${{ env.ImageOS }}
+          # A chave default do rust-cache distingue `runner.os` ("Linux") e o
+          # id do job, mas nao a versao da imagem. Este job roda em 22.04
+          # enquanto os demais rodam em `ubuntu-latest` (24.04), e sem um
+          # sufixo proprio o cache de um e restaurado no outro: os build
+          # scripts ja compilados voltam linkados contra a glibc errada e
+          # morrem em "version `GLIBC_2.39' not found".
+          #
+          # Literal, e nao `${{ env.ImageOS }}`: o contexto `env` so enxerga
+          # variaveis declaradas no proprio workflow, nao o ambiente do runner,
+          # entao `ImageOS` resolveria pra string vazia e a chave nao mudaria.
+          # Mantenha em sincronia com o `runs-on` acima.
+          key: ubuntu-22.04
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
