@@ -71,15 +71,27 @@ In a separate crate the bundler simply never sees them. CI enforces this: the
 
 ## Cutting a release
 
-The version lives in four files — `package.json`, `src-tauri/tauri.conf.json`,
-`src-tauri/Cargo.toml` and `src-tauri/Cargo.lock` — and the release workflow's
-version guard aborts the tag if any of them disagrees with it. Don't edit them by
-hand; bump all four, commit and tag in one step:
+Tag it. That's the whole procedure:
 
 ```bash
-./scripts/bump-version.sh 0.1.1
-git push origin main --follow-tags
+git tag -a v0.1.4 -m "Abraxas v0.1.4"
+git push origin v0.1.4
 ```
+
+The tag is the only source of truth for the version. `src-tauri/Cargo.toml`
+declares `version = "0.0.0"` in the repo; each release runner writes the real
+version into it with `scripts/set-version.sh` right before the bundler reads it,
+and nothing is committed. There is no bump commit to forget and no version guard
+to abort the tag.
+
+`tauri.conf.json` deliberately omits `version` — without the field the Tauri v2
+bundler falls back to the Cargo.toml version, so one file declares it instead of
+four. `package.json` omits it too: it's `private: true` and never published.
+
+One consequence: a local `cargo tauri build` produces `Abraxas_0.0.0`, and the
+settings screen (which reads `CARGO_PKG_VERSION`) shows `0.0.0`. Run
+`./scripts/set-version.sh v0.1.4` first to reproduce a release build locally —
+just don't commit the result.
 
 Pushing the `vX.Y.Z` tag builds the three installers and attaches them to a
 **draft** GitHub Release — nothing is published until the draft is reviewed and

@@ -16,42 +16,37 @@ permissions:
   contents: write
 
 jobs:
-  guard:
-    # Roda em ~10s e aborta antes dos ~90 min de nvcc caso a tag e as versoes
-    # declaradas tenham divergido. Sem isso, a divergencia so apareceria no
-    # nome dos artefatos, depois do build inteiro.
-    name: Version guard
+  version:
+    # A tag e a unica fonte da verdade da versao. Os manifestos guardam
+    # `0.0.0` e recebem o valor derivado daqui no job de build, logo antes de o
+    # bundler ler — nao existe bump commitado pra divergir da tag, entao nao
+    # existe guard.
+    #
+    # Roda em ~5s e falha antes dos ~90 min de nvcc se a tag tiver formato
+    # invalido (`v1`, `release-2`), caso em que os manifestos ficariam com uma
+    # versao que o bundler do MSI recusa no fim do job.
+    name: Resolve version from tag
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.check.outputs.version }}
       prerelease: ${{ steps.check.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
-
+      # Sem checkout: nada aqui le arquivo do repo.
       - id: check
         shell: bash
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME#v}"
-          # `0.1.0-rc.1` -> `0.1.0`: o sufixo de pre-release nao existe nos
-          # manifestos, so na tag.
+          # `0.1.0-rc.1` -> `0.1.0`: o sufixo de pre-release vive somente na
+          # tag e no nome do release, nunca nos manifestos.
           base="${tag%%-*}"
 
-          pkg=$(node -p "require('./package.json').version")
-          conf=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          cargo=$(grep -m1 '^version = ' src-tauri/Cargo.toml | cut -d'"' -f2)
-          # Cargo.lock carrega a versao do proprio crate; se ela ficar atras, o
-          # primeiro `cargo build` do release edita um arquivo versionado.
-          lock=$(grep -A1 '^name = "abraxas"$' src-tauri/Cargo.lock | grep -m1 '^version = ' | cut -d'"' -f2)
+          if [[ ! "$base" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::a tag $GITHUB_REF_NAME nao tem a forma vX.Y.Z[-sufixo]"
+            exit 1
+          fi
 
-          echo "tag=$tag (base $base)  package.json=$pkg  tauri.conf.json=$conf  Cargo.toml=$cargo  Cargo.lock=$lock"
-
-          for pair in "package.json:$pkg" "tauri.conf.json:$conf" "Cargo.toml:$cargo" "Cargo.lock:$lock"; do
-            if [[ "${pair#*:}" != "$base" ]]; then
-              echo "::error::${pair%%:*} declara ${pair#*:}, mas a tag e $GITHUB_REF_NAME. Bumpe tudo de uma vez com ./scripts/bump-version.sh $base"
-              exit 1
-            fi
-          done
+          echo "tag=$GITHUB_REF_NAME  version=$tag  manifestos=$base"
 
           echo "version=$tag" >> "$GITHUB_OUTPUT"
           if [[ "$tag" == *-* ]]; then
@@ -65,7 +60,7 @@ jobs:
     # cada runner criasse o proprio, os 3 correriam pra mesma tag e dois
     # falhariam (ou pior, criariam releases duplicados).
     name: Create draft release
-    needs: guard
+    needs: version
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create.outputs.release_id }}
@@ -75,8 +70,8 @@ jobs:
       - id: create
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.guard.outputs.version }}
-          PRERELEASE: ${{ needs.guard.outputs.prerelease }}
+          VERSION: ${{ needs.version.outputs.version }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
         shell: bash
         run: |
           set -euo pipefail
@@ -98,7 +93,7 @@ jobs:
     # Combo de producao por OS (CLAUDE.md 2.4): um instalador por sistema, com
     # os backends daquele sistema compilados juntos e escolhidos em runtime.
     name: ${{ matrix.name }}
-    needs: [guard, create-release]
+    needs: [version, create-release]
     strategy:
       # Um OS quebrado nao deve descartar os outros dois: o rascunho fica com
       # os artefatos que deram certo e o OS problematico e reprocessado depois.
@@ -128,6 +123,17 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+
+      - name: Stamp version from tag
+        # Primeiro passo depois do checkout: o `src-tauri/Cargo.toml` versionado
+        # declara `0.0.0` e e daqui que a versao real entra. Se este passo nao
+        # rodar, os instaladores saem como `Abraxas_0.0.0_x64.msi` e a tela de
+        # settings (que le `CARGO_PKG_VERSION`) mostra 0.0.0.
+        #
+        # Roda nos tres OS: cada runner faz o seu proprio checkout, entao cada
+        # um precisa gravar. Nada disso e commitado.
+        shell: bash
+        run: ./scripts/set-version.sh "$GITHUB_REF_NAME"
 
       - name: Install Linux system dependencies
         if: matrix.os == 'ubuntu-22.04'

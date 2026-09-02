@@ -16,8 +16,8 @@
 [package]
 name = "abraxas-devtools"
 # `0.0.0` de proposito: nao e distribuido e nao acompanha a versao do app, o
-# que o mantem fora do `scripts/bump-version.sh` e do version guard do
-# release.
+# que o mantem fora do `scripts/set-version.sh`, que so escreve no pacote
+# `abraxas`.
 version = "0.0.0"
 publish = false
 edition = "2021"

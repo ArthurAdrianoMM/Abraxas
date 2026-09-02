@@ -1,6 +1,10 @@
 [package]
 name = "abraxas"
-version = "0.1.2"
+# `0.0.0` de proposito: a versao real vem da tag. O `release.yml` roda
+# `scripts/set-version.sh` com o nome da tag antes de buildar, e o bundler le
+# este campo — o `tauri.conf.json` nao declara `version`, entao cai pra ca.
+# Editar isso a mao nao muda nada num release.
+version = "0.0.0"
 description = "Abraxas — local-first desktop chat with open-source LLMs."
 license = "MIT"
 edition = "2021"
