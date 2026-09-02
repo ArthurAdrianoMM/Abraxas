@@ -1,6 +1,9 @@
 # ADR 0001 — Load ggml backends dynamically instead of static-linking them
 
-**Status:** Accepted. §6's open questions resolved 2026-09-02; implementation not started.
+**Status:** Accepted and partly implemented. §6's open questions resolved 2026-09-02.
+§7 steps 1-4 are done on `feat/dynamic-ggml-backends`, verified locally on macOS and
+Linux; **none of it has run in CI yet.** Step 5 (per-backend artifact caching) is not
+started and is deliberately gated on that CI run — see §5.4.
 **Supersedes:** the build strategy described in CLAUDE.md §2.4 ("Implicações de build")
 **Audience:** the engineer/agent implementing this change
 
@@ -477,7 +480,37 @@ enables `dynamic-link` for any reason.
 ### 5.4. CI restructuring
 
 This is where the build-time win is realized, and it is only possible **after**
-§5.2/§5.3 land.
+§5.2/§5.3 land — meaning after they have run in CI, not merely after they are
+written. Two things found while implementing steps 1-4 bear directly on how this
+should be built, and neither was known when this section was drafted:
+
+- **The modules are never linked against.** `ggml-cuda` and `ggml-vulkan` are
+  `dlopen`ed by name and never appear in any link line, so in principle the app
+  can be built without those Cargo features at all and have the modules dropped
+  in beside it — which is what would let the nvcc job be genuinely independent
+  rather than merely cached. That is also exactly the shape §3 rejected under
+  "vendor llama.cpp's prebuilt binaries", on the grounds that an ABI mismatch
+  between the bindings and a differently-built ggml is undefined behaviour
+  rather than a build error. Same revision and same flags is a much weaker
+  version of that risk than downloading someone else's binaries, but it is the
+  same *class* of risk, and it has not been tested here.
+- **`build.rs` currently owns the staging directory**, clearing and repopulating
+  it on every run. Injecting downloaded modules therefore cannot happen between
+  `cargo build` and the bundler — `tauri build` does both in one invocation — so
+  it needs an explicit seam, e.g. an extra source directory the build script also
+  stages from.
+
+Note also that `llama-cpp-sys-2` forwards every `CMAKE_*` **and** `GGML_*`
+environment variable to CMake as a `-D` (`build.rs:666-671`), which is the hook
+any of this would use, and is already how `release.yml` sets the arch list.
+
+The release job's lack of `Swatinem/rust-cache` (`release.yml:296-299`) is a
+deliberate decision, not an oversight: a partially restored cache inside a
+public artifact is not worth the minutes. A dedicated job publishing artifacts
+keyed on a declared `(crate version, arch list, SDK version)` tuple is
+compatible with that stance in a way that restoring a cache into the release job
+is not — the artifact is an input, not a fuzzy restore. Preserve that
+distinction.
 
 - Split backend compilation into its own job producing uploaded artifacts, keyed
   on `(llama.cpp revision, CMAKE_CUDA_ARCHITECTURES, SDK versions)` — deliberately
