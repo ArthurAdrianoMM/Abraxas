@@ -11,10 +11,11 @@
 //! we short-circuit to `Metal` via `cfg!(target_os)` without linking the
 //! other probes.
 //!
-//! A detected NVIDIA GPU is only reported as `Cuda` when the release binary
-//! actually carries kernels for it — see `ComputeCapability::has_cuda_kernel`.
-//! Otherwise the probe falls through to Vulkan, which every NVIDIA driver
-//! ships an ICD for.
+//! A detected NVIDIA GPU is only *reported* as `Cuda` when the release build
+//! carries kernels for it — see `ComputeCapability::has_cuda_kernel`. Otherwise
+//! the probe falls through to Vulkan, which every NVIDIA driver ships an ICD
+//! for. Reported, and nothing more: what ggml then runs on is ggml's decision,
+//! not this module's (ADR 0001 §4.2).
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -54,14 +55,24 @@ pub struct ComputeCapability {
 }
 
 impl ComputeCapability {
-    /// Whether the release binary carries CUDA kernels this GPU can run.
+    /// Whether the release build carries CUDA kernels this GPU can run.
     ///
     /// Mirrors `CMAKE_CUDA_ARCHITECTURES` in `.github/workflows/release.yml`,
-    /// which is `61-real;75-real;86-real;89-real;120-real;90-virtual`. The two
-    /// lists are a pair: changing the workflow without changing this function
-    /// makes the app promise CUDA to a GPU that has no kernel to run, and ggml
-    /// then dies with "no kernel image is available for execution on the
-    /// device" — after the model is already loading, which reads as a crash.
+    /// which is `61-real;75-real;86-real;89-real;120-real;90-virtual`. Keep the
+    /// two lists in step: this one decides what the app *tells the user* it is
+    /// about to use, and a stale copy makes it promise CUDA for hardware whose
+    /// kernels were never shipped.
+    ///
+    /// It does **not** prevent the "no kernel image is available for execution
+    /// on the device" crash, despite what this comment used to claim. The enum
+    /// this feeds is only an `OffloadPolicy` (see `hardware::selector`), and
+    /// `Cuda` and `Vulkan` both map to the same `new_auto_gpu()`, so
+    /// downgrading one to the other changes a string and no behaviour. ggml
+    /// picks the device, and under dynamic loading it loads `ggml-cuda`
+    /// whenever the module is present, without consulting anything here —
+    /// GPU backends export no `ggml_backend_score`, so nothing filters them.
+    /// The fix is explicit device pinning via `LlamaModelParams::with_devices`;
+    /// ADR 0001 §4.2 and §9.
     ///
     /// CUDA cubins are binary-compatible upward within a major version only
     /// (an `sm_86` cubin runs on `sm_87` and `sm_89`, never on `sm_80`), so

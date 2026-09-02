@@ -46,3 +46,5 @@ Thumbs.db
 *.sqlite
 *.sqlite-journal
 /models/*
+# Staged by src-tauri/build.rs from llama-cpp-sys-2 OUT_DIR (ADR 0001 §5.3.2).
+/src-tauri/ggml-runtime/

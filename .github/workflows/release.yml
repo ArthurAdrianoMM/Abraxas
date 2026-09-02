@@ -133,7 +133,9 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         # Mesmas deps do ci.yml. `libfuse2` e extra: o linuxdeploy que empacota
         # o AppImage precisa de FUSE 2, que o CI (que so faz `cargo check`)
-        # nunca exercita.
+        # nunca exercita. `patchelf` tambem: o `build.rs` usa ele pra dar um
+        # rpath `$ORIGIN` as bibliotecas do ggml, sem o qual o linuxdeploy nao
+        # resolve as dependencias dos modulos e o AppImage nao fecha (ADR 0001).
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -143,7 +145,8 @@ jobs:
             librsvg2-dev \
             libssl-dev \
             libclang-dev \
-            libfuse2
+            libfuse2 \
+            patchelf
 
       # Instalacao do CUDA espelha o ci.yml, inclusive os workarounds:
       # `visual_studio_integration` no Windows (senao o CMake nao acha o toolset

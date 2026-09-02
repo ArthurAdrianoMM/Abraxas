@@ -1,0 +1,16 @@
+# `dynamic-backends` (ADR 0001) makes llama and ggml shared libraries, and the
+# bundler installs them alongside the app's other resources — `/usr/lib/Abraxas`
+# for the .deb, `$APPDIR/usr/lib/Abraxas` inside the AppImage — while the
+# executable itself lands in `/usr/bin`. Cargo emits no rpath of its own, so
+# without this the loader looks only in the system paths and the app dies before
+# `main` with "libggml.so.0: cannot open shared object file".
+#
+# Development builds do not need it: cargo puts the target directory on the
+# loader path for `cargo run` and `cargo test`, and llama-cpp-sys-2 hard-links
+# the shared libraries there.
+#
+# Only the backend *modules* are found by an explicit path we pass to ggml
+# (`inference::set_bundled_backends_dir`); these are the libraries the OS loader
+# resolves, and it only reads rpath.
+[target.'cfg(target_os = "linux")']
+rustflags = ["-C", "link-arg=-Wl,-rpath,$ORIGIN/../lib/Abraxas"]

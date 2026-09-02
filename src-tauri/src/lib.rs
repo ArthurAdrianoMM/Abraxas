@@ -46,6 +46,18 @@ pub fn run() {
             }
             app.manage(db);
 
+            // Where the installer put the ggml backend modules. Has to happen
+            // before the first inference, because the ggml backend registry is
+            // populated once per process. On macOS the backends are linked in
+            // and this is a no-op (ADR 0001 §4.1).
+            match app.path().resource_dir() {
+                Ok(dir) => inference::set_bundled_backends_dir(dir),
+                Err(e) => tracing::warn!(
+                    error = %e,
+                    "could not resolve the resource dir; ggml will search its own default paths",
+                ),
+            }
+
             // Detect hardware once, then let the inference backend apply the
             // load policy: CPU-only when no GPU exists, GPU-first with partial
             // offload fallback for Metal/CUDA/Vulkan.

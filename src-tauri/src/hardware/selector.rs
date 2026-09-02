@@ -10,10 +10,15 @@
 //! probe is cfg-gated to always return `Metal`, and `Cuda` / `Vulkan`
 //! variants only appear on Windows/Linux. The selector is the pure
 //! consumer of that contract, so it just matches on `GpuBackend` without
-//! re-validating OS combinations. The same holds for CUDA kernel coverage:
-//! `detect` already downgrades an NVIDIA GPU with no shipped cubin to
-//! `Vulkan` (see `ComputeCapability::has_cuda_kernel`), so a `Cuda` variant
-//! reaching this function is always runnable.
+//! re-validating OS combinations.
+//!
+//! What this function does *not* decide is which ggml backend runs. Its output
+//! becomes an `OffloadPolicy` — ultimately one `n_gpu_layers` integer — and the
+//! device is ggml's choice. So `Cuda` here means "offload, and tell the user we
+//! found a CUDA GPU", not "CUDA will be used". `detect` downgrades an NVIDIA
+//! GPU with no shipped cubin to `Vulkan`, which keeps that message honest but
+//! does not change what ggml loads (ADR 0001 §4.2). The log line written after
+//! `LlamaBackend::init()` is the record of what actually registered.
 //!
 //! `system` is part of the public signature even though it's currently
 //! unused in the body — Fase 2.4+ will extend `reason` with RAM context

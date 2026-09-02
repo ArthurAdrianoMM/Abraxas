@@ -2,7 +2,9 @@
 //!
 //! Builds on Fase 3.1's decoding loop. Key differences:
 //!   - `LlamaBackend::init()` is cached in a `OnceLock` (single-shot per
-//!     process — upstream guards with an `AtomicBool`).
+//!     process — upstream guards with an `AtomicBool`), preceded on Windows
+//!     and Linux by loading the ggml backend modules the installer shipped
+//!     (ADR 0001) and followed by logging the devices that registered.
 //!   - Loaded model lives in `Arc<RwLock<Option<LoadedModel>>>` so `&self`
 //!     methods can swap it.
 //!   - Decoding runs in `spawn_blocking`; tokens go through a bounded mpsc.
@@ -33,6 +35,76 @@ use crate::inference::InferenceError;
 static BACKEND: OnceLock<Arc<LlamaBackend>> = OnceLock::new();
 static BACKEND_LOCK: Mutex<()> = Mutex::new(());
 
+/// Directory the installer put the ggml backend modules in, from
+/// `set_bundled_backends_dir`.
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+static BUNDLED_BACKENDS_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+/// Record where the bundled ggml backend modules live.
+///
+/// Call before the first inference: `ensure_backend` reads this once, and
+/// `LlamaBackend::init()` is single-shot per process. A no-op on the targets
+/// built without `dynamic-backends` (macOS — see `Cargo.toml`), where every
+/// backend is linked into the binary.
+pub fn set_bundled_backends_dir(dir: PathBuf) {
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    let _ = BUNDLED_BACKENDS_DIR.set(dir);
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    drop(dir);
+}
+
+/// Point ggml at the bundled backend modules before the backend initializes.
+///
+/// `llama_backend_init` does load them itself, but only from its own search
+/// list — the compile-time backend dir, the executable's directory, the cwd —
+/// and on an installed Linux app the modules are in none of those, because the
+/// binary lands in `/usr/bin` and its resources in `/usr/lib`. Loading them
+/// from a known directory first suppresses that scan, since llama.cpp only
+/// scans when nothing is registered yet.
+///
+/// Which is also the fallback: if this directory yields nothing, the registry
+/// stays empty and llama.cpp's own scan still runs. That is why the device log
+/// is taken *after* init — it reports what actually registered, not what we
+/// asked for.
+fn load_backend_modules() {
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    {
+        use llama_cpp_2::llama_backend;
+        match BUNDLED_BACKENDS_DIR.get() {
+            Some(dir) => {
+                tracing::debug!(dir = %dir.display(), "loading ggml backend modules");
+                llama_backend::load_backends_from_path(dir);
+            }
+            // No `AppHandle` to resolve a resource dir from: `cargo test`,
+            // `cargo run`, the `llama_smoke` devtool. Uses the directory the
+            // build wrote the modules to.
+            None => llama_backend::load_backends(),
+        }
+    }
+}
+
+/// Log every ggml device that registered, and which backend provides it.
+///
+/// This is the honest answer to "what is the app running on", taken from the
+/// component that runs the model rather than from our own hardware probe.
+fn log_registered_devices() {
+    let devices = llama_cpp_2::list_llama_ggml_backend_devices();
+    if devices.is_empty() {
+        tracing::error!("no ggml devices registered; inference will fail");
+        return;
+    }
+    for device in devices {
+        tracing::info!(
+            backend = %device.backend,
+            device = %device.name,
+            description = %device.description,
+            kind = ?device.device_type,
+            memory_total_mb = device.memory_total / (1024 * 1024),
+            "ggml device registered",
+        );
+    }
+}
+
 fn ensure_backend() -> Result<Arc<LlamaBackend>, InferenceError> {
     if let Some(b) = BACKEND.get() {
         return Ok(b.clone());
@@ -41,7 +113,9 @@ fn ensure_backend() -> Result<Arc<LlamaBackend>, InferenceError> {
     if let Some(b) = BACKEND.get() {
         return Ok(b.clone());
     }
+    load_backend_modules();
     let initialized = Arc::new(LlamaBackend::init()?);
+    log_registered_devices();
     Ok(BACKEND.get_or_init(|| initialized).clone())
 }
 
@@ -247,9 +321,14 @@ fn load_model_blocking(
     gpu_layers: u32,
 ) -> Result<Arc<LlamaModel>, InferenceError> {
     // With both CUDA and Vulkan compiled in (Windows/Linux), llama.cpp's ggml
-    // registry picks devices by registration order. Precise CUDA-vs-Vulkan
-    // filtering via `with_devices` remains deferred until llama-cpp-2 exposes a
-    // stable device-enumeration API.
+    // registry picks devices by registration order.
+    //
+    // As of 0.1.155 the enumeration API this used to wait on does exist —
+    // `list_llama_ggml_backend_devices()` plus `LlamaModelParams::with_devices`.
+    // Wiring it up is deliberately not part of this version bump: under
+    // ADR 0001 ggml's own scoring becomes the thing that selects a backend, and
+    // explicit device pinning is a decision to make there, with the backends
+    // loaded dynamically, not here.
     let params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
     let model = LlamaModel::load_from_file(backend, path, &params)?;
     Ok(Arc::new(model))
@@ -284,7 +363,7 @@ where
     }
     ctx.decode(&mut batch)?;
 
-    let mut sampler = build_sampler(&params.sampling);
+    let mut sampler = build_sampler(model.n_vocab(), &params.sampling);
     let mut decoder = encoding_rs::UTF_8.new_decoder();
     let mut n_cur = batch.n_tokens();
     let mut stop = StopReason::MaxTokens;
@@ -326,11 +405,17 @@ fn add_bos_for(policy: BosPolicy) -> AddBos {
 /// Build a sampler chain matching llama.cpp's standard pipeline:
 ///   penalties → top-k → top-p → temperature → dist (final picker).
 /// `temperature == 0` collapses the chain to repetition-aware greedy.
-fn build_sampler(s: &crate::chat::SamplingParams) -> LlamaSampler {
+///
+/// `n_vocab` comes from the loaded model and is only consumed by the penalties
+/// stage, which takes it as its first argument since llama-cpp-2 0.1.146. It is
+/// passed in rather than derived from a `&LlamaModel` so this stays a pure
+/// function of the sampling params.
+fn build_sampler(n_vocab: i32, s: &crate::chat::SamplingParams) -> LlamaSampler {
     let mut stages: Vec<LlamaSampler> = Vec::new();
 
     if s.repeat_penalty > 1.0 && s.repeat_last_n != 0 {
         stages.push(LlamaSampler::penalties(
+            n_vocab,
             s.repeat_last_n,
             s.repeat_penalty,
             0.0, // frequency_penalty
@@ -356,11 +441,35 @@ fn build_sampler(s: &crate::chat::SamplingParams) -> LlamaSampler {
 
 #[cfg(test)]
 mod tests {
-    // These tests deliberately avoid invoking `ensure_backend()` so they don't
-    // call `LlamaBackend::init()`. Once any test in the process initializes the
-    // backend, every later test that does so would error with
-    // `BackendAlreadyInitialized`. Path-checks happen before init in `load_model`.
+    // Every test here but `ensure_backend_registers_a_cpu_device` avoids
+    // invoking `ensure_backend()`: none of them needs a live backend, and
+    // initializing ggml is not free. Doing it is safe, though —
+    // `LlamaBackend::init()` is single-shot per process, and `ensure_backend`'s
+    // double-checked `OnceLock` is exactly what keeps a second caller from
+    // getting `BackendAlreadyInitialized`. Path-checks happen before init in
+    // `load_model`, which is why the error cases below need no backend at all.
     use super::*;
+
+    /// The one test that exercises the real backend, because it is the only
+    /// place the module-loading path can be checked: on Windows and Linux the
+    /// devices below exist only if `load_backend_modules` found the
+    /// `libggml-cpu-*` modules and ggml scored one of them (ADR 0001). A CPU
+    /// device is the floor — `GGML_CPU_ALL_VARIANTS` always builds one that
+    /// matches the host, and on a static build the CPU backend is linked in.
+    #[test]
+    fn ensure_backend_registers_a_cpu_device() {
+        ensure_backend().expect("backend should initialize");
+
+        let devices = llama_cpp_2::list_llama_ggml_backend_devices();
+        assert!(
+            devices
+                .iter()
+                .any(|d| d.device_type == llama_cpp_2::LlamaBackendDeviceType::Cpu),
+            "no CPU device registered; ggml loaded {} device(s): {:?}",
+            devices.len(),
+            devices.iter().map(|d| &d.name).collect::<Vec<_>>(),
+        );
+    }
 
     #[tokio::test(flavor = "current_thread")]
     async fn generate_without_loaded_model_errors() {
