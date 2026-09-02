@@ -120,7 +120,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     # nvcc com a lista completa de arquiteturas e o gargalo; o default de 6h e
     # generoso demais pra um job travado.
-    timeout-minutes: 120
+    #
+    # 150, nao 120: o Windows da v0.1.2 fechou em 1h31 com o Vulkan SDK
+    # 1.3.290.0. O 1.4.357.0 traz um glslc que aceita mais extensoes
+    # (coopmat2, bfloat16, e2m1/e4m3), e cada uma que passa o
+    # `test_shader_extension_support` do ggml-vulkan adiciona variantes de
+    # shader ao `vulkan-shaders-gen` — os 29 min de folga que sobravam nao
+    # cobrem isso com confianca.
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 
@@ -178,14 +185,36 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         run: sudo apt-get install -y libcublas-12-8 libcublas-dev-12-8
 
+      # `1.4.357.0` pelo mesmo motivo do ci.yml: o llama.cpp do `llama-cpp-2`
+      # 0.1.155 exige `find_package(SPIRV-Headers CONFIG REQUIRED)` e o SDK
+      # 1.3.290.0 do Windows nao traz o `SPIRV-HeadersConfig.cmake` — foi assim
+      # que a tag v0.1.4 morreu no build script do `llama-cpp-sys-2`. As duas
+      # versoes andam em par; mexer numa sem mexer na outra e bug.
       - name: Install Vulkan SDK
         if: matrix.os != 'macos-latest'
         uses: jakoch/install-vulkan-sdk-action@v1
         with:
-          vulkan_version: '1.3.290.0'
+          vulkan_version: '1.4.357.0'
           install_runtime: true
           cache: true
           stripdown: true
+
+      # Mesmo guard do ci.yml, e aqui e onde ele paga: sem ele a ausencia do
+      # `SPIRV-HeadersConfig.cmake` so aparece depois do nvcc, no fim do job.
+      - name: Check the Vulkan SDK ships the SPIRV-Headers CMake package
+        if: matrix.os == 'windows-2022'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # `cygpath`: `$VULKAN_SDK` chega como `C:\VulkanSDK\...` e o `find`
+          # do Git Bash quer o caminho no formato POSIX.
+          sdk=$(cygpath -u "$VULKAN_SDK")
+          found=$(find "$sdk" -iname 'SPIRV-HeadersConfig.cmake' -print -quit 2>/dev/null || true)
+          if [[ -z "$found" ]]; then
+            echo "::error::$VULKAN_SDK nao tem SPIRV-HeadersConfig.cmake — o configure do ggml-vulkan vai abortar."
+            exit 1
+          fi
+          echo "SPIRV-Headers CMake package: $found"
 
       - name: Set CUDA build flags
         if: matrix.os != 'macos-latest'

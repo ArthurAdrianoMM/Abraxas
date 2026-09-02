@@ -13,7 +13,7 @@ GPU backends are opt-in Cargo features. Pick the one(s) your hardware supports â
 | You have... | Build command | What you need installed |
 |---|---|---|
 | NVIDIA GPU | `cargo build --features cuda` | [CUDA Toolkit](https://developer.nvidia.com/cuda-downloads) (sets `CUDA_PATH`) |
-| AMD / Intel GPU | `cargo build --features vulkan` | [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/) (sets `VULKAN_SDK`) |
+| AMD / Intel GPU | `cargo build --features vulkan` | [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/) **1.4.357.0 or newer** (sets `VULKAN_SDK`) |
 | Apple Silicon | `cargo build --features metal` | Xcode (Metal frameworks ship with it) |
 | CPU only / fresh clone smoke test | `cargo build` | Nothing â€” CPU fallback works without SDKs |
 | Production-equivalent (Win/Linux) | `cargo build --features cuda,vulkan` | Both CUDA Toolkit and Vulkan SDK |
@@ -21,6 +21,14 @@ GPU backends are opt-in Cargo features. Pick the one(s) your hardware supports â
 Run all `cargo` commands from the `src-tauri/` directory, or pass `--manifest-path src-tauri/Cargo.toml`.
 
 After installing an SDK on Windows, **restart your shell** so the env var (`CUDA_PATH` / `VULKAN_SDK`) propagates.
+
+The Vulkan version floor is not cosmetic: llama.cpp's Vulkan backend runs
+`find_package(SPIRV-Headers CONFIG REQUIRED)`, and the Windows SDK ships the
+SPIR-V headers without the matching CMake package until 1.4.x â€” 1.3.290.0, for
+one, has `Include\spirv-headers` but no `SPIRV-HeadersConfig.cmake`. On such an
+SDK the build dies in `llama-cpp-sys-2`'s build script with *"Could not find a
+package configuration file provided by SPIRV-Headers"*. On Debian/Ubuntu the
+distro `spirv-headers` package satisfies the same check.
 
 The shipped installers (downloaded from GitHub Releases) always include the full per-OS combo â€” end users never need to install anything.
 

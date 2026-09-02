@@ -214,8 +214,12 @@ jobs:
     needs: changes
     if: needs.changes.outputs.src_tauri == 'true'
     # Sem isso o default e 6h. O caminho quente e ~3 min e o frio (semanal) fica
-    # em ~35 min; 45 mata job travado sem matar o build agendado legitimo.
-    timeout-minutes: 45
+    # em ~35 min; 45 matava job travado sem matar o build agendado legitimo.
+    #
+    # 60 desde o Vulkan SDK 1.4.357.0: o glslc novo aceita mais extensoes de
+    # shader (coopmat2, bfloat16, e2m1/e4m3) e o `vulkan-shaders-gen` compila as
+    # variantes correspondentes, o que engorda justamente o caminho frio.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -332,13 +336,48 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get install -y libcublas-12-8 libcublas-dev-12-8
 
+      # `1.4.357.0`, nao `1.3.290.0`: desde o llama.cpp que veio no
+      # `llama-cpp-2` 0.1.155, o `ggml/src/ggml-vulkan/CMakeLists.txt` faz
+      # `find_package(SPIRV-Headers CONFIG REQUIRED)` (upstream #22009, ajustado
+      # em #23215) depois de acrescentar `$VULKAN_SDK` ao `CMAKE_PREFIX_PATH`.
+      # O SDK 1.3.290.0 do Windows nao empacota o `SPIRV-HeadersConfig.cmake`,
+      # so os headers em `Include\spirv-headers`, e o configure do llama.cpp
+      # aborta em "Could not find a package configuration file provided by
+      # SPIRV-Headers". 1.4.357.0 e a versao que o CI do proprio llama.cpp usa
+      # no job `windows (vulkan)`, onde esse `find_package` passa.
+      #
+      # Linux nao dependia disso (o pacote `spirv-headers` da imagem do runner
+      # ja satisfazia o `find_package`), mas a versao e um literal unico pros
+      # dois OS — e alinhar com o upstream vale mais que manter duas.
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1
         with:
-          vulkan_version: '1.3.290.0'
+          vulkan_version: '1.4.357.0'
           install_runtime: true
           cache: true
           stripdown: true
+
+      # Roda em ~1s e falha antes dos minutos de nvcc. A dependencia do
+      # `SPIRV-HeadersConfig.cmake` e invisivel no `vulkan_version` acima: um
+      # downgrade do SDK, ou um `stripdown` que passe a apagar a pasta, volta a
+      # quebrar o configure do llama.cpp — e no release.yml isso custa ~90 min
+      # pra descobrir. Windows-only de proposito: no Linux o `find_package`
+      # tambem aceita o pacote de sistema, entao exigir o arquivo dentro do SDK
+      # seria um falso negativo.
+      - name: Check the Vulkan SDK ships the SPIRV-Headers CMake package
+        if: matrix.os == 'windows-2022'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # `cygpath`: `$VULKAN_SDK` chega como `C:\VulkanSDK\...` e o `find`
+          # do Git Bash quer o caminho no formato POSIX.
+          sdk=$(cygpath -u "$VULKAN_SDK")
+          found=$(find "$sdk" -iname 'SPIRV-HeadersConfig.cmake' -print -quit 2>/dev/null || true)
+          if [[ -z "$found" ]]; then
+            echo "::error::$VULKAN_SDK nao tem SPIRV-HeadersConfig.cmake — o configure do ggml-vulkan vai abortar."
+            exit 1
+          fi
+          echo "SPIRV-Headers CMake package: $found"
 
       # Two Windows-only quirks of the llama.cpp build, both rooted in
       # `vulkan-shaders-gen` being compiled as a host tool via
