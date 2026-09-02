@@ -642,3 +642,116 @@ jobs:
             exit 1
           fi
           echo "OK: pacotes montados, com o binario da aplicacao, com o runtime do ggml completo e sem ferramentas de desenvolvimento."
+
+  bundle-windows:
+    # O outro lado do buraco que a v0.1.1 abriu: o `bundle` acima cobre Linux, e
+    # o empacotamento no Windows nunca foi exercitado fora de uma tag. As duas
+    # releases quebradas morreram justamente nessa fase.
+    #
+    # CPU-only de proposito (ADR 0001 §7): o `dynamic-backends` produz os mesmos
+    # dois tipos de artefato com ou sem CUDA, e o que esta sob teste aqui sao as
+    # regras de busca do loader do Windows, nao o nvcc.
+    name: Bundle smoke test (Windows)
+    needs: changes
+    if: needs.changes.outputs.src_tauri == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Bundle (debug, CPU-only)
+        run: pnpm tauri build --verbose --debug --bundles nsis,msi
+
+      # No Windows as duas classes de artefato (ADR 0001 §5.3.1) vao pro mesmo
+      # lugar: o diretorio do executavel. Nao por conveniencia — o loader
+      # resolve a tabela de imports antes de qualquer linha nossa rodar, entao
+      # `AddDllDirectory` chegaria tarde pra classe A, e o `resource_dir()` do
+      # Tauri no Windows ja *e* o diretorio do .exe.
+      - name: Verify the packaged ggml runtime
+        shell: bash
+        # `-e`/`pipefail` fora, como no job de Linux: um `grep` sem match sai 1.
+        run: |
+          set -uo pipefail
+          status=0
+
+          # Listas normalizadas pra `/` antes de comparar, porque o 7z devolve
+          # caminhos com `\`.
+          verify_ggml_runtime() {
+            local label=$1 list=$2 rc=0 lib modules
+            for lib in ggml-base ggml llama; do
+              if ! grep -qiE "(^|/)${lib}[.]dll$" <<<"$list"; then
+                echo "::error::$label: falta ${lib}.dll (classe A)."
+                rc=1
+              fi
+            done
+            modules=$(grep -ciE "(^|/)ggml-cpu-[A-Za-z0-9_.]+[.]dll$" <<<"$list")
+            if [[ "$modules" -lt 2 ]]; then
+              echo "::error::$label: $modules modulos ggml-cpu-*.dll (classe B); o GGML_CPU_ALL_VARIANTS produz varios."
+              rc=1
+            fi
+            if [[ $rc -eq 0 ]]; then
+              echo "OK $label: classe A completa e $modules modulos de CPU."
+            fi
+            return $rc
+          }
+
+          # Primeiro o que o build.rs preparou. Se isto falhar, o problema esta
+          # no staging e nao no bundler — vale distinguir os dois.
+          staged=$(find src-tauri/ggml-runtime -type f 2>/dev/null | tr '\\' '/')
+          if [[ -z "$staged" ]]; then
+            echo "::error::src-tauri/ggml-runtime esta vazio: o build.rs nao preparou o runtime do ggml."
+            exit 1
+          fi
+          echo "--- staging do build.rs ---"; echo "$staged"; echo "---------------------------"
+          verify_ggml_runtime "ggml-runtime" "$staged" || status=1
+
+          # E depois o que entrou no instalador. O NSIS e o instalador que o
+          # tauri.conf.json declara como principal (`installMode: currentUser`).
+          nsis=$(ls src-tauri/target/debug/bundle/nsis/*-setup.exe 2>/dev/null)
+          if [[ -z "$nsis" ]]; then
+            echo "::error::o bundler nao produziu o instalador NSIS."
+            exit 1
+          fi
+          echo "NSIS: $nsis ($(du -h "$nsis" | cut -f1))"
+
+          if ! listing=$(7z l -ba -slt "$nsis" 2>&1); then
+            echo "::error::7z nao conseguiu listar $nsis; sem isso o conteudo do instalador nao e verificavel. Saida: $listing"
+            exit 1
+          fi
+          contents=$(sed -n 's/^Path = //p' <<<"$listing" | tr '\\' '/')
+          verify_ggml_runtime "instalador NSIS" "$contents" || status=1
+
+          # O MSI embute um CAB, entao listar arquivo por arquivo exigiria
+          # extrair duas camadas. Ele compartilha a mesma lista de `resources`
+          # do NSIS, entao aqui basta saber que o alvo fecha — foi um alvo de
+          # release quebrando que motivou este job.
+          msi=$(ls src-tauri/target/debug/bundle/msi/*.msi 2>/dev/null)
+          if [[ -z "$msi" ]]; then
+            echo "::error::o bundler nao produziu o MSI."
+            status=1
+          else
+            echo "MSI: $msi ($(du -h "$msi" | cut -f1))"
+          fi
+
+          if [[ $status -ne 0 ]]; then
+            exit 1
+          fi
+          echo "OK: instaladores do Windows montados com o runtime do ggml completo ao lado do executavel."
