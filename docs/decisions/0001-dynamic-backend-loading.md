@@ -492,17 +492,35 @@ This is where the build-time win is realized, and it is only possible **after**
   half that has never been exercised outside a tag. Adding it belongs to this work, not
   to a follow-up.
 
-### 5.5. Unrelated but adjacent — fix while bundling is open
+### 5.5. Resolved: `.deb` dependencies, and why the GPU libraries must stay out
 
-`tauri.conf.json:53-58` declares only `libwebkit2gtk-4.1-0` and `libgtk-3-0` as
-`.deb` dependencies. If the binary carries a dynamic dependency on
-`libvulkan.so.1` (and possibly `libcudart`), a user without those installed gets
-a loader error before any of our code runs — a strong candidate for the reported
-Linux breakage. **Run `ldd` on a built Linux binary and reconcile the full list
-against `deb.depends`.** Track this separately; it is not caused by this ADR, but this
-ADR touches the same files, and §5.3.1 changes the answer — class A adds `libllama`,
-`libggml` and `libggml-base` to that same `ldd` output, resolved by the same loader, at
-the same moment, with the same symptom when it fails.
+`ldd` on the installed binary, reconciled against `deb.depends`:
+
+- The declared `libwebkit2gtk-4.1-0` and `libgtk-3-0` do cover the executable.
+  The long tail in `ldd` — `libEGL`, `libX11`, `libcairo`, `libatk`, `libenchant`,
+  `libepoxy`, … — is transitively theirs. Nothing is missing.
+- They are also redundant: the bundler emits both itself, so the generated field
+  reads `libwebkit2gtk-4.1-0, libgtk-3-0, libwebkit2gtk-4.1-0, libgtk-3-0`.
+  Harmless to dpkg. Left in place rather than removed, because depending on the
+  bundler's defaults is the more fragile of the two options.
+- Class A does appear in that same `ldd` output, and is satisfied by the rpath
+  plus the staged files, not by a package dependency — which is why it needs no
+  entry here.
+
+**And the GPU libraries must not be added.** This is where the ADR changes the
+answer instead of merely informing it. Statically linked, a `libvulkan.so.1` or
+`libcudart` dependency sat on the *executable*, so a machine without it died at
+process start with no diagnostics — the reported Linux breakage. Under dynamic
+loading that dependency edge moves to `libggml-vulkan.so` / `libggml-cuda.so`,
+and a module whose own dependencies do not resolve simply fails to `dlopen` and
+is skipped, leaving the next candidate to run. Putting `libvulkan1` into
+`deb.depends` would undo precisely that, turning an optional accelerator into a
+hard install requirement for every user.
+
+One question this leaves open, answerable only from a CUDA build: whether
+`libggml-cuda.so` needs a `libcudart` we do not ship. If it does, CUDA silently
+never loads on a machine without the toolkit, and the module has to travel with
+its runtime beside it. §9.
 
 ---
 
@@ -654,6 +672,10 @@ Scoped to Windows and Linux per §4.1. macOS keeps the criteria it already satis
   model loading behaviour and cannot be verified without an NVIDIA GPU that the shipped
   cubins do not cover, which is why it is not folded in here. It is also what would
   finally let `has_cuda_kernel()` and its arch-list mirror be deleted.
+- **Whether `libggml-cuda.so` needs a `libcudart` we do not ship** (§5.5). Under static
+  linking this was the executable's problem and would have been noticed; as a module it
+  fails quietly, by being skipped. One `ldd` on a CUDA build answers it, and the answer
+  decides whether the release has to stage the CUDA runtime beside the module.
 - **Whether to make macOS dynamic** (§4.1). Small upside, real signing risk, no urgency.
 - **Whether `list_llama_ggml_backend_devices()` should replace the `nvml-wrapper` and
   `ash` probes outright** (§6.3). It reports more than they do, from the component that

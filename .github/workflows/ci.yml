@@ -126,7 +126,8 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libssl-dev \
-            libclang-dev
+            libclang-dev \
+            patchelf
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -253,7 +254,8 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libssl-dev \
-            libclang-dev
+            libclang-dev \
+            patchelf
 
       # CUDA install must be split per-OS because the Jimver action's
       # sub-package names map differently on each platform:
