@@ -17,6 +17,7 @@ dependencies = [
  "encoding_rs",
  "futures-util",
  "llama-cpp-2",
+ "llama-cpp-sys-2",
  "nvml-wrapper",
  "raw-cpuid",
  "reqwest 0.12.28",

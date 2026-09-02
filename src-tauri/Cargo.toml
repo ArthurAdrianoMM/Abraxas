@@ -93,8 +93,23 @@ llama-cpp-2 = { version = "0.1.155", default-features = false }
 # `nvml-wrapper` dynamically loads `libnvidia-ml`; absent driver => clean error.
 # `ash` dynamically loads the Vulkan loader; absent loader => clean error.
 # Neither links system libs at build time, so they're safe to keep unconditional.
+#
+# `dynamic-backends` (ADR 0001) builds the ggml backends as modules ggml loads
+# and scores at runtime instead of linking every one of them into the binary.
+# It is set here rather than in `[features]` because it is a per-OS decision,
+# not a per-build one: macOS stays static (ADR 0001 §4.1), and the code that
+# consumes it is gated on the same `target_os` list. The feature implies
+# `dynamic-link`, so llama and ggml themselves become shared libraries too —
+# `build.rs` stages both kinds of artifact for the bundler.
 [target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
-llama-cpp-2 = { version = "0.1.155", default-features = false }
+llama-cpp-2 = { version = "0.1.155", default-features = false, features = [
+    "dynamic-backends",
+] }
+# Not used from Rust: it is here so `build.rs` receives `DEP_LLAMA_BACKENDS_DIR`,
+# which Cargo only passes to the build script of a crate that depends on the
+# `links` crate directly. `default-features = false` keeps `common` off, matching
+# the `llama-cpp-2` entry above.
+llama-cpp-sys-2 = { version = "0.1.155", default-features = false }
 nvml-wrapper = "0.10"
 ash = "0.38"
 

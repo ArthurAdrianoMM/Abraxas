@@ -4,13 +4,15 @@
 **Supersedes:** the build strategy described in CLAUDE.md §2.4 ("Implicações de build")
 **Audience:** the engineer/agent implementing this change
 
-**Amended 2026-09-02.** §6 now records answers instead of questions. Two claims in §5
-were wrong and are corrected in place: `GGML_BACKEND_PATH` is not a search directory
-(§5.3.3), and `dynamic-backends` also makes llama and ggml *themselves* shared
-libraries (§5.3.1) — the larger half of the bundling problem, which the original draft
-did not name. §7 is resequenced around the discovery that a CPU-only build exercises
-every new mechanism, macOS is explicitly out of scope (§4.1), and §7.0's benchmark is
-recorded as unmeasurable for now rather than pending.
+**Amended 2026-09-02.** §6 now records answers instead of questions. Three claims were
+wrong and are corrected in place: `GGML_BACKEND_PATH` is not a search directory
+(§5.3.3); `dynamic-backends` also makes llama and ggml *themselves* shared libraries
+(§5.3.1), the larger half of the bundling problem, which the original draft did not
+name; and ggml's backend scoring ranks CPU variants only, not GPU backends, so it does
+**not** delete the arch-list coupling the way §4 claimed (§4.2). §7 is resequenced
+around the discovery that a CPU-only build exercises every new mechanism, macOS is
+explicitly out of scope (§4.1), and §7.0's benchmark is recorded as unmeasurable for now
+rather than pending.
 
 ---
 
@@ -135,9 +137,10 @@ whose entire content is CI firefighting on this one axis: `4b1f5ab`, `256c926`,
 (v0.1.0, v0.1.1) shipped broken and a third (v0.1.2) failed at the AppImage step.
 
 **Blast radius.** A GPU backend that cannot initialize on the user's device
-aborts inside the process. `has_cuda_kernel()` exists purely to pre-empt one
+aborts inside the process. `has_cuda_kernel()` was written to pre-empt one
 instance of this by refusing to promise CUDA to uncovered hardware — a
 workaround for the fact that a statically linked backend has no way to decline.
+It does not actually achieve that; see §4.2.
 
 ### 2.1. Why macOS is unaffected
 
@@ -188,22 +191,19 @@ workarounds in §2 accumulate.
 
 Four properties we are buying:
 
-1. **The arch-list coupling is deleted, not managed.** ggml's own
-   `ggml_backend_score()` interrogates the device and ranks candidate backends.
-   `CMAKE_CUDA_ARCHITECTURES` stops being load-bearing for runtime dispatch, and
-   `ComputeCapability::has_cuda_kernel()` — plus its two mirror test tables — can
-   be removed.
+1. **The expensive artifact stops being welded to the app binary.** *This
+   property originally claimed the arch-list coupling was deleted by ggml's
+   scoring. It is not — see the correction in §4.2.*
 2. **The expensive artifact becomes cacheable across releases.** Once
    `ggml-cuda.{dll,so}` is a standalone file, it can be built by an independent
    CI job keyed on `(llama.cpp revision + arch list)` and reused by every app
    release that changed neither. App code changes weekly; the arch list changes
    almost never. **This is the actual fix for the 90 minutes** — dynamic loading
    alone does not make nvcc faster, it makes nvcc's output reusable.
-3. **Failures degrade instead of aborting.** A module that fails to load or
-   scores zero is skipped and the next candidate is tried. Precisely: this
-   eliminates the "no kernel image is available" class, because scoring will not
-   select a module that does not support the present device. It does *not* make
-   the process immune to a crash inside an already-selected kernel.
+3. **Failures degrade instead of aborting.** A module that fails to load, or
+   whose score is zero, is skipped and the next candidate is tried. For the CPU
+   this is exactly the mechanism that picks the right instruction-set variant.
+   For GPU backends it is weaker than §4.2 originally assumed.
 4. **NSIS never sees a 1.29 GB executable.** The size moves out of the single
    file that `makensis` mmaps.
 
@@ -231,6 +231,42 @@ So `dynamic-backends` goes on the
 (`Cargo.toml:95-99`) only, and the macOS entry (`Cargo.toml:89-90`) is left alone. Both
 code paths must keep compiling, which the `#[cfg(feature = ...)]` gating in §5.2 already
 implies. Revisiting macOS is a follow-up (§9), not a prerequisite.
+
+### 4.2. Correction: ggml scores CPU variants, not GPU backends
+
+Found while implementing, by reading the module-registration path rather than
+trusting the shape of the API. `GGML_BACKEND_DL_SCORE_IMPL` — the macro that
+exports the `ggml_backend_score` symbol a module is ranked by — is used **only**
+by the CPU backends (`ggml/src/ggml-cpu/arch/*/cpu-feats.cpp`). CUDA and Vulkan
+use `GGML_BACKEND_DL_IMPL` alone (`ggml-cuda.cu:5563`,
+`ggml-vulkan.cpp:19647`) and export no score at all.
+
+The loader handles that case explicitly: when no candidate scores above zero it
+falls back to loading `libggml-<name>.so` by its exact unversioned name
+(`ggml-backend-reg.cpp:485-560`). So a GPU module present on disk is loaded
+**unconditionally**, and `ggml_cuda_init` then registers every device
+`cudaGetDeviceCount` reports, with no compute-capability filter
+(`ggml-cuda.cu:217-246`). An sm_80 GPU still gets CUDA devices registered from a
+build carrying no sm_80 cubin, and still dies at kernel launch.
+
+Two consequences:
+
+- **`ComputeCapability::has_cuda_kernel()` cannot be deleted on the grounds
+  §4 gave**, and §5.2's instruction to delete it is withdrawn. What it *can* be
+  is corrected: its doc comment claims it prevents the "no kernel image" crash,
+  and that was never true. `select_backend`'s enum only picks an `OffloadPolicy`
+  (§1.2), and `Cuda` and `Vulkan` both map to the same `new_auto_gpu()`
+  (`lib.rs:92-93`), so downgrading a GPU to `Vulkan` changes the text shown to
+  the user and nothing else. ggml was always free to pick CUDA anyway.
+- **The honest fix is device pinning, not scoring.** `LlamaModelParams::with_devices`
+  plus `list_llama_ggml_backend_devices()` (§6.3) can hand llama.cpp an explicit
+  device list, which is what would actually keep an uncovered GPU off CUDA. That
+  is a behavioural change to model loading, it cannot be verified without the
+  hardware, and it is now a follow-up (§9) rather than a side effect of this
+  ADR.
+
+Everything else in §4 stands. The build-time, binary-size and packaging wins are
+unaffected: they follow from the modules being separate files, not from scoring.
 
 ---
 
@@ -281,12 +317,15 @@ Two things the original draft of this section did not know:
   constructors, and every error type re-exported by `src/inference/error.rs` — is
   signature-identical. (`openai.rs` was dropped and `speculative.rs` added upstream;
   neither is used here.)
-- **`src/hardware/gpu/mod.rs`**: delete `ComputeCapability::has_cuda_kernel()`
-  (line 78) and the filter in `detect()` that consumes it (lines 122-143). Delete the
-  `shipped_cuda_architectures_have_kernels` /
-  `unshipped_cuda_architectures_have_no_kernel` tests (lines 173-212). Keep
-  `ComputeCapability` itself — it is still reported to the UI. Update the module doc
-  comment (lines 14-17), which asserts the now-removed invariant.
+- **`src/hardware/gpu/mod.rs`**: **this bullet's original instruction to delete
+  `ComputeCapability::has_cuda_kernel()` is withdrawn — see §4.2.** ggml does not score
+  GPU backends, so nothing takes over the job. What is wrong here is not the function
+  but its documentation: the doc comment on line 57 and the module comment on lines
+  14-17 both claim the function prevents the "no kernel image is available" crash, and
+  it never did — `Cuda` and `Vulkan` both select the same `OffloadPolicy` (§1.2), so
+  downgrading one to the other changes user-facing text only. Correct both comments to
+  say that, and keep the function, the `detect()` filter and the two mirror tests until
+  device pinning replaces them (§9).
 - **`src/hardware/selector.rs`**: update the doc comment at lines 12-16, which claims
   `detect` pre-filters unrunnable CUDA GPUs. `select_backend`'s logic is unchanged — it
   remains the advisory/offload-policy decision described in §1.2. Do source `reason`
@@ -402,6 +441,38 @@ in link flags. Only the call is different.
   That assertion inverts under this ADR: it must assert both classes are present, while
   still asserting the devtools are not.
 - **macOS**: nothing. §4.1.
+
+#### 5.3.5. A third failure class: what `BUILD_SHARED_LIBS` exposes upstream
+
+Found by running the build, not by reading it. `llama-cpp-sys-2`'s build script
+hard-links every `*.so` it finds beside the libraries it built into
+`target/<profile>`, `target/<profile>/deps` and `target/<profile>/examples`, so
+that `cargo run` and `cargo test` can load them (`build.rs:1405-1435`). Under
+`BUILD_SHARED_LIBS=ON` that code path becomes live for the first time, and on
+Linux it is broken:
+
+- the `*.so` glob matches only CMake's bare development symlinks
+  (`libggml.so` -> `libggml.so.0`), never the SONAME file itself;
+- `link(2)` does not follow symlinks, so what gets hard-linked is the *symlink*;
+- the file it points at is not `*.so`, so it is never copied alongside.
+
+The result dangles. `Path::exists` follows symlinks and reports false for a
+dangling one, so the guard `if !dst.exists() { hard_link(..).unwrap() }` tries
+the link again and panics with `AlreadyExists`.
+
+It fires on the **second** build-script run in one target directory — which is
+`cargo clippy` followed by `cargo test`, i.e. the order `ci.yml`'s `rust` job
+already uses. So this is not a packaging problem at all: it breaks an ordinary
+Linux build, on all three destination directories, and it would have broken CI
+on the first push regardless of how the bundling was done.
+
+`src-tauri/build.rs` deletes those dangling `lib*.so` symlinks after staging.
+Our build script runs after the sys crate's, so the cleanup is what unbreaks the
+*next* invocation; nothing is lost, because a dangling symlink resolves to
+nothing and the real libraries sit in `target/<profile>` where cargo already
+points the loader. Worth reporting upstream — the bug is theirs, but
+`dynamic-backends` is what makes it reachable, and it is reachable by anyone who
+enables `dynamic-link` for any reason.
 
 ### 5.4. CI restructuring
 
@@ -521,11 +592,14 @@ Each step is one PR.
 3. **Windows, CPU-only.** Same design, different loader rules (§5.3.4). Add the Windows
    bundling job that does not exist yet, asserting NSIS/MSI contents the same way. Still
    no SDKs.
-4. **Turn on `cuda,vulkan`.** Only now does nvcc enter. Delete `has_cuda_kernel()` and
-   its two mirror test tables (§5.2), restore the full production arch list, and run
+4. **Turn on `cuda,vulkan`.** Only now does nvcc enter. Correct the two comments that
+   misdescribe `has_cuda_kernel()` (§5.2 — the function itself stays, per §4.2) and run
    §5.5's `ldd` reconciliation against `deb.depends`. Re-test whether the
    `CMAKE_POSITION_INDEPENDENT_CODE` and MAX_PATH workarounds are still required — with
-   a passing build, not speculatively.
+   a passing build, not speculatively. Leave the arch list alone: with the modules out
+   of the executable the NSIS size ceiling should be gone, but "should be" is not a
+   measurement, and widening the list is a size/coverage decision to make against real
+   numbers from step 5, not a drive-by edit.
 5. **Per-backend artifact caching (§5.4).** The 90 minutes dies here, not earlier.
 6. **macOS.** Out of scope per §4.1; listed so the sequence is honest about where it
    stops.
@@ -546,16 +620,22 @@ Scoped to Windows and Linux per §4.1. macOS keeps the criteria it already satis
 - The installed app logs which ggml backends registered and which device was selected,
   sourced from `list_llama_ggml_backend_devices()` (§6.3) rather than from our own probe,
   and that selection matches the hardware.
-- An NVIDIA GPU with no shipped cubin (e.g. sm_80 / A100) falls back to Vulkan
-  **without** any Rust-side arch list, and without aborting.
-- No `CMAKE_CUDA_ARCHITECTURES` value is referenced anywhere in `src/`.
+- ~~An NVIDIA GPU with no shipped cubin falls back to Vulkan without any Rust-side arch
+  list.~~ **Withdrawn (§4.2):** ggml does not score GPU backends, so dynamic loading
+  does not deliver this. It requires device pinning, which is a follow-up (§9). Until
+  then the criterion is only that this ADR does not make the case *worse* — an
+  uncovered GPU behaves exactly as it does today.
+- ~~No `CMAKE_CUDA_ARCHITECTURES` value is referenced anywhere in `src/`.~~ **Withdrawn
+  (§4.2)**, for the same reason: the mirror in `has_cuda_kernel()` stays until something
+  actually replaces it. Its doc comment must stop claiming it prevents a crash.
 - The `.deb`, AppImage and NSIS/MSI each contain **both** classes of artifact from
   §5.3.1, verified by CI — and for the AppImage by extracting it, not by launching it on
   a machine that may have the libraries elsewhere.
 - A Windows bundling job exists in `ci.yml` and asserts installer contents. Its absence
   is why v0.1.1 and v0.1.2 shipped broken.
-- Windows NSIS bundling succeeds with the full production arch list, i.e. the size
-  constraint that forced the current list is gone.
+- Windows NSIS bundling succeeds, and the `abraxas.exe` it packages is a small fraction
+  of the 1.29 GB that produced the `makensis` mmap ICE — the size now lives in separate
+  module files. (Whether to then *widen* the arch list is a separate decision; §7 step 4.)
 - A second release from an unchanged `llama.cpp` revision reuses cached backend artifacts
   and completes substantially faster than the current ~90 min.
 - Linux launches on a clean machine with no manually installed SDKs. This now requires
@@ -568,6 +648,12 @@ Scoped to Windows and Linux per §4.1. macOS keeps the criteria it already satis
 
 - **Whether to keep CUDA at all.** §7.0 was supposed to decide it and could not: no
   NVIDIA hardware. Undecided, not decided.
+- **Pinning devices explicitly so an uncovered GPU never gets CUDA** — the fix §4.2
+  showed this ADR does not provide. `LlamaModelParams::with_devices` plus
+  `list_llama_ggml_backend_devices()` make it possible for the first time; it changes
+  model loading behaviour and cannot be verified without an NVIDIA GPU that the shipped
+  cubins do not cover, which is why it is not folded in here. It is also what would
+  finally let `has_cuda_kernel()` and its arch-list mirror be deleted.
 - **Whether to make macOS dynamic** (§4.1). Small upside, real signing risk, no urgency.
 - **Whether `list_llama_ggml_backend_devices()` should replace the `nvml-wrapper` and
   `ash` probes outright** (§6.3). It reports more than they do, from the component that

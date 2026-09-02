@@ -471,7 +471,9 @@ jobs:
             librsvg2-dev \
             libssl-dev \
             libclang-dev \
-            libfuse2
+            libfuse2 \
+            binutils \
+            patchelf
 
       - uses: pnpm/action-setup@v4
         with:
@@ -516,13 +518,53 @@ jobs:
       # O bundler nao falha se um binario *extra* entrar no pacote — ele so o
       # copia junto, que foi como a v0.1.0 despachou 13 MB de `export_bindings`
       # dentro do `.app`. A checagem do conteudo tem que ser explicita.
-      - name: Verify the package ships only the app binary
+      #
+      # Com o `dynamic-backends` da ADR 0001 o pacote carrega duas classes de
+      # arquivo que nenhum `cargo build` exercita (ADR 0001 §5.3.1): as
+      # bibliotecas compartilhadas que o loader resolve no start do processo
+      # (classe A, pedidas pelo SONAME) e os modulos que o ggml abre com
+      # `dlopen` (classe B). Elas falham de formas diferentes — sem a classe A
+      # o app morre antes do `main`, sem a classe B ele abre e cai num CPU
+      # generico — entao as duas sao verificadas.
+      #
+      # E verificadas *por dentro* do AppImage: o linuxdeploy relocaliza o que
+      # reconhece como dependencia de ELF e nao tem como enxergar um `dlopen`,
+      # entao "o AppImage foi gerado" nao diz nada sobre a classe B.
+      - name: Verify the packaged ggml runtime and app binary
         shell: bash
         # `-e`/`pipefail` de proposito fora: um `grep` sem match sai 1 e mataria
         # o passo antes de imprimir o diagnostico. Os erros aqui sao tratados na
         # mao.
         run: |
           set -uo pipefail
+          status=0
+
+          # Classe A pelo SONAME e classe B pelo nome sem versao — exatamente os
+          # nomes que o loader e o ggml procuram, nao "algum arquivo parecido".
+          verify_ggml_runtime() {
+            local label=$1 list=$2 rc=0 lib modules
+            for lib in libggml-base libggml libllama; do
+              if ! grep -qE "/${lib}[.]so[.][0-9]+$" <<<"$list"; then
+                echo "::error::$label: falta ${lib}.so.<major> (classe A: o loader pede pelo SONAME)."
+                rc=1
+              fi
+            done
+            # Este job compila sem features de GPU, entao `libggml-cuda.so` e
+            # `libggml-vulkan.so` nao existem aqui de proposito. O que importa e
+            # que o `GGML_CPU_ALL_VARIANTS` produziu modulos e que eles foram
+            # empacotados com o nome sem versao que o
+            # `ggml_backend_load_all_from_path` procura.
+            modules=$(grep -cE '/libggml-cpu-[A-Za-z0-9_.]+[.]so$' <<<"$list")
+            if [[ "$modules" -lt 2 ]]; then
+              echo "::error::$label: $modules modulos libggml-cpu-*.so no pacote (classe B); o GGML_CPU_ALL_VARIANTS produz varios."
+              rc=1
+            fi
+            if [[ $rc -eq 0 ]]; then
+              echo "OK $label: classe A completa e $modules modulos de CPU."
+            fi
+            return $rc
+          }
+
           deb=$(ls src-tauri/target/debug/bundle/deb/*.deb) || {
             echo "::error::nenhum .deb em src-tauri/target/debug/bundle/deb/"
             exit 1
@@ -538,8 +580,8 @@ jobs:
           # modo, e entradas de diretorio comecam com `d`.
           files=$(awk '$1 !~ /^d/ { print $NF }' <<<"$listing")
 
-          # Sanidade primeiro: sem o binario da aplicacao, a checagem seguinte
-          # passaria alegremente num pacote vazio. Case-insensitive porque o
+          # Sanidade primeiro: sem o binario da aplicacao, as checagens seguintes
+          # passariam alegremente num pacote vazio. Case-insensitive porque o
           # bundler nomeia o executavel conforme o `productName` ("Abraxas") ou
           # o alvo do cargo ("abraxas") dependendo da versao/plataforma.
           if ! grep -qiE '/abraxas$' <<<"$files"; then
@@ -547,17 +589,42 @@ jobs:
             exit 1
           fi
 
-          # A propriedade que interessa: nenhuma ferramenta de desenvolvimento
-          # entrou no pacote. Vale em qualquer diretorio, entao continua correta
-          # se o bundler mudar o layout (/usr/bin vs /usr/lib/<app>).
+          # Nenhuma ferramenta de desenvolvimento entrou no pacote. Vale em
+          # qualquer diretorio, entao continua correta se o bundler mudar o
+          # layout (/usr/bin vs /usr/lib/<app>).
           if strays=$(grep -E '/(export_bindings|llama_smoke)$' <<<"$files"); then
             echo "::error::o .deb carrega ferramentas de desenvolvimento: $(paste -sd, - <<<"$strays"). Elas devem viver em src-tauri/devtools, fora do pacote que o bundler enxerga."
-            exit 1
+            status=1
           fi
 
-          # O AppImage nao e inspecionado por dentro (exigiria montar/extrair);
-          # o que importa aqui e que o linuxdeploy rodou ate o fim, que e onde o
-          # release da v0.1.2 morreu.
+          verify_ggml_runtime ".deb" "$files" || status=1
+
+          # O rpath e o unico motivo pelo qual a classe A, instalada em
+          # /usr/lib/<app>, e encontrada a partir de /usr/bin. Cargo nao emite
+          # rpath nenhum: quem o injeta e src-tauri/.cargo/config.toml, e se
+          # esse arquivo se perder o pacote continua completo e o app para de
+          # abrir.
+          rm -rf deb-root && dpkg-deb -x "$deb" deb-root
+          appbin=$(find deb-root/usr/bin -maxdepth 1 -type f | head -1)
+          runpath=$(readelf -d "$appbin" | grep -E 'R(UN)?PATH')
+          echo "rpath de $appbin: ${runpath:-<nenhum>}"
+          if ! grep -qE 'ORIGIN/[.][.]/lib/' <<<"$runpath"; then
+            echo "::error::o executavel do .deb nao tem ORIGIN/../lib/<app> no RUNPATH; a classe A nao sera encontrada em runtime."
+            status=1
+          fi
+
+          # E o mesmo pros modulos, que ganham `$ORIGIN` do `build.rs` via
+          # patchelf. Sem isso o `.deb` continua correto e so o AppImage quebra,
+          # bem depois, dentro do linuxdeploy — entao vale checar aqui.
+          modrpath=$(readelf -d "$(find deb-root -name 'libggml-cpu-*.so' | head -1)" | grep -E 'R(UN)?PATH')
+          echo "rpath de um modulo: ${modrpath:-<nenhum>}"
+          if ! grep -q 'ORIGIN' <<<"$modrpath"; then
+            echo "::error::os modulos do ggml nao tem \$ORIGIN no RUNPATH; o linuxdeploy nao vai resolver libggml-base.so.0 e o AppImage nao fecha. patchelf instalado?"
+            status=1
+          fi
+
+          # O AppImage e inspecionado por dentro. `--appimage-extract` nao usa
+          # FUSE, entao funciona no runner sem privilegio nenhum.
           appimage=$(ls src-tauri/target/debug/bundle/appimage/*.AppImage 2>/dev/null)
           if [[ -z "$appimage" ]]; then
             echo "::error::o bundler nao produziu um .AppImage — ver a saida do linuxdeploy acima."
@@ -565,4 +632,13 @@ jobs:
           fi
           echo "AppImage gerado: $appimage ($(du -h "$appimage" | cut -f1))"
 
-          echo "OK: pacotes montados, com o binario da aplicacao e sem ferramentas de desenvolvimento."
+          rm -rf squashfs-root && "$appimage" --appimage-extract >/dev/null || {
+            echo "::error::falha ao extrair $appimage"
+            exit 1
+          }
+          verify_ggml_runtime "AppImage" "$(find squashfs-root \( -type f -o -type l \))" || status=1
+
+          if [[ $status -ne 0 ]]; then
+            exit 1
+          fi
+          echo "OK: pacotes montados, com o binario da aplicacao, com o runtime do ggml completo e sem ferramentas de desenvolvimento."

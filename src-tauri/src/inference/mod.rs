@@ -13,5 +13,5 @@ pub mod manager;
 
 pub use backend::{GenerateParams, InferenceBackend, StopReason, TokenEvent, TokenStream};
 pub use error::InferenceError;
-pub use llama_cpp::LlamaCppBackend;
+pub use llama_cpp::{set_bundled_backends_dir, LlamaCppBackend};
 pub use manager::{LoadedModel, ModelManager};
