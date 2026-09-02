@@ -87,14 +87,14 @@ raw-cpuid = "11"
 # `openmp` (needs `brew install libomp` on macOS) and `android-shared-stdcxx`
 # (Android-only). The CPU fallback uses llama.cpp's internal std::thread pool.
 [target.'cfg(target_os = "macos")'.dependencies]
-llama-cpp-2 = { version = "0.1.145", default-features = false }
+llama-cpp-2 = { version = "0.1.155", default-features = false }
 
 # GPU probing is only relevant off macOS (Metal is assumed via `cfg!(target_os)`).
 # `nvml-wrapper` dynamically loads `libnvidia-ml`; absent driver => clean error.
 # `ash` dynamically loads the Vulkan loader; absent loader => clean error.
 # Neither links system libs at build time, so they're safe to keep unconditional.
 [target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
-llama-cpp-2 = { version = "0.1.145", default-features = false }
+llama-cpp-2 = { version = "0.1.155", default-features = false }
 nvml-wrapper = "0.10"
 ash = "0.38"
 

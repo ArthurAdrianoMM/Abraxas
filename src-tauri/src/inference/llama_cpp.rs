@@ -247,9 +247,14 @@ fn load_model_blocking(
     gpu_layers: u32,
 ) -> Result<Arc<LlamaModel>, InferenceError> {
     // With both CUDA and Vulkan compiled in (Windows/Linux), llama.cpp's ggml
-    // registry picks devices by registration order. Precise CUDA-vs-Vulkan
-    // filtering via `with_devices` remains deferred until llama-cpp-2 exposes a
-    // stable device-enumeration API.
+    // registry picks devices by registration order.
+    //
+    // As of 0.1.155 the enumeration API this used to wait on does exist —
+    // `list_llama_ggml_backend_devices()` plus `LlamaModelParams::with_devices`.
+    // Wiring it up is deliberately not part of this version bump: under
+    // ADR 0001 ggml's own scoring becomes the thing that selects a backend, and
+    // explicit device pinning is a decision to make there, with the backends
+    // loaded dynamically, not here.
     let params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
     let model = LlamaModel::load_from_file(backend, path, &params)?;
     Ok(Arc::new(model))
@@ -284,7 +289,7 @@ where
     }
     ctx.decode(&mut batch)?;
 
-    let mut sampler = build_sampler(&params.sampling);
+    let mut sampler = build_sampler(model.n_vocab(), &params.sampling);
     let mut decoder = encoding_rs::UTF_8.new_decoder();
     let mut n_cur = batch.n_tokens();
     let mut stop = StopReason::MaxTokens;
@@ -326,11 +331,17 @@ fn add_bos_for(policy: BosPolicy) -> AddBos {
 /// Build a sampler chain matching llama.cpp's standard pipeline:
 ///   penalties → top-k → top-p → temperature → dist (final picker).
 /// `temperature == 0` collapses the chain to repetition-aware greedy.
-fn build_sampler(s: &crate::chat::SamplingParams) -> LlamaSampler {
+///
+/// `n_vocab` comes from the loaded model and is only consumed by the penalties
+/// stage, which takes it as its first argument since llama-cpp-2 0.1.146. It is
+/// passed in rather than derived from a `&LlamaModel` so this stays a pure
+/// function of the sampling params.
+fn build_sampler(n_vocab: i32, s: &crate::chat::SamplingParams) -> LlamaSampler {
     let mut stages: Vec<LlamaSampler> = Vec::new();
 
     if s.repeat_penalty > 1.0 && s.repeat_last_n != 0 {
         stages.push(LlamaSampler::penalties(
+            n_vocab,
             s.repeat_last_n,
             s.repeat_penalty,
             0.0, // frequency_penalty
