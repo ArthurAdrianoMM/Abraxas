@@ -555,6 +555,46 @@ One question this leaves open, answerable only from a CUDA build: whether
 never loads on a machine without the toolkit, and the module has to travel with
 its runtime beside it. §9.
 
+#### 5.5.1. Answered 2026-09-02 by the v0.1.5 release, which reverses both calls
+
+The CUDA build exists now, and it answered the open question the hard way: the
+Linux job of the v0.1.5 release compiled for 73 minutes, produced a correct
+`.deb`, and then died in `linuxdeploy` with nothing but
+`failed to run linuxdeploy` — `tauri-bundler` discards the subprocess's stderr
+unless `--verbose` raises the log level
+(`crates/tauri-bundler/src/bundle/linux/appimage/linuxdeploy.rs`). No Linux
+artifact reached the release; Windows and macOS shipped normally.
+
+`ggml/src/ggml-cuda/CMakeLists.txt` links `CUDA::cuda_driver` (and, dynamically,
+`CUDA::cudart` + `CUDA::cublas`), so `libggml-cuda.so` carries
+`DT_NEEDED libcuda.so.1`. That library belongs to the NVIDIA driver and is
+absent from a GPU-less CI runner — only the toolkit's
+`lib64/stubs/libcuda.so` exists, under the wrong SONAME and outside
+`LD_LIBRARY_PATH`. linuxdeploy resolves the `DT_NEEDED` set of every ELF in the
+AppDir and treats an unresolved one as fatal — the same failure class §5.3.4's
+`$ORIGIN` rpath fixes for `libggml-base.so.0`, except this one has no rpath
+answer: the driver library cannot ship inside the bundle without shadowing the
+host's at runtime.
+
+So the answer to the open question is *yes, and worse*: `libggml-cuda.so` needs
+`libcudart.so.12` and `libcublas.so.12` — ~700 MB, neither shipped with any
+NVIDIA driver — plus the driver's own `libcuda.so.1`. A casual Linux user has
+none of the three, so the module would `dlopen`-fail and fall through to Vulkan
+regardless. **The Linux release therefore builds `--features vulkan` only**
+(`release.yml`), and NVIDIA on Linux runs on Vulkan via the ICD the driver
+already installs. Windows keeps `cuda,vulkan`; macOS keeps `metal`. §1.1's table
+records the state before this change.
+
+That also reverses this section's argument against `libvulkan1` in
+`deb.depends`. The reasoning held while Vulkan was one accelerator among
+several: a module that fails to `dlopen` costs the user nothing but speed. With
+CUDA gone from the Linux build, Vulkan *is* the GPU path, and a silent fall back
+to CPU is the difference between the app working and the app being unusable on a
+mid-range GPU. `libvulkan1` is a ~150 KB loader in Ubuntu `main` that Mesa
+already pulls onto essentially every desktop install, so the hard dependency
+costs approximately nothing — which is exactly why the original trade-off
+flipped.
+
 ---
 
 ## 6. Open questions — resolved 2026-09-02

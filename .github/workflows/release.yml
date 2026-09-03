@@ -111,12 +111,37 @@ jobs:
             # o CMake do llama.cpp morre em "No CUDA toolset found".
             os: windows-2022
             args: --features cuda,vulkan --bundles nsis,msi
-          - name: Linux (CUDA + Vulkan)
+          - name: Linux (Vulkan)
             # 22.04, nao `ubuntu-latest`: o AppImage herda a glibc do runner que
             # o produziu. Compilado no 24.04 (glibc 2.39) ele nao abre em Ubuntu
             # 22.04 nem Debian 12 — exatamente as distros do usuario casual.
             os: ubuntu-22.04
-            args: --features cuda,vulkan --bundles deb,appimage
+            #
+            # Sem `cuda` aqui, ao contrario do Windows: o `libggml-cuda.so`
+            # carrega `DT_NEEDED libcuda.so.1` (o `ggml-cuda/CMakeLists.txt`
+            # linka `CUDA::cuda_driver`), que vem do driver NVIDIA e nao existe
+            # no runner — so o stub `lib64/stubs/libcuda.so`, com o nome errado
+            # e fora do `LD_LIBRARY_PATH`. O linuxdeploy resolve o `DT_NEEDED`
+            # de todo ELF do AppDir e trata dependencia ausente como erro fatal
+            # (mesma classe de falha que o `$ORIGIN` do build.rs resolve pro
+            # `libggml-base.so.0`, so que esta nao tem conserto por rpath: a
+            # lib do driver nao pode entrar no bundle, sob pena de sombrear a
+            # do sistema em runtime). Foi assim que a v0.1.5 morreu depois de
+            # 73 min de build, com o `.deb` ja pronto e descartado junto.
+            #
+            # Nem seria util resolver: o `ggml-cuda` tambem precisa de
+            # `libcudart.so.12` e `libcublas.so.12` na maquina do usuario, que
+            # nao vem com driver NVIDIA nenhum e somam ~700 MB se bundladas.
+            # Usuario casual nao tem CUDA Toolkit instalado, entao o `dlopen`
+            # do modulo falharia e o ggml cairia no Vulkan de qualquer forma —
+            # que e o que passa a ser escolhido direto. NVIDIA no Linux
+            # continua com GPU: o driver traz o ICD Vulkan.
+            #
+            # `--verbose` porque o `tauri-bundler` engole o stderr do
+            # linuxdeploy quando o log level e Error e reporta so
+            # "failed to run linuxdeploy" — foi o que custou um ciclo inteiro
+            # de release pra diagnosticar. Espelha o `ci.yml`.
+            args: --verbose --features vulkan --bundles deb,appimage
     runs-on: ${{ matrix.os }}
     # nvcc com a lista completa de arquiteturas e o gargalo; o default de 6h e
     # generoso demais pra um job travado.
@@ -161,10 +186,10 @@ jobs:
             libfuse2 \
             patchelf
 
-      # Instalacao do CUDA espelha o ci.yml, inclusive os workarounds:
-      # `visual_studio_integration` no Windows (senao o CMake nao acha o toolset
-      # CUDA do VS2022) e cuBLAS via apt no Linux (os aliases da action apontam
-      # pros nomes antigos `cuda-cublas-*`).
+      # Instalacao do CUDA espelha o ci.yml, inclusive o workaround do
+      # `visual_studio_integration` (senao o CMake nao acha o toolset CUDA do
+      # VS2022). So no Windows: o Linux nao compila mais o backend CUDA (ver o
+      # comentario da matrix).
       - name: Install CUDA Toolkit (Windows)
         if: matrix.os == 'windows-2022'
         uses: Jimver/cuda-toolkit@v0.2.21
@@ -172,18 +197,6 @@ jobs:
           cuda: '12.8.0'
           method: 'network'
           sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
-
-      - name: Install CUDA Toolkit (Linux)
-        if: matrix.os == 'ubuntu-22.04'
-        uses: Jimver/cuda-toolkit@v0.2.21
-        with:
-          cuda: '12.8.0'
-          method: 'network'
-          sub-packages: '["nvcc", "cudart"]'
-
-      - name: Install cuBLAS (Linux)
-        if: matrix.os == 'ubuntu-22.04'
-        run: sudo apt-get install -y libcublas-12-8 libcublas-dev-12-8
 
       # `1.4.357.0` pelo mesmo motivo do ci.yml: o llama.cpp do `llama-cpp-2`
       # 0.1.155 exige `find_package(SPIRV-Headers CONFIG REQUIRED)` e o SDK
@@ -217,7 +230,7 @@ jobs:
           echo "SPIRV-Headers CMake package: $found"
 
       - name: Set CUDA build flags
-        if: matrix.os != 'macos-latest'
+        if: matrix.os == 'windows-2022'
         # O ci.yml usa `75-real` (uma arquitetura) so pra provar que compila e
         # linka. Num release precisamos de cobertura real de GPU — mas nao da
         # lista inteira: `61;70;75;80;86;89;90` gera cubin *e* PTX pra cada uma
@@ -245,18 +258,21 @@ jobs:
         # Mexer numa lista sem mexer na outra e bug: elas sao um par.
         #
         # CMAKE_POSITION_INDEPENDENT_CODE: os objetos `.cu` do llama.cpp sao
-        # compilados sem -fPIC por default e o link do executavel (PIE, no
-        # Linux) falha com "relocation R_X86_64_PC32 cannot be used against
-        # symbol 'stderr'; recompile with -fPIC". O CMake traduz isso pra
-        # `-Xcompiler=-fPIC` no nvcc. O `build.rs` do llama-cpp-sys-2 repassa
-        # qualquer variavel de ambiente `CMAKE_*` como `-D` pro CMake.
+        # compilados sem -fPIC por default. Nasceu como conserto do link no
+        # Linux, que e PIE e falhava com "relocation R_X86_64_PC32 cannot be
+        # used against symbol 'stderr'; recompile with -fPIC"; fica aqui
+        # porque o `dynamic-backends` monta o `ggml-cuda` como biblioteca
+        # compartilhada, que exige codigo PIC em qualquer OS. O CMake traduz
+        # isso pra `-Xcompiler=-fPIC` no nvcc, e o `build.rs` do
+        # llama-cpp-sys-2 repassa qualquer variavel de ambiente `CMAKE_*` como
+        # `-D` pro CMake.
         shell: bash
         run: |
           echo "CMAKE_CUDA_ARCHITECTURES=61-real;75-real;86-real;89-real;120-real;90-virtual" >> "$GITHUB_ENV"
           echo "CMAKE_POSITION_INDEPENDENT_CODE=ON" >> "$GITHUB_ENV"
 
       - name: Check nvcc supports every arch in the list
-        if: matrix.os != 'macos-latest'
+        if: matrix.os == 'windows-2022'
         # Roda em ~5s e falha cedo. `sm_120` (Blackwell) exige nvcc >= 12.8: se
         # o toolkit for repinado pra baixo, ou uma arquitetura nova entrar na
         # lista antes de o compilador conhece-la, sem este passo a descoberta

@@ -72,16 +72,31 @@ O sistema seleciona automaticamente o backend de inferência baseado no hardware
 | Hardware detectado | Backend selecionado |
 |--------------------|---------------------|
 | Mac com Apple Silicon | **Metal** (sempre) |
-| Qualquer OS com GPU NVIDIA compatível com CUDA | **CUDA** |
+| Windows com GPU NVIDIA compatível com CUDA | **CUDA** |
+| Linux com GPU NVIDIA | **Vulkan** (ver exceção abaixo) |
 | Windows/Linux com GPU AMD, Intel, ou outra com suporte a Vulkan | **Vulkan** |
 | Sem GPU compatível ou detecção falha | **CPU** (fallback) |
 
 **Regras explícitas:**
 
-- Se o PC do usuário tem uma placa que suporta CUDA, o sistema **deve** usar CUDA.
+- Se o PC do usuário tem uma placa que suporta CUDA, o sistema **deve** usar CUDA — no Windows.
 - Se o PC do usuário tem GPU que suporta apenas Vulkan (AMD/Intel), o sistema **deve** usar Vulkan.
 - Em Mac com Apple Silicon, Metal é sempre o backend escolhido.
 - A seleção é automática e invisível pro usuário. Não há tela pedindo pro usuário escolher backend.
+
+**Exceção do Linux — por que CUDA não é embarcado lá:**
+
+O instalador Linux não carrega o backend CUDA, e usuários NVIDIA no Linux rodam
+em Vulkan. Motivo: `libggml-cuda.so` depende de `libcuda.so.1` (do driver),
+`libcudart.so.12` e `libcublas.so.12` (do CUDA Toolkit, ~700 MB, e que nenhum
+driver NVIDIA instala). O usuário-alvo da seção 1.4 não tem CUDA Toolkit, então
+o módulo falharia no `dlopen` e cairia em Vulkan de qualquer forma; e o
+empacotamento do AppImage nem chega lá — o `linuxdeploy` percorre o `DT_NEEDED`
+de todo ELF do AppDir e aborta na primeira dependência não resolvida, que foi
+como a v0.1.5 saiu sem nenhum artefato Linux. O driver NVIDIA do Linux instala o
+ICD Vulkan, então a GPU continua sendo usada. Custo: os 10-15% de CUDA sobre
+Vulkan, para usuários NVIDIA no Linux. Detalhes em
+[ADR 0001 §5.5.1](docs/decisions/0001-dynamic-backend-loading.md).
 
 **Racional da estratégia:**
 
@@ -93,7 +108,8 @@ Os backends de GPU são expostos como Cargo features opt-in (`cuda`, `vulkan`, `
 
 Builds de produção / release ligam o combo completo via CI (`.github/workflows/ci.yml`):
 
-- **Windows + Linux**: `--features cuda,vulkan` — exige CUDA Toolkit (`CUDA_PATH`) e Vulkan SDK (`VULKAN_SDK`) no runner. Resulta em um único instalador por OS que escolhe o backend em runtime conforme o hardware. Aumenta o build em ~5-10 minutos e o tamanho final em 500MB-1GB. Custo aceito.
+- **Windows**: `--features cuda,vulkan` — exige CUDA Toolkit (`CUDA_PATH`) e Vulkan SDK (`VULKAN_SDK`) no runner. Resulta em um único instalador que escolhe o backend em runtime conforme o hardware. Aumenta o build em ~5-10 minutos e o tamanho final em 500MB-1GB. Custo aceito.
+- **Linux**: `--features vulkan` — só o Vulkan SDK (`VULKAN_SDK`). Ver a exceção do Linux acima.
 - **macOS**: `--features metal` — usa frameworks Metal/MetalKit/Accelerate que vêm com Xcode. Sem dep extra.
 
 Devs locais não precisam ter todos os SDKs instalados. Quem tem só NVIDIA roda `cargo build --features cuda`; quem tem só AMD/Intel roda `cargo build --features vulkan`. Detalhes no [README.md](README.md) seção "Building from source".

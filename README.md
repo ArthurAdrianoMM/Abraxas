@@ -16,7 +16,8 @@ GPU backends are opt-in Cargo features. Pick the one(s) your hardware supports �
 | AMD / Intel GPU | `cargo build --features vulkan` | [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/) **1.4.357.0 or newer** (sets `VULKAN_SDK`) |
 | Apple Silicon | `cargo build --features metal` | Xcode (Metal frameworks ship with it) |
 | CPU only / fresh clone smoke test | `cargo build` | Nothing — CPU fallback works without SDKs |
-| Production-equivalent (Win/Linux) | `cargo build --features cuda,vulkan` | Both CUDA Toolkit and Vulkan SDK |
+| Production-equivalent (Windows) | `cargo build --features cuda,vulkan` | Both CUDA Toolkit and Vulkan SDK |
+| Production-equivalent (Linux) | `cargo build --features vulkan` | Vulkan SDK only — see below |
 
 Run all `cargo` commands from the `src-tauri/` directory, or pass `--manifest-path src-tauri/Cargo.toml`.
 
@@ -30,7 +31,16 @@ SDK the build dies in `llama-cpp-sys-2`'s build script with *"Could not find a
 package configuration file provided by SPIRV-Headers"*. On Debian/Ubuntu the
 distro `spirv-headers` package satisfies the same check.
 
-The shipped installers (downloaded from GitHub Releases) always include the full per-OS combo — end users never need to install anything.
+**Why the Linux release has no CUDA.** `libggml-cuda.so` needs `libcuda.so.1`
+(NVIDIA driver), `libcudart.so.12` and `libcublas.so.12` (CUDA Toolkit, ~700 MB,
+shipped with no driver). An end user has none of them, so the module would fail
+to `dlopen` and fall through to Vulkan anyway — and AppImage packaging never
+gets that far, since `linuxdeploy` aborts on the first unresolved `DT_NEEDED` in
+the AppDir. NVIDIA cards on Linux run on Vulkan through the ICD the driver
+installs. Full reasoning in
+[ADR 0001 §5.5.1](docs/decisions/0001-dynamic-backend-loading.md).
+
+The shipped installers (downloaded from GitHub Releases) include the full per-OS combo — end users never need to install anything.
 
 ### Frontend
 

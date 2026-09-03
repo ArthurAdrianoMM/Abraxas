@@ -11,8 +11,9 @@
 //! we short-circuit to `Metal` via `cfg!(target_os)` without linking the
 //! other probes.
 //!
-//! A detected NVIDIA GPU is only *reported* as `Cuda` when the release build
-//! carries kernels for it — see `ComputeCapability::has_cuda_kernel`. Otherwise
+//! A detected NVIDIA GPU is only *reported* as `Cuda` when this build actually
+//! has a CUDA backend — the `cuda` Cargo feature on, and a shipped cubin for
+//! that compute capability (`ComputeCapability::has_cuda_kernel`). Otherwise
 //! the probe falls through to Vulkan, which every NVIDIA driver ships an ICD
 //! for. Reported, and nothing more: what ggml then runs on is ggml's decision,
 //! not this module's (ADR 0001 §4.2).
@@ -62,6 +63,9 @@ impl ComputeCapability {
     /// two lists in step: this one decides what the app *tells the user* it is
     /// about to use, and a stale copy makes it promise CUDA for hardware whose
     /// kernels were never shipped.
+    ///
+    /// Only reached when the `cuda` feature is on, so it says nothing about the
+    /// Linux release, which has no CUDA backend at all (ADR 0001 §5.5.1).
     ///
     /// It does **not** prevent the "no kernel image is available for execution
     /// on the device" crash, despite what this comment used to claim. The enum
@@ -130,15 +134,28 @@ pub fn detect() -> GpuBackend {
 
     #[cfg(not(target_os = "macos"))]
     {
-        // Discard a CUDA GPU this build has no kernel for and keep probing:
-        // NVML saw the card and the driver is fine, so Vulkan — not CPU — is
-        // the right answer, and that is the next probe in line.
+        // Discard a CUDA GPU this build cannot serve and keep probing: NVML saw
+        // the card and the driver is fine, so Vulkan — not CPU — is the right
+        // answer, and that is the next probe in line.
+        //
+        // Two ways it cannot serve one. The `cuda` feature may be off entirely,
+        // which is the case for every Linux release build and for a bare
+        // `cargo build` (CLAUDE.md §2.4); or it is on but ships no cubin for
+        // this compute capability. Either way reporting `Cuda` would name a
+        // backend that is not in the binary.
         let cuda = nvml::probe().filter(|gpu| match gpu {
             GpuBackend::Cuda {
                 name,
                 compute_capability,
                 ..
             } => {
+                if !cfg!(feature = "cuda") {
+                    tracing::info!(
+                        gpu = %name,
+                        "NVIDIA GPU found, but this build has no CUDA backend; using Vulkan",
+                    );
+                    return false;
+                }
                 let usable = compute_capability.has_cuda_kernel();
                 if !usable {
                     tracing::warn!(
