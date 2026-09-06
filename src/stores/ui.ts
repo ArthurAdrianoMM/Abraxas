@@ -53,6 +53,12 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   initScreen: async () => {
     if (get().screen !== "boot") return;
+    // Dev-only: `VITE_FORCE_ONBOARDING=1 pnpm tauri dev` replays the first run
+    // without touching the real settings or data on this machine.
+    if (import.meta.env.DEV && import.meta.env.VITE_FORCE_ONBOARDING === "1") {
+      set({ screen: "onboarding" });
+      return;
+    }
     try {
       await useSettingsStore.getState().init();
       if (useSettingsStore.getState().settings?.onboarding_complete) {
