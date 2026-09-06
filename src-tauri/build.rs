@@ -23,8 +23,22 @@ fn main() {
 /// one that reaches it through `llama-cpp-2`.
 fn stage_ggml_runtime() {
     println!("cargo:rerun-if-env-changed=DEP_LLAMA_BACKENDS_DIR");
-    let Ok(backends) = std::env::var("DEP_LLAMA_BACKENDS_DIR") else {
-        return;
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let dynamic = matches!(target_os.as_str(), "windows" | "linux");
+    let backends = match std::env::var("DEP_LLAMA_BACKENDS_DIR") {
+        Ok(backends) => backends,
+        // Fail here instead of letting `tauri_build::build()` die further down
+        // on `glob pattern ggml-runtime/* path not found`, which says nothing
+        // about the cause. Cargo only passes `DEP_*` to the build script of a
+        // crate that depends on the `links` crate directly, so the way this
+        // breaks is `llama-cpp-sys-2` ceasing to be a direct dependency here.
+        Err(_) if dynamic => panic!(
+            "DEP_LLAMA_BACKENDS_DIR is unset on {target_os}, where llama-cpp-2 builds with \
+             `dynamic-backends`. Check that `llama-cpp-sys-2` is still a direct dependency of \
+             this crate on this target in Cargo.toml."
+        ),
+        // Static build (macOS): nothing to stage.
+        Err(_) => return,
     };
 
     let backends = PathBuf::from(backends);
@@ -33,7 +47,7 @@ fn stage_ggml_runtime() {
     let out_dir = backends
         .parent()
         .expect("DEP_LLAMA_BACKENDS_DIR should have a parent");
-    let windows = std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows");
+    let windows = target_os == "windows";
     let shared_libs = out_dir.join(if windows { "bin" } else { "lib" });
 
     let dest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"))

@@ -75,6 +75,23 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 # in llama-cpp-rs).
 encoding_rs = "0.8"
 
+# The raw ggml/llama C API, used directly where `llama-cpp-2` has no safe
+# wrapper: header-only GGUF inspection (`models/gguf.rs`) and rendering a
+# model's embedded chat template (`chat/embedded.rs`).
+#
+# It has to stay in this unconditional block, and not move down to a
+# `[target.…]` one: on Windows/Linux this entry is also what makes Cargo hand
+# `build.rs` the `DEP_LLAMA_BACKENDS_DIR` pointing at the backend modules,
+# which it only passes to the build script of a crate that depends on the
+# `links` crate *directly* — reaching it through `llama-cpp-2` is not enough.
+# Without it `build.rs` stages nothing and `tauri.{linux,windows}.conf.json`
+# dies on `glob pattern ggml-runtime/* path not found`.
+#
+# `default-features = false` keeps `common` off, matching `llama-cpp-2`; the
+# `dynamic-backends` feature arrives via the `llama-cpp-2` entry below, since
+# Cargo unions features across dependents.
+llama-cpp-sys-2 = { version = "0.1.155", default-features = false }
+
 # `raw-cpuid` issues the x86 `CPUID` instruction, so it only builds on x86
 # targets. Gating it here keeps aarch64 (Apple Silicon, ARM Linux) building.
 [target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dependencies]
@@ -95,13 +112,6 @@ raw-cpuid = "11"
 # (Android-only). The CPU fallback uses llama.cpp's internal std::thread pool.
 [target.'cfg(target_os = "macos")'.dependencies]
 llama-cpp-2 = { version = "0.1.155", default-features = false }
-# The raw ggml/llama C API, used directly where `llama-cpp-2` has no safe
-# wrapper: header-only GGUF inspection (`models/gguf.rs`) and rendering a
-# model's embedded chat template (`chat/embedded.rs`). On Windows/Linux it is
-# also what hands `build.rs` the `DEP_LLAMA_BACKENDS_DIR` of the backend
-# modules (see below). `default-features = false` keeps `common` off,
-# matching `llama-cpp-2`.
-llama-cpp-sys-2 = { version = "0.1.155", default-features = false }
 
 # GPU probing is only relevant off macOS (Metal is assumed via `cfg!(target_os)`).
 # `nvml-wrapper` dynamically loads `libnvidia-ml`; absent driver => clean error.
