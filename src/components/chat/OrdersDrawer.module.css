@@ -23,7 +23,7 @@
   top: 0;
   bottom: 0;
   right: 0;
-  width: 480px;
+  width: 30rem;
   max-width: 96vw;
   z-index: 9;
   background: var(--bg-2);
@@ -35,7 +35,7 @@
 }
 @keyframes drawer-in {
   from {
-    transform: translateX(24px);
+    transform: translateX(1.5rem);
     opacity: 0;
   }
   to {
@@ -45,20 +45,20 @@
 }
 
 .head {
-  padding: 22px 28px 18px;
+  padding: 1.375rem 1.75rem 1.125rem;
   border-bottom: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.5rem;
   flex-shrink: 0;
 }
 .kicker {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 0.875rem;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--mute);
@@ -69,8 +69,8 @@
 .close {
   background: transparent;
   border: 0;
-  width: 24px;
-  height: 24px;
+  width: 1.5rem;
+  height: 1.5rem;
   color: var(--mute);
   cursor: pointer;
   display: flex;
@@ -87,7 +87,7 @@
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 28px;
+  font-size: 1.75rem;
   line-height: 1.15;
   color: var(--ink);
   margin: 0;
@@ -97,7 +97,7 @@
 .convName {
   font-family: var(--serif);
   font-style: italic;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--ink-3);
 }
 .convName b {
@@ -105,28 +105,28 @@
   font-style: italic;
   font-weight: 500;
   color: var(--ink-2);
-  font-size: 16px;
-  margin-right: 4px;
+  font-size: 1rem;
+  margin-right: 0.25rem;
 }
 
 .body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 18px 28px 24px;
+  padding: 1.125rem 1.75rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 1.5rem;
 }
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0.75rem;
 }
 .sectionName {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--brass);
@@ -134,21 +134,21 @@
 .sectionGloss {
   font-family: var(--serif);
   font-style: italic;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
   color: var(--mute);
   margin: 0;
 }
 .sectionHead {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 0;
+  gap: 0.5rem;
+  padding: 0.625rem 0;
   border-bottom: 1px solid var(--line);
 }
 .field:last-child {
@@ -158,11 +158,11 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 14px;
+  gap: 0.875rem;
 }
 .label {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--ink-3);
@@ -173,14 +173,14 @@
 .inherit {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   cursor: pointer;
   background: transparent;
   border: 0;
   padding: 0;
   font-family: var(--serif);
   font-style: italic;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--mute);
   transition: color 0.15s;
 }
@@ -188,8 +188,8 @@
   color: var(--brass);
 }
 .checkbox {
-  width: 13px;
-  height: 13px;
+  width: 0.8125rem;
+  height: 0.8125rem;
   border: 1px solid var(--line-2);
   border-radius: 2px;
   display: inline-flex;
@@ -203,8 +203,8 @@
 }
 .inheritOn .checkbox::after {
   content: "";
-  width: 5px;
-  height: 5px;
+  width: 0.3125rem;
+  height: 0.3125rem;
   background: var(--brass);
   border-radius: 1px;
 }
@@ -216,14 +216,14 @@
 .sliderRow {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0.375rem;
 }
 .sliderTop {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   letter-spacing: 0.18em;
   color: var(--mute-2);
   text-transform: uppercase;
@@ -232,7 +232,7 @@
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 20px;
+  font-size: 1.25rem;
   color: var(--ink-2);
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -242,11 +242,11 @@
 .readingVs {
   font-family: var(--mono);
   font-style: normal;
-  font-size: 9px;
+  font-size: 0.5625rem;
   color: var(--mute-2);
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  margin-left: 8px;
+  margin-left: 0.5rem;
 }
 .sliderTrack {
   position: relative;
@@ -257,12 +257,12 @@
   touch-action: none;
   /* widen the hit area without changing the visual line */
   background-clip: content-box;
-  padding: 6px 0;
+  padding: 0.375rem 0;
 }
 .sliderFill {
   position: absolute;
   left: 0;
-  top: 6px;
+  top: 0.375rem;
   height: 2px;
   background: var(--brass);
   opacity: 0.6;
@@ -270,9 +270,9 @@
 }
 .sliderThumb {
   position: absolute;
-  top: 7px;
-  width: 10px;
-  height: 10px;
+  top: 0.4375rem;
+  width: 0.625rem;
+  height: 0.625rem;
   border-radius: 50%;
   background: var(--bg);
   border: 1.5px solid var(--brass);
@@ -283,12 +283,12 @@
 .numBox {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
   border: 1px solid var(--line-2);
   border-radius: 4px;
-  padding: 8px 12px;
+  padding: 0.5rem 0.75rem;
   background: var(--bg-3);
-  max-width: 240px;
+  max-width: 15rem;
 }
 .numBox input {
   flex: 1;
@@ -298,7 +298,7 @@
   outline: none;
   color: var(--ink);
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
 }
 .numBox input::placeholder {
@@ -307,7 +307,7 @@
 }
 .numUnit {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mute-2);
@@ -316,12 +316,12 @@
 .foot {
   flex-shrink: 0;
   border-top: 1px solid var(--line);
-  padding: 14px 28px 16px;
+  padding: 0.875rem 1.75rem 1rem;
   background: var(--bg-2);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 14px;
+  gap: 0.875rem;
 }
 .verbLink {
   background: transparent;
@@ -329,9 +329,9 @@
   color: var(--mute);
   font-family: var(--serif);
   font-style: italic;
-  font-size: 14px;
+  font-size: 0.875rem;
   cursor: pointer;
-  padding: 4px 2px;
+  padding: 0.25rem 2px;
   letter-spacing: 0.01em;
   transition: color 0.15s;
 }
@@ -342,24 +342,24 @@
   background: transparent;
   border: 1px solid var(--bordeaux);
   color: var(--brass);
-  padding: 9px 16px;
+  padding: 0.5625rem 1rem;
   font-family: var(--serif);
   font-style: italic;
-  font-size: 14px;
+  font-size: 0.875rem;
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, gap 0.15s;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
 }
 .applyBtn:hover {
   background: var(--bordeaux);
   color: var(--ink);
-  gap: 14px;
+  gap: 0.875rem;
 }
 
-@media (max-width: 540px) {
+@media (max-width: 405px) {
   .drawer {
     width: 100vw;
   }

@@ -32,26 +32,26 @@
   position: absolute;
   z-index: 5;
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   color: var(--mute-2);
   letter-spacing: 0.22em;
   text-transform: uppercase;
   pointer-events: none;
 }
 .cornerTl {
-  top: 22px;
-  left: 28px;
+  top: 1.375rem;
+  left: 1.75rem;
 }
 .cornerBr {
-  bottom: 20px;
-  right: 28px;
+  bottom: 1.25rem;
+  right: 1.75rem;
   display: flex;
-  gap: 8px;
+  gap: 0.5rem;
   align-items: center;
 }
 .cornerBr :global(.pulse) {
-  width: 5px;
-  height: 5px;
+  width: 0.3125rem;
+  height: 0.3125rem;
 }
 
 .stage {
@@ -60,18 +60,18 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 38px;
-  padding: 0 28px;
-  max-width: 560px;
+  gap: 2.375rem;
+  padding: 0 1.75rem;
+  max-width: 35rem;
   text-align: center;
 }
 
 .markRow {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 0.875rem;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.24em;
   color: var(--mute);
   text-transform: uppercase;
@@ -87,8 +87,8 @@
 /* the seal */
 .seal {
   position: relative;
-  width: 280px;
-  height: 280px;
+  width: 17.5rem;
+  height: 17.5rem;
   display: grid;
   place-items: center;
 }
@@ -154,11 +154,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
 }
 .glyphC {
-  width: 42px;
-  height: 42px;
+  width: 2.625rem;
+  height: 2.625rem;
   animation: breathe 3.2s ease-in-out infinite;
 }
 @keyframes breathe {
@@ -174,7 +174,7 @@
 }
 .sub {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--mute);
@@ -184,7 +184,7 @@
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 42px;
+  font-size: 2.625rem;
   line-height: 1.1;
   color: var(--ink);
   letter-spacing: 0.005em;
@@ -200,29 +200,29 @@
 .labors {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 0.5625rem;
   width: 100%;
-  max-width: 380px;
+  max-width: 23.75rem;
   margin: 2px 0 0;
   padding: 0;
   list-style: none;
 }
 .labor {
   display: grid;
-  grid-template-columns: 14px 1fr auto;
-  gap: 14px;
+  grid-template-columns: 0.875rem 1fr auto;
+  gap: 0.875rem;
   align-items: baseline;
   text-align: left;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 0.65625rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mute-2);
   transition: color 0.4s ease;
 }
 .mark {
-  width: 6px;
-  height: 6px;
+  width: 0.375rem;
+  height: 0.375rem;
   border-radius: 50%;
   background: transparent;
   border: 1px solid var(--line-2);
@@ -231,7 +231,7 @@
 }
 .aside {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   color: var(--mute-2);
   letter-spacing: 0.14em;
 }
@@ -260,41 +260,41 @@
 .chosen {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-top: 4px;
+  gap: 0.875rem;
+  margin-top: 0.25rem;
   font-family: var(--serif);
   font-style: italic;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
   color: var(--mute);
   border-top: 1px solid var(--line);
-  padding-top: 18px;
+  padding-top: 1.125rem;
 }
 .chosen b {
   color: var(--ink-2);
   font-weight: 500;
   font-style: normal;
   font-family: var(--display);
-  font-size: 16px;
+  font-size: 1rem;
   letter-spacing: 0.01em;
 }
 .chosenMono {
   font-family: var(--mono);
   font-style: normal;
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--mute-2);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
   .seal {
-    width: 240px;
-    height: 240px;
+    width: 15rem;
+    height: 15rem;
   }
   .verb {
-    font-size: 34px;
+    font-size: 2.125rem;
   }
   .labors {
-    max-width: 300px;
+    max-width: 18.75rem;
   }
 }

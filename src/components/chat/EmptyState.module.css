@@ -5,24 +5,26 @@
 .empty {
   display: grid;
   place-items: center;
-  overflow: hidden;
+  /* No overflow:hidden here — this element also carries `.thread`, whose
+     overflow-y:auto must win. The seed chips are clickable, so a short window
+     has to be able to scroll to them rather than crop them away. */
 }
 
 .invocation {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 22px;
-  padding: 0 28px;
-  max-width: 540px;
+  gap: 1.375rem;
+  padding: 0 1.75rem;
+  max-width: 33.75rem;
   text-align: center;
   /* nudge optical center up so the composer feels supported by it */
-  margin-top: -32px;
+  margin-top: -2rem;
 }
 
 .glyphWrap {
-  width: 48px;
-  height: 48px;
+  width: 3rem;
+  height: 3rem;
   display: grid;
   place-items: center;
   opacity: 0.92;
@@ -41,7 +43,7 @@
 
 .kicker {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--mute);
@@ -52,7 +54,7 @@
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 42px;
+  font-size: 2.625rem;
   line-height: 1.1;
   color: var(--ink);
   margin: 0;
@@ -66,7 +68,7 @@
 }
 
 .rule {
-  width: 38px;
+  width: 2.375rem;
   height: 1px;
   background: var(--brass);
   opacity: 0.55;
@@ -76,7 +78,7 @@
 .gloss {
   font-family: var(--serif);
   font-style: italic;
-  font-size: 15.5px;
+  font-size: 0.96875rem;
   line-height: 1.55;
   color: var(--ink-3);
   margin: 0;
@@ -88,7 +90,7 @@
 @keyframes fade-up {
   0% {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(0.5rem);
   }
   100% {
     opacity: 1;
@@ -100,17 +102,17 @@
 .seeds {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 14px;
+  gap: 0.625rem;
+  margin-top: 0.875rem;
   width: 100%;
-  max-width: 520px;
+  max-width: 32.5rem;
   animation: fade-up 1.4s ease-out 0.6s both;
 }
 .seed {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
   background: transparent;
   border: 1px solid var(--line-2);
   border-radius: 4px;
@@ -119,7 +121,7 @@
   cursor: pointer;
   font-family: var(--serif);
   font-style: italic;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   line-height: 1.45;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
@@ -132,11 +134,11 @@
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--brass);
   line-height: 1.2;
   flex-shrink: 0;
-  width: 18px;
+  width: 1.125rem;
   letter-spacing: 0.02em;
 }
 .text {
@@ -146,19 +148,19 @@
   font-family: var(--mono);
   font-style: normal;
   font-weight: 500;
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mute);
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 0.25rem;
 }
 
 /* a final, smaller hint below the seeds */
 .belowHint {
-  margin-top: 6px;
+  margin-top: 0.375rem;
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mute-2);
@@ -168,10 +170,23 @@
   font-family: var(--mono);
   border: 1px solid var(--line-2);
   border-radius: 3px;
-  padding: 0 5px;
+  padding: 0 0.3125rem;
   color: var(--ink-3);
   background: #15100f;
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   letter-spacing: 0.04em;
   text-transform: none;
+}
+
+/* Below 675px tall the root scale has hit its 0.75x floor, so the design canvas
+   starts losing height instead of shrinking with it. The invocation tightens
+   its rhythm there so the seed chips stay on screen. */
+@media (max-height: 675px) {
+  .invocation {
+    gap: 1rem;
+    margin-top: -1rem;
+  }
+  .seeds {
+    gap: 0.625rem;
+  }
 }

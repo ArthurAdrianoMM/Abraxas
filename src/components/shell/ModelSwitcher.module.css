@@ -9,9 +9,9 @@
 
 .popover {
   position: absolute;
-  top: 60px;
-  right: 28px;
-  width: 380px;
+  top: 3.75rem;
+  right: 1.75rem;
+  width: 23.75rem;
   z-index: 10;
   background: var(--bg-2);
   border: 1px solid var(--line-2);
@@ -25,7 +25,7 @@
 @keyframes popIn {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(-0.375rem);
   }
   to {
     opacity: 1;
@@ -34,23 +34,23 @@
 }
 
 .head {
-  padding: 14px 16px 10px;
+  padding: 0.875rem 1rem 0.625rem;
   border-bottom: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 14px;
+  gap: 0.875rem;
 }
 .kicker {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--mute);
 }
 .machine {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--mute-2);
@@ -63,21 +63,21 @@
 .list {
   display: flex;
   flex-direction: column;
-  padding: 6px 0;
+  padding: 0.375rem 0;
 }
 .empty {
   font-family: var(--serif);
   font-style: italic;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
   color: var(--mute);
-  padding: 14px 16px;
+  padding: 0.875rem 1rem;
 }
 .item {
   display: grid;
-  grid-template-columns: 22px 1fr auto;
-  gap: 12px;
+  grid-template-columns: 1.375rem 1fr auto;
+  gap: 0.75rem;
   align-items: center;
-  padding: 10px 16px;
+  padding: 0.625rem 1rem;
   cursor: pointer;
   transition: background 0.12s;
   border: 0;
@@ -98,31 +98,31 @@
   border-left-color: var(--bordeaux);
 }
 .itemSeal {
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--brass);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .itemBody {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 0.1875rem;
   min-width: 0;
 }
 .itemNameRow {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 0.625rem;
   min-width: 0;
 }
 .itemName {
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 17px;
+  font-size: 1.0625rem;
   color: var(--ink);
   line-height: 1.1;
   letter-spacing: 0.005em;
@@ -130,7 +130,7 @@
 }
 .itemId {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--mute);
@@ -140,7 +140,7 @@
 }
 .itemMeta {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 0.5625rem;
   letter-spacing: 0.16em;
   color: var(--mute-2);
   text-transform: uppercase;
@@ -157,7 +157,7 @@
 }
 .itemSize {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.14em;
   color: var(--ink-3);
   text-transform: uppercase;
@@ -169,7 +169,7 @@
 }
 .itemNow {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 0.5625rem;
   letter-spacing: 0.18em;
   color: var(--brass);
   text-transform: uppercase;
@@ -179,19 +179,19 @@
 
 .foot {
   border-top: 1px solid var(--line);
-  padding: 6px 0;
+  padding: 0.375rem 0;
 }
 .foot button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 11px 16px;
+  gap: 0.875rem;
+  padding: 0.6875rem 1rem;
   cursor: pointer;
   color: var(--brass);
   font-family: var(--serif);
   font-style: italic;
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   transition: background 0.15s, color 0.15s;
   background: transparent;
   border: 0;
@@ -204,7 +204,7 @@
 }
 .footRight {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 0.5625rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mute);

@@ -2,8 +2,8 @@
 
 .seal {
   position: relative;
-  width: 340px;
-  height: 340px;
+  width: 21.25rem;
+  height: 21.25rem;
   display: grid;
   place-items: center;
 }
@@ -69,14 +69,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   transition: opacity 0.3s ease;
 }
 
 /* slow rotating glyph behind the seal — only during verifying */
 .verifyGlyph {
   position: absolute;
-  inset: 60px;
+  inset: 3.75rem;
   border-radius: 50%;
   border: 1px solid rgba(184, 153, 104, 0.25);
   border-top-color: var(--brass);
@@ -101,7 +101,7 @@
 .seal[data-state="complete"]::after {
   content: "";
   position: absolute;
-  inset: -12px;
+  inset: -0.75rem;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(184, 153, 104, 0.18) 0%, rgba(184, 153, 104, 0) 65%);
   pointer-events: none;
@@ -112,7 +112,7 @@
 .seal[data-state="failed"]::before {
   content: "";
   position: absolute;
-  inset: 8px;
+  inset: 0.5rem;
   border-radius: 50%;
   background: repeating-linear-gradient(
     135deg,
@@ -135,26 +135,26 @@
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 64px;
+  font-size: 4rem;
   line-height: 1;
   color: var(--ink);
   letter-spacing: 0.005em;
   font-variant-numeric: tabular-nums;
 }
 .seal :global(.pct) :global(.sym) {
-  font-size: 32px;
+  font-size: 2rem;
   color: var(--ink-3);
   margin-left: 2px;
   vertical-align: 0.2em;
 }
 .seal :global(.below) {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--mute);
   display: flex;
-  gap: 10px;
+  gap: 0.625rem;
   align-items: center;
 }
 .seal :global(.below) b {
@@ -164,18 +164,18 @@
 }
 
 .seal[data-state="confirm"] :global(.pct) {
-  font-size: 42px;
+  font-size: 2.625rem;
 }
 .seal[data-state="confirm"] :global(.pct) :global(.sym) {
-  font-size: 18px;
+  font-size: 1.125rem;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 810px) {
   .seal {
-    width: 300px;
-    height: 300px;
+    width: 18.75rem;
+    height: 18.75rem;
   }
   .seal :global(.pct) {
-    font-size: 54px;
+    font-size: 3.375rem;
   }
 }

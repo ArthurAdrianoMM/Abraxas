@@ -4,30 +4,30 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 36px 0 24px;
+  padding: 2.25rem 0 1.5rem;
 }
 .inner {
-  max-width: 860px;
+  max-width: 53.75rem;
   margin: 0 auto;
-  padding: 0 36px;
+  padding: 0 2.25rem;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 1.75rem;
 }
 
 /* header */
 .mhead {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-bottom: 6px;
+  gap: 0.625rem;
+  padding-bottom: 0.375rem;
 }
 .kicker {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 0.875rem;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--mute);
@@ -43,7 +43,7 @@
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 40px;
+  font-size: 2.5rem;
   line-height: 1.1;
   color: var(--ink);
   letter-spacing: 0.005em;
@@ -56,10 +56,10 @@
 .gloss {
   font-family: var(--serif);
   font-style: italic;
-  font-size: 15.5px;
+  font-size: 0.96875rem;
   line-height: 1.55;
   color: var(--ink-3);
-  margin: 6px 0 0;
+  margin: 0.375rem 0 0;
   max-width: 54ch;
 }
 
@@ -67,8 +67,8 @@
 .disk {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
   border: 1px solid var(--line-2);
   border-radius: 4px;
   background: rgba(28, 22, 20, 0.25);
@@ -77,11 +77,11 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 14px;
+  gap: 0.875rem;
 }
 .diskLhs {
   font-family: var(--serif);
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--ink-2);
 }
 .diskLhs b {
@@ -90,7 +90,7 @@
 }
 .diskRhs {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mute);
@@ -98,11 +98,11 @@
 .diskFree {
   color: var(--mute);
   font-style: italic;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
 }
 .diskMeter {
   position: relative;
-  height: 3px;
+  height: 0.1875rem;
   background: #1a1311;
   border-radius: 2px;
   overflow: hidden;
@@ -122,18 +122,18 @@
   justify-content: space-between;
   align-items: baseline;
   border-bottom: 1px solid var(--line);
-  padding-bottom: 10px;
+  padding-bottom: 0.625rem;
 }
 .entriesHeadLeft {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--mute-2);
 }
 .entriesHeadRight {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--mute-2);
@@ -147,17 +147,17 @@
 .empty {
   font-family: var(--serif);
   font-style: italic;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--mute);
-  padding: 26px 0;
+  padding: 1.625rem 0;
   border-bottom: 1px solid var(--line);
 }
 .row {
   display: grid;
-  grid-template-columns: 28px 28px 1fr auto;
-  gap: 18px;
+  grid-template-columns: 1.75rem 1.75rem 1fr auto;
+  gap: 1.125rem;
   align-items: flex-start;
-  padding: 20px 0;
+  padding: 1.25rem 0;
   border-bottom: 1px solid var(--line);
   transition: background 0.15s;
 }
@@ -168,23 +168,23 @@
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 16px;
+  font-size: 1rem;
   color: var(--brass);
   opacity: 0.7;
   letter-spacing: 0.04em;
   line-height: 1.4;
 }
 .sealMark {
-  width: 14px;
-  height: 14px;
-  margin-top: 4px;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-top: 0.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .star {
   color: var(--brass);
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1;
 }
 .row[data-loaded="false"] .star {
@@ -194,20 +194,20 @@
 .body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0.375rem;
   min-width: 0;
 }
 .nameRow {
   display: flex;
   align-items: baseline;
-  gap: 14px;
+  gap: 0.875rem;
   flex-wrap: wrap;
 }
 .name {
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 22px;
+  font-size: 1.375rem;
   color: var(--ink);
   line-height: 1.1;
   letter-spacing: 0.005em;
@@ -216,12 +216,12 @@
   content: "desperta";
   font-family: var(--mono);
   font-style: normal;
-  font-size: 9px;
+  font-size: 0.5625rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--brass);
-  margin-left: 12px;
-  padding: 2px 7px;
+  margin-left: 0.75rem;
+  padding: 2px 0.4375rem;
   border: 1px solid rgba(184, 153, 104, 0.45);
   border-radius: 3px;
   vertical-align: middle;
@@ -231,18 +231,18 @@
 .defaultTag {
   font-family: var(--mono);
   font-style: normal;
-  font-size: 9px;
+  font-size: 0.5625rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--brass);
-  padding: 2px 7px;
+  padding: 2px 0.4375rem;
   border: 1px solid rgba(184, 153, 104, 0.45);
   border-radius: 3px;
   vertical-align: middle;
 }
 .id {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--mute);
@@ -250,18 +250,18 @@
 .tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 0.375rem;
   margin-top: 2px;
 }
 .tag {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 0.5625rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-3);
   border: 1px solid var(--line-2);
   border-radius: 3px;
-  padding: 3px 7px;
+  padding: 0.1875rem 0.4375rem;
   background: rgba(28, 22, 20, 0.4);
 }
 .tag b {
@@ -271,11 +271,11 @@
 }
 .meta {
   display: flex;
-  gap: 18px;
+  gap: 1.125rem;
   flex-wrap: wrap;
-  margin-top: 6px;
+  margin-top: 0.375rem;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--mute-2);
@@ -289,14 +289,14 @@
 .rowNotice {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-top: 6px;
-  padding: 8px 12px;
+  gap: 0.75rem;
+  margin-top: 0.375rem;
+  padding: 0.5rem 0.75rem;
   border: 1px solid rgba(125, 34, 51, 0.5);
   border-radius: 4px;
   font-family: var(--serif);
   font-style: italic;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
   color: var(--ink-2);
   background: rgba(125, 34, 51, 0.08);
 }
@@ -305,7 +305,7 @@
   border: 0;
   color: var(--mute);
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   cursor: pointer;
@@ -320,14 +320,14 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: 0.5rem;
   min-width: 0;
 }
 .size {
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 22px;
+  font-size: 1.375rem;
   color: var(--ink-2);
   line-height: 1;
   letter-spacing: 0.01em;
@@ -335,16 +335,16 @@
 }
 .sizeSym {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.18em;
   color: var(--mute);
   text-transform: uppercase;
-  margin-left: 4px;
+  margin-left: 0.25rem;
   vertical-align: 0.18em;
 }
 .verbs {
   display: flex;
-  gap: 14px;
+  gap: 0.875rem;
   align-items: center;
   margin-top: 2px;
 }
@@ -354,9 +354,9 @@
   color: var(--mute);
   font-family: var(--serif);
   font-style: italic;
-  font-size: 13px;
+  font-size: 0.8125rem;
   cursor: pointer;
-  padding: 4px 2px;
+  padding: 0.25rem 2px;
   letter-spacing: 0.01em;
   transition: color 0.15s;
 }
@@ -377,12 +377,12 @@
   color: var(--mute-2);
   opacity: 0.5;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 .confirmLabel {
   font-family: var(--serif);
   font-style: italic;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
 }
 
@@ -391,8 +391,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  padding: 18px 0;
+  gap: 1.125rem;
+  padding: 1.125rem 0;
   border: 0;
   border-bottom: 1px solid var(--line);
   background: transparent;
@@ -409,18 +409,18 @@
 .catalogLeft {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 1.125rem;
   font-family: var(--serif);
   font-style: italic;
-  font-size: 17px;
+  font-size: 1.0625rem;
 }
 .catalogPlus {
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 22px;
+  font-size: 1.375rem;
   color: var(--brass);
-  width: 28px;
+  width: 1.75rem;
   text-align: center;
 }
 .catalogRow:hover .catalogPlus {
@@ -428,26 +428,26 @@
 }
 .catalogRight {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mute-2);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 /* chat-format picker (custom models only) */
 .templateRow {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
   flex-wrap: wrap;
-  margin-top: 8px;
+  margin-top: 0.5rem;
 }
 .templateLabel {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mute-2);
@@ -459,8 +459,8 @@
   color: var(--ink-2);
   font-family: var(--serif);
   font-style: italic;
-  font-size: 13px;
-  padding: 4px 8px;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.5rem;
   cursor: pointer;
   transition: border-color 0.15s;
 }
@@ -476,6 +476,6 @@
 .templateMissing {
   font-family: var(--serif);
   font-style: italic;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--brass);
 }

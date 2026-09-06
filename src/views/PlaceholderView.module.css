@@ -5,7 +5,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 0.875rem;
   opacity: 0.75;
 }
 
@@ -15,7 +15,7 @@
 
 .label {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--mute-2);
@@ -24,6 +24,6 @@
 .note {
   font-family: var(--serif);
   font-style: italic;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--mute);
 }

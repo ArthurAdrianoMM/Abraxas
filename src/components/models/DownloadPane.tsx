@@ -189,7 +189,7 @@ export function DownloadPane() {
               </SealDial>
             ) : phase === "completed" ? (
               <SealDial progress={100} state="complete" showCheck>
-                <div className="below" style={{ marginTop: 62 }}>
+                <div className="below" style={{ marginTop: "3.875rem" }}>
                   <b>{f.gb(totalBytes)} gb</b>
                   {unverified ? "" : ` · ${t.intact}`}
                 </div>

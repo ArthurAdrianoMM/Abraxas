@@ -1,10 +1,17 @@
-/** The Abraxas seal — concentric circles crossed by the vertical axis. */
+/**
+ * The Abraxas seal — concentric circles crossed by the vertical axis.
+ *
+ * `size` is given in design pixels and emitted as rem so the seal rides the
+ * fluid root scale with the rest of the chrome instead of staying frozen at
+ * one size while the window grows.
+ */
 export function AbraxasGlyph({ size = 30 }: { size?: number }) {
   return (
     <svg
       className="glyph"
       width={size}
       height={size}
+      style={{ width: `${size / 16}rem`, height: `${size / 16}rem` }}
       viewBox="0 0 32 32"
       fill="none"
       aria-hidden="true"

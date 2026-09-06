@@ -34,26 +34,26 @@
 /* ============ LEFT LEAF — the ledger ============ */
 .leafL {
   position: relative;
-  padding: 56px 44px 56px 56px;
+  padding: 3.5rem 2.75rem 3.5rem 3.5rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 32px;
+  gap: 2rem;
   overflow: hidden;
   min-width: 0;
 }
 .ledgerStack {
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  max-width: 520px;
+  gap: 1.75rem;
+  max-width: 32.5rem;
 }
 
 .verb {
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 38px;
+  font-size: 2.375rem;
   line-height: 1.1;
   color: var(--ink);
   letter-spacing: 0.005em;
@@ -65,30 +65,30 @@
   border: 1px solid var(--line-2);
   border-left: 1px solid var(--brass);
   border-radius: 4px;
-  padding: 18px 20px 18px 22px;
+  padding: 1.125rem 1.25rem 1.125rem 1.375rem;
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 18px;
+  gap: 1.125rem;
   background: linear-gradient(180deg, rgba(28, 22, 20, 0.3), rgba(15, 11, 10, 0));
 }
 .chosenWho {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
   min-width: 0;
 }
 .chosenName {
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 22px;
+  font-size: 1.375rem;
   color: var(--ink);
   line-height: 1;
 }
 .chosenMono {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.16em;
   color: var(--mute);
   text-transform: uppercase;
@@ -98,10 +98,10 @@
   border: 0;
   font-family: var(--serif);
   font-style: italic;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--mute);
   cursor: pointer;
-  padding: 6px 2px;
+  padding: 0.375rem 2px;
   letter-spacing: 0.01em;
   transition: color 0.15s;
   white-space: nowrap;
@@ -120,22 +120,22 @@
 }
 .entry {
   display: grid;
-  grid-template-columns: 130px 1fr;
-  gap: 18px;
+  grid-template-columns: 8.125rem 1fr;
+  gap: 1.125rem;
   align-items: center;
   background: var(--bg);
-  padding: 13px 4px;
+  padding: 0.8125rem 0.25rem;
 }
 .entryLabel {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mute);
 }
 .entryValue {
   font-family: var(--serif);
-  font-size: 15.5px;
+  font-size: 0.96875rem;
   color: var(--ink-2);
   line-height: 1.35;
   min-width: 0;
@@ -149,7 +149,7 @@
 }
 .entryMono {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 0.75rem;
   letter-spacing: 0.06em;
   color: var(--ink-3);
 }
@@ -160,12 +160,12 @@
 /* ============ RIGHT LEAF — the work ============ */
 .leafR {
   position: relative;
-  padding: 56px 56px 56px 44px;
+  padding: 3.5rem 3.5rem 3.5rem 2.75rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 30px;
+  gap: 1.875rem;
   overflow: hidden;
 }
 
@@ -174,31 +174,31 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 28px;
+  gap: 1.75rem;
 }
 
 .stateCaption {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
   text-align: center;
 }
 .stateBadge {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 0.5625rem;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--mute);
-  padding: 5px 0;
+  padding: 0.3125rem 0;
   transition: color 0.3s ease;
 }
 .stateGlyph {
-  width: 6px;
-  height: 6px;
+  width: 0.375rem;
+  height: 0.375rem;
   border-radius: 50%;
   background: currentColor;
   display: inline-block;
@@ -237,7 +237,7 @@
   font-family: var(--display);
   font-style: italic;
   font-weight: 500;
-  font-size: 20px;
+  font-size: 1.25rem;
   color: var(--ink-2);
   letter-spacing: 0.005em;
   line-height: 1.2;
@@ -249,33 +249,33 @@
 .metrics {
   display: grid;
   grid-template-columns: repeat(3, auto);
-  gap: 30px;
+  gap: 1.875rem;
   align-items: start;
   text-align: center;
 }
 .metric {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 90px;
+  gap: 0.25rem;
+  min-width: 5.625rem;
 }
 .metricK {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 0.59375rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--mute-2);
 }
 .metricV {
   font-family: var(--serif);
-  font-size: 17px;
+  font-size: 1.0625rem;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.005em;
 }
 .metricSub {
   color: var(--mute);
-  font-size: 14px;
+  font-size: 0.875rem;
   margin-left: 2px;
 }
 .metricDim .metricV {
@@ -286,7 +286,7 @@
 .actionsRow {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 0.875rem;
   flex-wrap: wrap;
   justify-content: center;
 }
@@ -294,9 +294,9 @@
   background: transparent;
   border: 1px solid var(--line-2);
   color: var(--ink-3);
-  padding: 12px 22px;
+  padding: 0.75rem 1.375rem;
   font-family: var(--serif);
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   font-style: italic;
   font-weight: 500;
   letter-spacing: 0.01em;
@@ -304,7 +304,7 @@
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
   white-space: nowrap;
   transition: background 0.18s, color 0.18s, border-color 0.18s, opacity 0.18s;
 }
@@ -333,7 +333,7 @@
   display: inline-flex;
 }
 .btnPrimary:hover .btnArrow {
-  transform: translateX(3px);
+  transform: translateX(0.1875rem);
 }
 .btnWarn {
   border-color: rgba(125, 34, 51, 0.5);
@@ -350,14 +350,14 @@
   color: var(--mute);
   font-family: var(--serif);
   font-style: italic;
-  font-size: 14px;
+  font-size: 0.875rem;
   cursor: pointer;
-  padding: 6px 2px;
+  padding: 0.375rem 2px;
   letter-spacing: 0.01em;
   transition: color 0.15s;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
 }
 .ghostLink:hover {
   color: var(--brass);
@@ -366,11 +366,11 @@
 /* recovery banner */
 .recovery {
   position: absolute;
-  top: 28px;
+  top: 1.75rem;
   left: 50%;
   transform: translateX(-50%);
   z-index: 6;
-  padding: 9px 16px;
+  padding: 0.5625rem 1rem;
   border: 1px solid rgba(184, 153, 104, 0.35);
   border-radius: 4px;
   background: rgba(28, 22, 20, 0.7);
@@ -378,11 +378,11 @@
   color: var(--ink-2);
   font-family: var(--serif);
   font-style: italic;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
   letter-spacing: 0.005em;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
   animation: fadeIn 0.45s ease both;
 }
 .recovery svg {
@@ -397,10 +397,10 @@
   border: 0;
   color: var(--mute);
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  margin-left: 8px;
+  margin-left: 0.5rem;
   cursor: pointer;
 }
 .recoveryDismiss:hover {
@@ -409,7 +409,7 @@
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translate(-50%, -6px);
+    transform: translate(-50%, -0.375rem);
   }
   to {
     opacity: 1;
@@ -417,19 +417,19 @@
   }
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 810px) {
   .leafL {
-    padding: 40px 28px 40px 40px;
+    padding: 2.5rem 1.75rem 2.5rem 2.5rem;
   }
   .leafR {
-    padding: 40px 40px 40px 28px;
-    gap: 24px;
+    padding: 2.5rem 2.5rem 2.5rem 1.75rem;
+    gap: 1.5rem;
   }
   .verb {
-    font-size: 32px;
+    font-size: 2rem;
   }
 }
-@media (max-width: 880px) {
+@media (max-width: 660px) {
   .page {
     grid-template-columns: 1fr;
   }
@@ -437,9 +437,9 @@
     display: none;
   }
   .leafL {
-    padding: 40px 28px 16px;
+    padding: 2.5rem 1.75rem 1rem;
   }
   .leafR {
-    padding: 16px 28px 48px;
+    padding: 1rem 1.75rem 3rem;
   }
 }

@@ -450,7 +450,7 @@ export function SettingsView() {
           </Field>
 
           <Field name={t.generation.maxTokens} desc={t.generation.maxTokensDesc}>
-            <div className={styles.ti} style={{ maxWidth: 200 }}>
+            <div className={styles.ti} style={{ maxWidth: "12.5rem" }}>
               <input
                 className={`${styles.tiInput} ${styles.tiNum}`}
                 type="text"
@@ -465,7 +465,7 @@ export function SettingsView() {
           </Field>
 
           <Field name={t.generation.seed} desc={t.generation.seedDesc}>
-            <div className={styles.ti} style={{ maxWidth: 260 }}>
+            <div className={styles.ti} style={{ maxWidth: "16.25rem" }}>
               <input
                 className={`${styles.tiInput} ${styles.tiNum}`}
                 type="text"

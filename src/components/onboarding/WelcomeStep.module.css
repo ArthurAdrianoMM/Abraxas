@@ -1,8 +1,8 @@
 /* Welcome — ported from "Abraxas Welcome.html". */
 
 .welcome {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  min-height: 100%;
   display: grid;
   place-items: center;
   background: radial-gradient(120% 80% at 50% 50%, #100b0a 0%, #080605 65%, #050302 100%);
@@ -45,8 +45,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 34px;
-  padding: 0 28px;
+  gap: 2.125rem;
+  padding: 0 1.75rem;
   text-align: center;
 }
 
@@ -54,11 +54,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 22px;
+  gap: 1.375rem;
 }
 .glyph {
-  width: 88px;
-  height: 88px;
+  width: 5.5rem;
+  height: 5.5rem;
   animation: glyphIn 1.6s ease-out both;
 }
 @keyframes glyphIn {
@@ -73,7 +73,7 @@
 }
 .wordmark {
   font-family: var(--display);
-  font-size: 64px;
+  font-size: 4rem;
   letter-spacing: 0.32em;
   font-weight: 500;
   color: var(--ink);
@@ -85,7 +85,7 @@
 .invocation {
   font-family: var(--serif);
   font-style: italic;
-  font-size: 18px;
+  font-size: 1.125rem;
   line-height: 1.55;
   color: var(--ink-3);
   max-width: 42ch;
@@ -96,7 +96,7 @@
 @keyframes fadeUp {
   0% {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(0.5rem);
   }
   100% {
     opacity: 1;
@@ -105,7 +105,7 @@
 }
 
 .rule {
-  width: 34px;
+  width: 2.125rem;
   height: 1px;
   background: var(--brass);
   opacity: 0.55;
@@ -117,9 +117,9 @@
   background: transparent;
   border: 1px solid var(--line-2);
   color: var(--brass);
-  padding: 14px 26px;
+  padding: 0.875rem 1.625rem;
   font-family: var(--serif);
-  font-size: 17px;
+  font-size: 1.0625rem;
   font-style: italic;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -127,18 +127,18 @@
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
   transition: border-color 0.2s, color 0.2s, background 0.2s, gap 0.2s;
   animation: fadeUp 1.6s ease-out 0.65s both;
 }
 .enterBtn:hover {
   border-color: var(--bordeaux);
   color: var(--ink);
-  gap: 16px;
+  gap: 1rem;
 }
 .arrow {
-  width: 14px;
-  height: 14px;
+  width: 0.875rem;
+  height: 0.875rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -150,12 +150,12 @@
   border: 0;
   cursor: pointer;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mute-2);
-  margin-top: -14px;
-  padding: 4px;
+  margin-top: -0.875rem;
+  padding: 0.25rem;
   transition: color 0.2s;
   animation: fadeUp 1.6s ease-out 0.8s both;
 }
