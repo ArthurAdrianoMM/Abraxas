@@ -22,7 +22,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, State};
 use tauri_specta::Event;
 
-use crate::chat::templates::{bos_policy_for, ChatMessage};
+use crate::chat::templates::ChatMessage;
 use crate::chat::{
     fit_prompt_to_context, resolve_max_completion_tokens, resolve_sampling, ChatGenerationOptions,
     ContextError,
@@ -86,10 +86,11 @@ pub async fn start_generation(
         kind: "Inference".into(),
         message: "no model is loaded; call load_installed_model first".into(),
     })?;
-    let template = loaded.chat_template.ok_or_else(|| CommandError {
-        kind: "Inference".into(),
-        message: "loaded model has no associated chat template; reload via load_installed_model"
-            .into(),
+    // A custom model whose GGUF has no usable embedded template loads fine
+    // but can't chat until the user picks a family (`set_model_chat_template`).
+    let template = loaded.chat_template.clone().ok_or_else(|| CommandError {
+        kind: "NoChatTemplate".into(),
+        message: "loaded model has no chat template; choose one for it in the models view".into(),
     })?;
 
     let options = options.unwrap_or_default();
@@ -116,21 +117,21 @@ pub async fn start_generation(
     let resolved_max_completion =
         resolve_max_completion_tokens(conversation.as_ref(), options.max_completion_tokens);
 
-    // Context budget: cap n_ctx by the catalog's declared model max so we
-    // never request a window the model wasn't trained for.
+    // Context budget: cap n_ctx by the model's declared max so we never
+    // request a window the model wasn't trained for.
     let n_ctx = loaded.context_length.unwrap_or(FALLBACK_N_CTX);
     let completion_budget = resolved_max_completion
         .map(|n| n.max(1) as u32)
         .unwrap_or(DEFAULT_COMPLETION_BUDGET)
         .min(n_ctx.saturating_sub(1));
 
-    let bos_policy = bos_policy_for(template);
+    let bos_policy = template.bos_policy();
     let manager_for_count = Arc::clone(&manager);
     // Fase 5.3: trim oldest non-system messages until the rendered prompt
     // fits the model's context window, using the loaded model's tokenizer
     // for exact counts (no heuristic drift between count and generate).
     let fitted = fit_prompt_to_context(
-        template,
+        &template,
         &messages,
         n_ctx,
         completion_budget,

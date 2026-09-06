@@ -35,6 +35,9 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+# Native file picker for "import a GGUF you already have". Driven from the
+# Rust side (`DialogExt`), so no JS package or ACL entry is needed.
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Fase 3.2: `dyn InferenceBackend` is used by Fase 3.3's manager. Native
@@ -92,6 +95,13 @@ raw-cpuid = "11"
 # (Android-only). The CPU fallback uses llama.cpp's internal std::thread pool.
 [target.'cfg(target_os = "macos")'.dependencies]
 llama-cpp-2 = { version = "0.1.155", default-features = false }
+# The raw ggml/llama C API, used directly where `llama-cpp-2` has no safe
+# wrapper: header-only GGUF inspection (`models/gguf.rs`) and rendering a
+# model's embedded chat template (`chat/embedded.rs`). On Windows/Linux it is
+# also what hands `build.rs` the `DEP_LLAMA_BACKENDS_DIR` of the backend
+# modules (see below). `default-features = false` keeps `common` off,
+# matching `llama-cpp-2`.
+llama-cpp-sys-2 = { version = "0.1.155", default-features = false }
 
 # GPU probing is only relevant off macOS (Metal is assumed via `cfg!(target_os)`).
 # `nvml-wrapper` dynamically loads `libnvidia-ml`; absent driver => clean error.
@@ -109,11 +119,6 @@ llama-cpp-2 = { version = "0.1.155", default-features = false }
 llama-cpp-2 = { version = "0.1.155", default-features = false, features = [
     "dynamic-backends",
 ] }
-# Not used from Rust: it is here so `build.rs` receives `DEP_LLAMA_BACKENDS_DIR`,
-# which Cargo only passes to the build script of a crate that depends on the
-# `links` crate directly. `default-features = false` keeps `common` off, matching
-# the `llama-cpp-2` entry above.
-llama-cpp-sys-2 = { version = "0.1.155", default-features = false }
 nvml-wrapper = "0.10"
 ash = "0.38"
 

@@ -406,6 +406,24 @@ export const pt: Dict = {
     resume: "retomar",
     pause: "pausar",
     awaken: "despertar o modelo",
+    completedUnverified: "completo · sem selo a conferir",
+    backToImport: "voltar aos seus modelos",
+    unknownSize: "tamanho desconhecido",
+
+    invalidGguf: {
+      badge: "vii · não é um modelo",
+      title: "O que chegou não é um modelo.",
+      quiet: "o link respondeu, mas não com um gguf.",
+      gloss: (reason) => (
+        <>
+          Os bytes desceram inteiros, mas o arquivo não abre como GGUF — {reason}. O link pode
+          apontar para uma página, um arquivo-ponteiro ou outro formato. O arquivo foi descartado.
+        </>
+      ),
+      link: "link",
+      retry: "tentar de novo",
+      back: "escolher outro arquivo",
+    },
 
     checksumFailed: {
       badge: "vi · selo não confere",
@@ -444,6 +462,44 @@ export const pt: Dict = {
   },
 
 
+  importPane: {
+    kickerStep: "os seus",
+    kickerSub: "modelos de fora do compêndio",
+    h1Lead: "Traga o seu modelo.",
+    h1Quiet: "um arquivo que você já tem, ou um link em que confia.",
+    gloss:
+      "Qualquer GGUF serve: um arquivo já neste computador, um repositório do Hugging Face ou um link direto. Nada é conferido contra uma soma publicada — você responde pelo que traz.",
+
+    local: {
+      title: "Deste computador",
+      desc: "O arquivo é usado onde está — nada é copiado. Tirá-lo da estante depois deixa o arquivo intacto.",
+      pick: "escolher um arquivo .gguf",
+      importing: "lendo o arquivo…",
+      imported: (name) => `${name} está na estante.`,
+      importedNoTemplate: (name) =>
+        `${name} está na estante — escolha o formato de conversa antes de despertá-lo.`,
+      awaken: "despertar",
+      seeShelf: "ver a estante",
+      failed: "não foi possível trazer o arquivo",
+    },
+
+    link: {
+      title: "De um link",
+      desc: "Cole um repositório do Hugging Face, um arquivo dentro dele, ou um link direto para um .gguf.",
+      placeholder: "huggingface.co/autor/modelo  ·  autor/modelo  ·  https://…/modelo.gguf",
+      resolve: "buscar",
+      resolving: "buscando…",
+      filesHead: (n) => (n === 1 ? "1 arquivo" : `${n} arquivos`),
+      from: (repo) => `em ${repo}`,
+      sizeUnknown: "tamanho desconhecido",
+      split: "arquivo dividido · sem suporte",
+      download: "baixar",
+      installed: "já instalado",
+      busy: "um download por vez — outro modelo já está descendo",
+      failed: "o link não resolveu",
+      hint: "Repositórios com várias quantizações listam todas; as mais leves vêm primeiro.",
+    },
+  },
   manager: {
     kickerStep: "o ateliê",
     kickerSub: "modelos instalados",
@@ -487,6 +543,33 @@ export const pt: Dict = {
     empty: "nenhum codex na estante ainda — o compêndio remoto tem o que baixar.",
     browseCatalog: "procurar no catálogo",
     remoteCatalog: "compêndio remoto",
+    bringYourOwn: "trazer o seu modelo",
+    bringYourOwnSub: "do disco ou de um link",
+    sourceLocal: "do seu computador",
+    sourceUrl: "de um link",
+    unverified: "sem selo",
+    unverifiedTitle: "não há soma publicada para conferir este arquivo",
+    templateLabel: "formato de conversa",
+    templateEmbedded: "como está escrito no arquivo",
+    templateChoose: "escolher…",
+    templateMissing:
+      "este arquivo não diz como conversa — escolha um formato antes de despertá-lo.",
+    templateFamilies: {
+      Llama3: "Llama 3",
+      Llama2: "Llama 2",
+      ChatML: "ChatML",
+      Mistral: "Mistral",
+      Gemma: "Gemma",
+      Gemma4: "Gemma 4",
+      Qwen: "Qwen",
+      Qwen3: "Qwen 3",
+      Phi3: "Phi-3",
+      DeepSeek: "DeepSeek",
+      CommandR: "Command R",
+      GLM4: "GLM-4",
+    },
+    confirmForget: "esquecer este codex? o arquivo fica onde está.",
+    forget: "esquecer",
 
     loadFailed: {
       badge: "i · não carregou",
@@ -522,6 +605,8 @@ export const pt: Dict = {
     backToCatalog: "voltar ao compêndio",
     modelDownload: "download do modelo",
     models: "modelos",
+    importPane: "trazer o seu",
+    backToImport: "voltar aos seus modelos",
   },
 
   sidebar: {
@@ -666,7 +751,7 @@ export const pt: Dict = {
       count: (n) => (n === 1 ? "modelo" : "modelos"),
       available: (gb) => ` · disponível: ${gb} gb`,
       integrity: "conferir integridade",
-      integrityDesc: "recalcular hashes dos arquivos baixados.",
+      integrityDesc: "recalcular hashes dos arquivos baixados — modelos trazidos por você não têm selo e ficam de fora.",
       checking: "conferindo…",
       checkNow: "conferir agora",
       nothingToCheck: "nada na estante para conferir",

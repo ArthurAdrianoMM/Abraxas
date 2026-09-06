@@ -1,13 +1,17 @@
 //! Resumable model download with SHA256 integrity verification (Fase 4.3/4.4).
 //!
-//! Streams a GGUF from the catalog `url` to `<models_dir>/<filename>.part`,
-//! resuming via HTTP `Range` requests when a partial file already exists.
-//! After streaming completes, the `.part` file is SHA256-hashed against the
-//! catalog checksum; on match it is renamed to `<filename>`, on mismatch it
+//! Streams a GGUF from `spec.url` to `<models_dir>/<filename>.part`, resuming
+//! via HTTP `Range` requests when a partial file already exists. After
+//! streaming completes, the `.part` file is SHA256-hashed against the
+//! expected checksum; on match it is renamed to `<filename>`, on mismatch it
 //! is deleted and `DownloadError::ChecksumMismatch` is returned.
 //!
-//! Only a file at `<filename>` (without `.part`) has passed integrity; callers
-//! (registry, inference loader) can trust it without re-verifying.
+//! A `DownloadSpec` built from a catalog entry always carries the expected
+//! size and checksum. One built from a user-supplied URL may carry neither:
+//! the total then comes from the server's `Content-Length`/`Content-Range`,
+//! and the `.part` is promoted without hashing. Whether a file at
+//! `<filename>` (without `.part`) was verified is recorded by the caller in
+//! the registry (`sha256` column), not by this module.
 
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -45,6 +49,27 @@ pub enum DownloadError {
 impl From<reqwest::Error> for DownloadError {
     fn from(e: reqwest::Error) -> Self {
         DownloadError::Http(e.to_string())
+    }
+}
+
+/// What to fetch and what to check it against. The two `expected_*` fields
+/// are `Some` for catalog models and typically `None` for user-supplied URLs.
+#[derive(Debug, Clone)]
+pub struct DownloadSpec {
+    pub url: String,
+    pub filename: String,
+    pub expected_size: Option<u64>,
+    pub expected_sha256: Option<String>,
+}
+
+impl From<&ModelEntry> for DownloadSpec {
+    fn from(entry: &ModelEntry) -> Self {
+        Self {
+            url: entry.url.clone(),
+            filename: entry.filename.clone(),
+            expected_size: Some(entry.size_bytes),
+            expected_sha256: Some(entry.sha256.clone()),
+        }
     }
 }
 
@@ -130,17 +155,20 @@ async fn verify_sha256(
     .map_err(|_| DownloadError::Io(std::io::Error::other("sha256 task panicked")))?
 }
 
-/// Download `entry.url` into `models_dir`, resuming if a `.part` file already
-/// exists. After the stream completes the `.part` is SHA256-verified; on
-/// mismatch it is deleted and `ChecksumMismatch` is returned.
+/// Download `spec.url` into `models_dir`, resuming if a `.part` file already
+/// exists. After the stream completes the `.part` is SHA256-verified when
+/// `spec.expected_sha256` is set; on mismatch it is deleted and
+/// `ChecksumMismatch` is returned. Without a checksum the file is promoted
+/// as soon as the byte count is complete.
 ///
-/// `on_progress(downloaded, total)` fires during the download phase;
+/// `on_progress(downloaded, total)` fires during the download phase — `total`
+/// is `0` until the server has told us the size of an unknown-size download;
 /// `on_verify_progress(hashed, total)` fires during the verification phase.
 /// Both fire at most every `PROGRESS_INTERVAL` or `PROGRESS_BYTES`, whichever
 /// comes first.
 pub async fn download_model<F, G>(
     client: &reqwest::Client,
-    entry: &ModelEntry,
+    spec: &DownloadSpec,
     models_dir: &Path,
     cancel: CancelFlag,
     on_progress: F,
@@ -151,8 +179,8 @@ where
     G: Fn(u64, u64) + Send + 'static,
 {
     fs::create_dir_all(models_dir).await?;
-    let part_path = models_dir.join(format!("{}.part", entry.filename));
-    let final_path = models_dir.join(&entry.filename);
+    let part_path = models_dir.join(format!("{}.part", spec.filename));
+    let final_path = models_dir.join(&spec.filename);
 
     // Already complete from a previous run.
     if fs::try_exists(&final_path).await? {
@@ -169,45 +197,41 @@ where
         Err(e) => return Err(e.into()),
     };
 
-    // `.part` larger than the catalog size => corruption or stale schema.
-    // Restart from zero — same effect as a fresh download.
-    if existing > entry.size_bytes {
-        tracing::warn!(
-            existing,
-            expected = entry.size_bytes,
-            "stale .part larger than catalog size; restarting"
-        );
-        fs::remove_file(&part_path).await?;
-        existing = 0;
-    }
-
-    // Optimistic: `.part` already matches the expected size. Verify before
-    // promoting — a truncated-then-padded .part would pass the size check but
-    // fail the hash.
-    if existing == entry.size_bytes {
-        on_progress(existing, entry.size_bytes);
-        if let Err(e) = verify_sha256(
-            part_path.clone(),
-            &entry.sha256,
-            entry.size_bytes,
-            cancel.clone(),
-            on_verify_progress,
-        )
-        .await
-        {
-            if !matches!(e, DownloadError::Cancelled) {
-                fs::remove_file(&part_path).await.ok();
-            }
-            return Err(e);
+    if let Some(expected) = spec.expected_size {
+        // `.part` larger than the expected size => corruption or stale
+        // schema. Restart from zero — same effect as a fresh download.
+        if existing > expected {
+            tracing::warn!(
+                existing,
+                expected,
+                "stale .part larger than expected size; restarting"
+            );
+            fs::remove_file(&part_path).await?;
+            existing = 0;
         }
-        fs::rename(&part_path, &final_path).await?;
-        return Ok(DownloadOutcome {
-            final_path,
-            bytes_written: existing,
-        });
+
+        // Optimistic: `.part` already matches the expected size. Verify
+        // before promoting — a truncated-then-padded .part would pass the
+        // size check but fail the hash.
+        if existing == expected {
+            on_progress(existing, expected);
+            verify_and_promote(
+                &part_path,
+                &final_path,
+                spec.expected_sha256.as_deref(),
+                expected,
+                cancel,
+                on_verify_progress,
+            )
+            .await?;
+            return Ok(DownloadOutcome {
+                final_path,
+                bytes_written: existing,
+            });
+        }
     }
 
-    let mut req = client.get(&entry.url);
+    let mut req = client.get(&spec.url);
     if existing > 0 {
         req = req.header(reqwest::header::RANGE, format!("bytes={}-", existing));
     }
@@ -224,6 +248,14 @@ where
         return Err(DownloadError::BadStatus(status.as_u16()));
     }
 
+    // Without an expected size, the server's headers are the only source of
+    // the total: `Content-Range: bytes a-b/total` on a resumed 206, or
+    // `Content-Length` (plus what we already have) otherwise. `0` = unknown.
+    let total = match spec.expected_size {
+        Some(expected) => expected,
+        None => total_from_headers(&resp, existing).unwrap_or(0),
+    };
+
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
@@ -233,7 +265,6 @@ where
         .await?;
 
     let mut downloaded = existing;
-    let total = entry.size_bytes;
     on_progress(downloaded, total);
 
     let mut last_emit = Instant::now();
@@ -261,36 +292,79 @@ where
     file.sync_all().await?;
     drop(file);
 
-    if downloaded != total {
+    // A known total (declared or announced by the server) that doesn't match
+    // what landed means a truncated stream; keep the `.part` for a resume.
+    if total > 0 && downloaded != total {
         return Err(DownloadError::SizeMismatch {
             expected: total,
             got: downloaded,
         });
     }
 
-    on_progress(downloaded, total);
+    on_progress(downloaded, downloaded);
 
-    if let Err(e) = verify_sha256(
-        part_path.clone(),
-        &entry.sha256,
-        total,
+    verify_and_promote(
+        &part_path,
+        &final_path,
+        spec.expected_sha256.as_deref(),
+        downloaded,
         cancel,
         on_verify_progress,
     )
-    .await
-    {
-        if !matches!(e, DownloadError::Cancelled) {
-            fs::remove_file(&part_path).await.ok();
-        }
-        return Err(e);
-    }
-
-    fs::rename(&part_path, &final_path).await?;
+    .await?;
 
     Ok(DownloadOutcome {
         final_path,
         bytes_written: downloaded,
     })
+}
+
+/// Hash the `.part` when a checksum is expected (deleting it on mismatch),
+/// then rename it into place.
+async fn verify_and_promote(
+    part_path: &Path,
+    final_path: &Path,
+    expected_sha256: Option<&str>,
+    total: u64,
+    cancel: CancelFlag,
+    on_verify_progress: impl Fn(u64, u64) + Send + 'static,
+) -> Result<(), DownloadError> {
+    if let Some(expected) = expected_sha256 {
+        if let Err(e) = verify_sha256(
+            part_path.to_path_buf(),
+            expected,
+            total,
+            cancel,
+            on_verify_progress,
+        )
+        .await
+        {
+            if !matches!(e, DownloadError::Cancelled) {
+                fs::remove_file(part_path).await.ok();
+            }
+            return Err(e);
+        }
+    }
+    fs::rename(part_path, final_path).await?;
+    Ok(())
+}
+
+/// Total size of the resource according to the response headers, given
+/// `existing` bytes already on disk (the offset a 206 continues from).
+fn total_from_headers(resp: &reqwest::Response, existing: u64) -> Option<u64> {
+    if resp.status() == reqwest::StatusCode::PARTIAL_CONTENT {
+        if let Some(total) = resp
+            .headers()
+            .get(reqwest::header::CONTENT_RANGE)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.rsplit_once('/'))
+            .and_then(|(_, total)| total.trim().parse::<u64>().ok())
+        {
+            return Some(total);
+        }
+        return resp.content_length().map(|len| existing + len);
+    }
+    resp.content_length()
 }
 
 #[cfg(test)]
@@ -300,7 +374,6 @@ mod tests {
     use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize};
     use std::sync::Mutex as StdMutex;
 
-    use crate::models::catalog::ChatTemplate;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
 
@@ -319,25 +392,23 @@ mod tests {
         h.finalize().iter().map(|b| format!("{b:02x}")).collect()
     }
 
-    fn make_entry(port: u16, name: &str, size: u64, sha256: &str) -> ModelEntry {
-        ModelEntry {
-            id: "test".into(),
-            name: "Test".into(),
-            publisher: "T".into(),
-            description: "t".into(),
-            license: "MIT".into(),
-            tags: vec![],
+    /// A catalog-style spec: size and checksum both known.
+    fn make_entry(port: u16, name: &str, size: u64, sha256: &str) -> DownloadSpec {
+        DownloadSpec {
             url: format!("http://127.0.0.1:{port}/{name}"),
             filename: name.into(),
-            size_bytes: size,
-            sha256: sha256.into(),
-            params_b: 1.0,
-            quantization: "Q4".into(),
-            context_length: 2048,
-            chat_template: ChatTemplate::ChatML,
-            min_ram_mb: 1,
-            recommended_ram_mb: 1,
-            min_vram_mb: None,
+            expected_size: Some(size),
+            expected_sha256: Some(sha256.into()),
+        }
+    }
+
+    /// A user-URL spec: nothing known up front.
+    fn make_unverified(port: u16, name: &str) -> DownloadSpec {
+        DownloadSpec {
+            url: format!("http://127.0.0.1:{port}/{name}"),
+            filename: name.into(),
+            expected_size: None,
+            expected_sha256: None,
         }
     }
 
@@ -408,8 +479,18 @@ mod tests {
                             slice
                         };
 
+                    let content_range = if status == 206 {
+                        let start = body.len() - slice.len();
+                        format!(
+                            "Content-Range: bytes {start}-{end}/{total}\r\n",
+                            end = body.len() - 1,
+                            total = body.len()
+                        )
+                    } else {
+                        String::new()
+                    };
                     let header = format!(
-                        "HTTP/1.1 {status} {reason}\r\nContent-Length: {len}\r\nConnection: close\r\n\r\n",
+                        "HTTP/1.1 {status} {reason}\r\nContent-Length: {len}\r\n{content_range}Connection: close\r\n\r\n",
                         status = status,
                         reason = match status {
                             200 => "OK",
@@ -958,5 +1039,141 @@ mod tests {
         // .part retained on cancel so the user can resume
         assert!(part_path.exists());
         assert!(!dir.path().join("model.gguf").exists());
+    }
+
+    #[tokio::test]
+    async fn unverified_download_promotes_without_hashing_and_reports_server_total() {
+        let body = make_body(48 * 1024);
+        let port = spawn_server(body.clone(), ServerOpts::default()).await;
+        let dir = tempfile::tempdir().unwrap();
+        let spec = make_unverified(port, "custom.gguf");
+
+        let totals = Arc::new(StdMutex::new(Vec::<u64>::new()));
+        let totals_h = Arc::clone(&totals);
+        let verify_calls = Arc::new(AtomicUsize::new(0));
+        let verify_h = Arc::clone(&verify_calls);
+        let outcome = download_model(
+            &http_client(),
+            &spec,
+            dir.path(),
+            CancelFlag::new(),
+            move |_d, t| totals_h.lock().unwrap().push(t),
+            move |_h, _t| {
+                verify_h.fetch_add(1, Ordering::SeqCst);
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(outcome.bytes_written, body.len() as u64);
+        assert_eq!(std::fs::read(&outcome.final_path).unwrap(), body);
+        assert!(!dir.path().join("custom.gguf.part").exists());
+        assert_eq!(
+            verify_calls.load(Ordering::SeqCst),
+            0,
+            "no checksum => no hashing"
+        );
+        // Content-Length told us the total from the very first progress tick.
+        assert!(totals
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|t| *t == body.len() as u64));
+    }
+
+    #[tokio::test]
+    async fn unverified_resume_takes_total_from_content_range() {
+        let body = make_body(64 * 1024);
+        let opts = ServerOpts::default();
+        let port = spawn_server(body.clone(), opts.clone()).await;
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("custom.gguf.part"), &body[..20_000]).unwrap();
+        let spec = make_unverified(port, "custom.gguf");
+
+        let totals = Arc::new(StdMutex::new(Vec::<u64>::new()));
+        let totals_h = Arc::clone(&totals);
+        let outcome = download_model(
+            &http_client(),
+            &spec,
+            dir.path(),
+            CancelFlag::new(),
+            move |_d, t| totals_h.lock().unwrap().push(t),
+            |_h, _t| {},
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(opts.last_range.lock().await.as_str(), "bytes=20000-");
+        assert_eq!(std::fs::read(&outcome.final_path).unwrap(), body);
+        assert!(totals
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|t| *t == body.len() as u64));
+    }
+
+    #[tokio::test]
+    async fn unverified_truncated_response_is_a_size_mismatch_and_keeps_part() {
+        let body = make_body(64 * 1024);
+        let opts = ServerOpts::default();
+        opts.truncate_after.store(10_000, Ordering::SeqCst);
+        let port = spawn_server(body.clone(), opts).await;
+        let dir = tempfile::tempdir().unwrap();
+        let spec = make_unverified(port, "custom.gguf");
+
+        let err = download_model(
+            &http_client(),
+            &spec,
+            dir.path(),
+            CancelFlag::new(),
+            |_d, _t| {},
+            |_h, _t| {},
+        )
+        .await
+        .unwrap_err();
+
+        // Either the transport notices the short body or our size check does;
+        // both keep the `.part` so a retry resumes instead of restarting.
+        assert!(
+            matches!(
+                err,
+                DownloadError::SizeMismatch { .. } | DownloadError::Http(_)
+            ),
+            "got {err:?}"
+        );
+        assert!(dir.path().join("custom.gguf.part").exists());
+        assert!(!dir.path().join("custom.gguf").exists());
+    }
+
+    #[test]
+    fn spec_from_catalog_entry_carries_size_and_checksum() {
+        use crate::models::catalog::{ChatTemplate, ModelEntry};
+        let entry = ModelEntry {
+            id: "x".into(),
+            name: "X".into(),
+            publisher: "p".into(),
+            description: "d".into(),
+            license: "MIT".into(),
+            tags: vec![],
+            url: "https://example.com/x.gguf".into(),
+            filename: "x.gguf".into(),
+            size_bytes: 42,
+            sha256: "a".repeat(64),
+            params_b: 1.0,
+            quantization: "Q4".into(),
+            context_length: 2048,
+            chat_template: ChatTemplate::ChatML,
+            min_ram_mb: 1,
+            recommended_ram_mb: 1,
+            min_vram_mb: None,
+        };
+        let spec = DownloadSpec::from(&entry);
+        assert_eq!(spec.url, entry.url);
+        assert_eq!(spec.filename, "x.gguf");
+        assert_eq!(spec.expected_size, Some(42));
+        assert_eq!(
+            spec.expected_sha256.as_deref(),
+            Some("a".repeat(64).as_str())
+        );
     }
 }

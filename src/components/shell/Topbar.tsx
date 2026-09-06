@@ -1,7 +1,8 @@
 import { useFormat, useT } from "../../lib/i18n";
 import { useCatalogStore } from "../../stores/catalog";
 import { useConversationsStore } from "../../stores/conversations";
-import { useModelStore } from "../../stores/model";
+import { useDownloadsStore } from "../../stores/downloads";
+import { displayNameOf, useModelStore } from "../../stores/model";
 import { useUiStore, type View } from "../../stores/ui";
 import { ModelSwitcher } from "./ModelSwitcher";
 import styles from "./Topbar.module.css";
@@ -38,11 +39,17 @@ function ChatTopbar() {
   const conversations = useConversationsStore((s) => s.conversations);
   const modelStatus = useModelStore((s) => s.status);
   const loadedId = useModelStore((s) => s.loadedId);
+  const installed = useModelStore((s) => s.installed);
   const catalogModels = useCatalogStore((s) => s.models);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
-  const loadedName =
-    (loadedId && catalogModels.find((m) => m.model.id === loadedId)?.model.name) || loadedId;
+  const loadedName = loadedId
+    ? displayNameOf(
+        installed.find((m) => m.id === loadedId),
+        catalogModels.find((m) => m.model.id === loadedId)?.model,
+        loadedId,
+      )
+    : null;
 
   return (
     <header className={`topbar ${styles.chatTopbar}`}>
@@ -127,8 +134,9 @@ function ModelsTopbar() {
   const setModelsPane = useUiStore((s) => s.setModelsPane);
   const source = useCatalogStore((s) => s.source);
   const fetchedAt = useCatalogStore((s) => s.fetchedAt);
+  const downloadOrigin = useDownloadsStore((s) => s.session?.target.origin ?? "catalog");
 
-  if (pane === "catalog") {
+  if (pane === "catalog" || pane === "import") {
     return (
       <header className="topbar">
         <button className={styles.backLink} onClick={() => setModelsPane("manager")}>
@@ -146,8 +154,14 @@ function ModelsTopbar() {
         <Meta>
           <span>
             <span className="dot"></span>
-            {source === "cache" ? t.localCopy : t.catalogue}
-            {fetchedAt ? t.synced(f.ago(fetchedAt)) : ""}
+            {pane === "import" ? (
+              t.importPane
+            ) : (
+              <>
+                {source === "cache" ? t.localCopy : t.catalogue}
+                {fetchedAt ? t.synced(f.ago(fetchedAt)) : ""}
+              </>
+            )}
           </span>
         </Meta>
       </header>
@@ -157,7 +171,7 @@ function ModelsTopbar() {
   if (pane === "download") {
     return (
       <header className="topbar">
-        <button className={styles.backLink} onClick={() => setModelsPane("catalog")}>
+        <button className={styles.backLink} onClick={() => setModelsPane(downloadOrigin)}>
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path
               d="M13 8H3M7 4L3 8l4 4"
@@ -167,7 +181,7 @@ function ModelsTopbar() {
               strokeLinejoin="round"
             />
           </svg>
-          {t.backToCatalog}
+          {downloadOrigin === "import" ? t.backToImport : t.backToCatalog}
         </button>
         <Meta>
           <span>

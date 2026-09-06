@@ -39,12 +39,15 @@ export function DownloadPane() {
   }, [session, setModelsPane]);
   if (!session) return null;
 
-  const { entry, phase, downloadedBytes, totalBytes, hashedBytes, speedBps, resumedFrom } = session;
-  const model = entry.model;
+  const { target, phase, downloadedBytes, totalBytes, hashedBytes, speedBps, resumedFrom } = session;
+  const catalogModel = target.entry?.model ?? null;
+  // A user link has no published checksum: the "seal" wording doesn't apply.
+  const unverified = target.kind === "url";
+  const backLabel = target.origin === "import" ? t.backToImport : t.backToCatalog;
 
   const backToCatalog = () => {
     reset();
-    setModelsPane("catalog");
+    setModelsPane(target.origin);
   };
   const abandon = () => {
     // Cancel on the backend if still moving; the `.part` stays for a resume.
@@ -75,7 +78,8 @@ export function DownloadPane() {
             ? t.estimating
             : "—";
 
-  const origin = model.url.replace(/^https?:\/\//, "");
+  const origin = target.url.replace(/^https?:\/\//, "");
+  const sizeText = totalBytes > 0 ? `${f.gb(totalBytes)} GB` : t.unknownSize;
 
   return (
     <section className={styles.page}>
@@ -83,15 +87,13 @@ export function DownloadPane() {
       <div className={styles.leafL}>
         <div className={styles.ledgerStack}>
           <h1 className={styles.verb}>
-            <em>{model.name}</em>
+            <em>{target.name}</em>
           </h1>
 
           <div className={styles.chosen}>
             <span className={styles.chosenWho}>
-              <span className={styles.chosenName}>{model.name}</span>
-              <span className={styles.chosenMono}>
-                {model.publisher} · {model.params_b}b · {model.quantization.toLowerCase()}
-              </span>
+              <span className={styles.chosenName}>{target.name}</span>
+              <span className={styles.chosenMono}>{target.subtitle}</span>
             </span>
             {phase === "confirm" && (
               <button className={styles.reverseLink} onClick={backToCatalog}>
@@ -101,16 +103,18 @@ export function DownloadPane() {
           </div>
 
           <div className={styles.entries}>
-            <div className={styles.entry}>
-              <span className={styles.entryLabel}>{t.params}</span>
-              <span className={styles.entryValue}>
-                {model.params_b} B · {model.quantization}
-              </span>
-            </div>
+            {catalogModel && (
+              <div className={styles.entry}>
+                <span className={styles.entryLabel}>{t.params}</span>
+                <span className={styles.entryValue}>
+                  {catalogModel.params_b} B · {catalogModel.quantization}
+                </span>
+              </div>
+            )}
             <div className={styles.entry}>
               <span className={styles.entryLabel}>{t.size}</span>
               <span className={styles.entryValue}>
-                <b>{f.gb(model.size_bytes)} GB</b>
+                <b>{sizeText}</b>
               </span>
             </div>
             <div className={styles.entry}>
@@ -133,7 +137,7 @@ export function DownloadPane() {
             modelsDir={usage?.models_dir ?? null}
             freeBytes={usage && usage.total_bytes > 0 ? usage.free_bytes : null}
             totalBytes={usage && usage.total_bytes > 0 ? usage.total_bytes : null}
-            remainingBytes={phase === "confirm" ? model.size_bytes : remaining}
+            remainingBytes={phase === "confirm" ? totalBytes : remaining}
           />
         </div>
       </div>
@@ -168,7 +172,7 @@ export function DownloadPane() {
             <div className={styles.stateCaption} data-state={phase}>
               <span className={styles.stateBadge}>
                 <span className={styles.stateGlyph} />
-                {t.badge[phase]}
+                {phase === "completed" && unverified ? t.completedUnverified : t.badge[phase]}
               </span>
               <span className={styles.verbLine}>{t.verb[phase]}</span>
             </div>
@@ -176,7 +180,7 @@ export function DownloadPane() {
             {phase === "confirm" ? (
               <SealDial progress={0} state="confirm" armed>
                 <div className="pct">
-                  {f.gb(model.size_bytes)}
+                  {totalBytes > 0 ? f.gb(totalBytes) : "?"}
                   <span className="sym"> gb</span>
                 </div>
                 <div className="below">
@@ -186,7 +190,8 @@ export function DownloadPane() {
             ) : phase === "completed" ? (
               <SealDial progress={100} state="complete" showCheck>
                 <div className="below" style={{ marginTop: 62 }}>
-                  <b>{f.gb(totalBytes)} gb</b> · {t.intact}
+                  <b>{f.gb(totalBytes)} gb</b>
+                  {unverified ? "" : ` · ${t.intact}`}
                 </div>
               </SealDial>
             ) : (
@@ -204,8 +209,13 @@ export function DownloadPane() {
                 </div>
                 <div className="below">
                   <span>
-                    <b>{f.size(phase === "verifying" ? hashedBytes : downloadedBytes)}</b>{" "}
-                    {t.of} <b>{f.gb(totalBytes)} gb</b>
+                    <b>{f.size(phase === "verifying" ? hashedBytes : downloadedBytes)}</b>
+                    {totalBytes > 0 ? (
+                      <>
+                        {" "}
+                        {t.of} <b>{f.gb(totalBytes)} gb</b>
+                      </>
+                    ) : null}
                   </span>
                 </div>
               </SealDial>
@@ -243,7 +253,7 @@ export function DownloadPane() {
                       strokeLinejoin="round"
                     />
                   </svg>
-                  <span>{t.backToCatalog}</span>
+                  <span>{backLabel}</span>
                 </button>
                 <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => void start()}>
                   <span>{t.begin}</span>
@@ -270,11 +280,7 @@ export function DownloadPane() {
                 <button
                   className={styles.btn}
                   disabled={phase !== "paused"}
-                  title={
-                    phase !== "paused"
-                      ? t.pauseFirst
-                      : t.returnsToCatalog
-                  }
+                  title={phase !== "paused" ? t.pauseFirst : t.returnsToCatalog}
                   onClick={backToCatalog}
                 >
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -308,12 +314,14 @@ export function DownloadPane() {
             {phase === "completed" && (
               <div className={styles.actionsRow}>
                 <button className={styles.ghostLink} onClick={backToCatalog}>
-                  {t.backToCatalog}
+                  {backLabel}
                 </button>
                 <button
                   className={`${styles.btn} ${styles.btnPrimary}`}
+                  disabled={!session.modelId}
                   onClick={() => {
-                    const id = model.id;
+                    const id = session.modelId;
+                    if (!id) return;
                     reset();
                     setModelsPane("manager");
                     void load(id, "ritual");
@@ -351,13 +359,35 @@ function DownloadFailure() {
   const setModelsPane = useUiStore((s) => s.setModelsPane);
 
   if (!session) return null;
-  const { entry, errorKind, errorMessage, downloadedBytes, totalBytes } = session;
+  const { target, errorKind, errorMessage, downloadedBytes, totalBytes } = session;
   const pct = totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0;
+  const backLabel = target.origin === "import" ? t.backToImport : t.backToCatalog;
 
   const discard = () => {
     reset();
-    setModelsPane("catalog");
+    setModelsPane(target.origin);
   };
+
+  // A user link that served something other than a GGUF (the file was
+  // already discarded by the backend).
+  if (errorKind === "InvalidGguf") {
+    return (
+      <ErrorCard
+        badge={t.invalidGguf.badge}
+        code="err.import.gguf"
+        title={t.invalidGguf.title}
+        quiet={t.invalidGguf.quiet}
+        gloss={t.invalidGguf.gloss(errorMessage ?? "")}
+        diag={[{ k: t.invalidGguf.link, v: target.url.replace(/^https?:\/\//, "") }]}
+        actions={
+          <>
+            <ErrorAction onClick={() => void start()}>{t.invalidGguf.retry}</ErrorAction>
+            <ErrorLink onClick={discard}>{t.invalidGguf.back}</ErrorLink>
+          </>
+        }
+      />
+    );
+  }
 
   if (errorKind === "ChecksumMismatch") {
     return (
@@ -368,7 +398,7 @@ function DownloadFailure() {
         quiet={t.checksumFailed.quiet}
         gloss={t.checksumFailed.gloss}
         diag={[
-          { k: t.checksumFailed.expected, v: entry.model.sha256.slice(0, 24) + "…" },
+          { k: t.checksumFailed.expected, v: (target.sha256 ?? "").slice(0, 24) + "…" },
           { k: t.checksumFailed.file, v: t.checksumFailed.discarded, italic: true },
         ]}
         actions={
@@ -376,7 +406,7 @@ function DownloadFailure() {
             <ErrorAction onClick={() => void start()}>
               {t.checksumFailed.redownload}
             </ErrorAction>
-            <ErrorLink onClick={discard}>{t.backToCatalog}</ErrorLink>
+            <ErrorLink onClick={discard}>{backLabel}</ErrorLink>
           </>
         }
       />
@@ -402,7 +432,7 @@ function DownloadFailure() {
             </>
           ),
         },
-        { k: t.networkFailed.link, v: entry.model.url.replace(/^https?:\/\//, "") },
+        { k: t.networkFailed.link, v: target.url.replace(/^https?:\/\//, "") },
       ]}
       actions={
         <>

@@ -86,8 +86,7 @@ export function DownloadStep({
   }, [session, onChooseAnother]);
   if (!session) return null;
 
-  const { entry, downloadedBytes, totalBytes, hashedBytes, speedBps } = session;
-  const model = entry.model;
+  const { target, downloadedBytes, totalBytes, hashedBytes, speedBps } = session;
 
   const chooseAnother = () => {
     if (phase === "downloading" || phase === "starting") void pause();
@@ -216,11 +215,10 @@ export function DownloadStep({
         <div className={styles.chosen}>
           <span className={styles.chosenKicker}>{t.kicker}</span>
           <h1 className={styles.chosenName}>
-            <em>{model.name}</em>
+            <em>{target.name}</em>
           </h1>
           <span className={styles.chosenMono}>
-            {model.publisher} · {model.params_b}b · {model.quantization.toLowerCase()} ·{" "}
-            {f.gb(model.size_bytes)} gb
+            {target.subtitle} · {f.gb(target.sizeBytes)} gb
           </span>
         </div>
 

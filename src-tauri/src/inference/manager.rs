@@ -23,22 +23,23 @@ use std::time::SystemTime;
 
 use tauri::async_runtime::{Mutex, RwLock};
 
-use crate::chat::templates::BosPolicy;
+use crate::chat::templates::{BosPolicy, PromptTemplate};
 use crate::inference::backend::{GenerateParams, InferenceBackend, TokenStream};
 use crate::inference::InferenceError;
-use crate::models::catalog::ChatTemplate;
 
 #[derive(Debug, Clone)]
 pub struct LoadedModel {
     pub path: PathBuf,
     pub loaded_at: SystemTime,
-    /// Catalog-declared chat template family for this model. The chat layer
-    /// reads this when rendering prompts; the inference layer reads it (via
-    /// `chat::bos_policy_for`) to decide whether to add a BOS token.
-    /// `None` only for legacy or test loads that bypass the catalog.
-    pub chat_template: Option<ChatTemplate>,
-    /// Catalog-declared maximum context window for this model. The chat layer
-    /// uses this as the upper bound when truncating long conversations.
+    /// How prompts are rendered for this model: a catalog-declared family, or
+    /// the template embedded in the GGUF for custom models. The chat layer
+    /// reads it when rendering and (via `PromptTemplate::bos_policy`) to
+    /// decide whether the tokenizer adds BOS. `None` only for legacy or test
+    /// loads that bypass the registry.
+    pub chat_template: Option<PromptTemplate>,
+    /// Maximum context window for this model (catalog-declared, or read from
+    /// the GGUF header). The chat layer uses this as the upper bound when
+    /// truncating long conversations.
     pub context_length: Option<u32>,
 }
 
@@ -61,14 +62,14 @@ impl ModelManager {
         self.load_with(path, None, None).await
     }
 
-    /// Load a model and bind it to a catalog-declared chat template and
-    /// context length. Use this from the catalog-driven flow
-    /// (`load_installed_model`) so `start_generation` knows how to render
-    /// prompts and budget context for the model that's currently loaded.
+    /// Load a model and bind it to a chat template and context length. Use
+    /// this from the registry-driven flow (`load_installed_model`) so
+    /// `start_generation` knows how to render prompts and budget context for
+    /// the model that's currently loaded.
     pub async fn load_with(
         &self,
         path: PathBuf,
-        chat_template: Option<ChatTemplate>,
+        chat_template: Option<PromptTemplate>,
         context_length: Option<u32>,
     ) -> Result<LoadedModel, InferenceError> {
         let _guard = self.lifecycle.lock().await;
@@ -129,6 +130,24 @@ impl ModelManager {
 
     pub async fn current(&self) -> Option<LoadedModel> {
         self.loaded.read().await.clone()
+    }
+
+    /// Rebind the chat template of the model at `path` if it is the one
+    /// loaded. Lets the user pick a family for a custom model without a
+    /// reload. Returns whether anything was loaded at that path.
+    pub async fn set_chat_template(
+        &self,
+        path: &std::path::Path,
+        chat_template: Option<PromptTemplate>,
+    ) -> bool {
+        let mut guard = self.loaded.write().await;
+        match guard.as_mut() {
+            Some(loaded) if loaded.path == path => {
+                loaded.chat_template = chat_template;
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Non-blocking status poll. If `loaded` is currently write-locked

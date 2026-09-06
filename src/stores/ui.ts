@@ -6,8 +6,9 @@ import { useSettingsStore } from "./settings";
 export type View = "chat" | "models" | "settings";
 
 /** Sub-navigation inside the Models view: the ateliê (installed models),
- *  the compêndio (remote catalog), and the download spread. */
-export type ModelsPane = "manager" | "catalog" | "download";
+ *  the compêndio (remote catalog), the download spread, and the import
+ *  spread (a GGUF from disk or from a pasted link). */
+export type ModelsPane = "manager" | "catalog" | "download" | "import";
 
 /**
  * Top-level screen. "boot" is the pre-decision blank while the first-run

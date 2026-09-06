@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { CatalogPane } from "../components/models/CatalogPane";
 import { DownloadPane } from "../components/models/DownloadPane";
+import { ImportPane } from "../components/models/ImportPane";
 import { ManagerPane } from "../components/models/ManagerPane";
 import { useCatalogStore } from "../stores/catalog";
 import { useModelStore } from "../stores/model";
@@ -20,5 +21,6 @@ export function ModelsView() {
 
   if (pane === "download") return <DownloadPane />;
   if (pane === "catalog") return <CatalogPane />;
+  if (pane === "import") return <ImportPane />;
   return <ManagerPane />;
 }

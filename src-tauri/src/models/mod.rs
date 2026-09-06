@@ -4,4 +4,6 @@ pub mod catalog;
 pub mod compatibility;
 pub mod download;
 pub mod download_manager;
+pub mod gguf;
+pub mod hf;
 pub mod registry;

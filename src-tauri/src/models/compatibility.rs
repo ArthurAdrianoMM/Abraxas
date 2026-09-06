@@ -75,6 +75,30 @@ pub fn classify_model(entry: &ModelEntry, hw: &HardwareDetection) -> ClassifiedM
     }
 }
 
+/// Tier for a model the catalog knows nothing about, from its file size alone.
+///
+/// A GGUF's weights are loaded (roughly) verbatim into RAM or VRAM, so the
+/// file size is a fair floor for memory; the KV cache and runtime overhead
+/// come on top. Minimum = weights + 1 GiB, recommended = 1.4× weights + 2 GiB
+/// — deliberately conservative, this only ranks choices in the UI.
+pub fn classify_size(file_bytes: u64, hw: &HardwareDetection) -> CompatibilityTier {
+    const MIB: u64 = 1024 * 1024;
+    let file_mb = file_bytes / MIB;
+    let min_ram_mb = file_mb + 1024;
+    let recommended_ram_mb = file_mb + file_mb * 2 / 5 + 2048;
+    let total_ram_mb = hw.system.memory.total_bytes / MIB;
+
+    if total_ram_mb >= recommended_ram_mb {
+        CompatibilityTier::Recommended
+    } else if total_ram_mb >= min_ram_mb {
+        CompatibilityTier::Viable
+    } else if total_ram_mb * 4 >= min_ram_mb * 3 {
+        CompatibilityTier::Heavy
+    } else {
+        CompatibilityTier::NotSupported
+    }
+}
+
 /// Classify every model in a catalog, preserving catalog order.
 pub fn classify_catalog(catalog: &Catalog, hw: &HardwareDetection) -> Vec<ClassifiedModel> {
     catalog

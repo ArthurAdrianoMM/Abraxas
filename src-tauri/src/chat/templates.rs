@@ -105,6 +105,46 @@ pub enum TemplateError {
     },
     #[error("cannot render an empty conversation")]
     EmptyMessages,
+    #[error("embedded chat template: {0}")]
+    Embedded(String),
+}
+
+/// How prompts are rendered for the model that is loaded right now.
+///
+/// Catalog models name a hand-written family renderer; custom models use the
+/// Jinja template baked into their GGUF, rendered by llama.cpp (see
+/// `chat::embedded`). Both sides of the chat pipeline — context fitting and
+/// generation — only ever see this type, so they don't care which it is.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PromptTemplate {
+    Family(ChatTemplate),
+    Embedded(String),
+}
+
+impl PromptTemplate {
+    pub fn render(
+        &self,
+        messages: &[ChatMessage],
+        options: RenderOptions,
+    ) -> Result<String, TemplateError> {
+        match self {
+            PromptTemplate::Family(family) => {
+                render_chat_template_with_options(*family, messages, options)
+            }
+            PromptTemplate::Embedded(jinja) => {
+                crate::chat::embedded::render(jinja, messages, options.add_generation_prompt)
+            }
+        }
+    }
+
+    /// Family renderers decide per family; llama.cpp's embedded renderer
+    /// never emits BOS itself and expects the tokenizer to add it.
+    pub fn bos_policy(&self) -> BosPolicy {
+        match self {
+            PromptTemplate::Family(family) => bos_policy_for(*family),
+            PromptTemplate::Embedded(_) => BosPolicy::Always,
+        }
+    }
 }
 
 #[cfg(test)]

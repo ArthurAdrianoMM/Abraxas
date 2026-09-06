@@ -1,6 +1,7 @@
 //! Chat logic (templates, context window, generation params).
 
 pub mod context;
+pub mod embedded;
 pub mod generation;
 pub mod templates;
 

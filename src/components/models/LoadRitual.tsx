@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormat, useT } from "../../lib/i18n";
 import { useCatalogStore } from "../../stores/catalog";
-import { useModelStore } from "../../stores/model";
+import { displayNameOf, useModelStore } from "../../stores/model";
 import { useUiStore } from "../../stores/ui";
 import styles from "./LoadRitual.module.css";
 
@@ -84,7 +84,11 @@ export function LoadRitual() {
   const asides: Record<(typeof LABORS)[number], string> = {
     weights: row ? `${f.gb(row.size_bytes, 1)} gb` : "—",
     memory: entry ? `${f.decimal(entry.min_ram_mb / 1024, 1)} gb · ${t.ram}` : t.ram,
-    context: entry ? t.tokens(f.contextK(entry.context_length)) : "—",
+    context: entry
+      ? t.tokens(f.contextK(entry.context_length))
+      : row?.context_length
+        ? t.tokens(f.contextK(row.context_length))
+        : "—",
     warmup: "—",
   };
 
@@ -160,7 +164,7 @@ export function LoadRitual() {
 
         <div className={styles.chosen}>
           <span>{t.loading}</span>
-          <b>{entry?.name ?? visibleId}</b>
+          <b>{displayNameOf(row, entry, visibleId)}</b>
           <span className={styles.chosenMono}>
             {entry ? `${entry.params_b}B · ${entry.quantization.toUpperCase()}` : ""}
           </span>

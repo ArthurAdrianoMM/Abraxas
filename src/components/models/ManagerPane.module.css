@@ -436,3 +436,46 @@
   align-items: center;
   gap: 8px;
 }
+
+/* chat-format picker (custom models only) */
+.templateRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.templateLabel {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+.templateSelect {
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  color: var(--ink-2);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.templateSelect:hover,
+.templateSelect:focus {
+  border-color: var(--bordeaux);
+  outline: none;
+}
+.templateSelect:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.templateMissing {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--brass);
+}

@@ -27,6 +27,12 @@ pub enum AppError {
 
     #[error("download error: {0}")]
     Download(#[from] crate::models::download::DownloadError),
+
+    #[error("gguf error: {0}")]
+    Gguf(#[from] crate::models::gguf::GgufError),
+
+    #[error("model source error: {0}")]
+    Source(#[from] crate::models::hf::HfError),
 }
 
 /// Frontend-facing error shape. Stable across `AppError` refactors so the TS
@@ -48,6 +54,8 @@ impl From<AppError> for CommandError {
             AppError::Inference(_) => "Inference",
             AppError::Catalog(_) => "Catalog",
             AppError::Download(_) => "Download",
+            AppError::Gguf(_) => "Gguf",
+            AppError::Source(_) => "Source",
         };
         Self {
             kind: kind.to_owned(),

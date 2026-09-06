@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useFormat, useT } from "../../lib/i18n";
 import { useCatalogStore } from "../../stores/catalog";
 import { useHardwareStore } from "../../stores/hardware";
-import { useModelStore } from "../../stores/model";
+import { displayNameOf, useModelStore } from "../../stores/model";
 import { useUiStore } from "../../stores/ui";
 import styles from "./ModelSwitcher.module.css";
 
@@ -72,7 +72,7 @@ export function ModelSwitcher() {
                 </span>
                 <span className={styles.itemBody}>
                   <span className={styles.itemNameRow}>
-                    <span className={styles.itemName}>{entry?.name ?? m.id}</span>
+                    <span className={styles.itemName}>{displayNameOf(m, entry)}</span>
                     <span className={styles.itemId}>
                       {entry
                         ? `${entry.publisher} · ${entry.params_b}b · ${entry.quantization.toLowerCase()}`

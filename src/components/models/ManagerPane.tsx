@@ -1,15 +1,90 @@
 import { useEffect, useMemo, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import type { InstalledModel, ModelEntry } from "../../lib/tauri/bindings";
-import { describeError } from "../../lib/tauri/result";
+import {
+  commands,
+  type ChatTemplate,
+  type InstalledModel,
+  type ModelEntry,
+} from "../../lib/tauri/bindings";
+import { describeError, unwrap } from "../../lib/tauri/result";
 import { useFormat, useT } from "../../lib/i18n";
 import { useCatalogStore } from "../../stores/catalog";
 import { useDiskStore } from "../../stores/disk";
-import { useModelStore } from "../../stores/model";
+import { displayNameOf, isCustomModel, useModelStore } from "../../stores/model";
 import { useSettingsStore } from "../../stores/settings";
 import { useUiStore } from "../../stores/ui";
 import { ErrorAction, ErrorCard, ErrorLink } from "./ErrorCard";
 import styles from "./ManagerPane.module.css";
+
+/** Every family renderer the backend knows, in the order the picker shows. */
+const FAMILIES: ChatTemplate[] = [
+  "Llama3",
+  "Llama2",
+  "ChatML",
+  "Mistral",
+  "Gemma",
+  "Gemma4",
+  "Qwen",
+  "Qwen3",
+  "Phi3",
+  "DeepSeek",
+  "CommandR",
+  "GLM4",
+];
+
+/** The chat-format picker for a custom model. "As written in the file" is the
+ *  GGUF's embedded template; the families are the escape hatch for files
+ *  whose template llama.cpp can't render (or that carry none). */
+function TemplatePicker({ installed }: { installed: InstalledModel }) {
+  const t = useT().manager;
+  const refreshInstalled = useModelStore((s) => s.refreshInstalled);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const current = installed.chat_template;
+  const value = current == null ? "" : current.kind === "embedded" ? "embedded" : current.family;
+
+  const change = async (next: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await unwrap(
+        commands.setModelChatTemplate(installed.id, next === "embedded" ? null : (next as ChatTemplate)),
+      );
+      await refreshInstalled();
+    } catch (e) {
+      setError(describeError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={styles.templateRow}>
+      <span className={styles.templateLabel}>{t.templateLabel}</span>
+      <select
+        className={styles.templateSelect}
+        value={value}
+        disabled={busy}
+        onChange={(e) => void change(e.target.value)}
+      >
+        {value === "" && (
+          <option value="" disabled>
+            {t.templateChoose}
+          </option>
+        )}
+        <option value="embedded">{t.templateEmbedded}</option>
+        {FAMILIES.map((family) => (
+          <option key={family} value={family}>
+            {t.templateFamilies[family]}
+          </option>
+        ))}
+      </select>
+      {current == null && !error && <span className={styles.templateMissing}>{t.templateMissing}</span>}
+      {error && <span className={styles.templateMissing}>{error}</span>}
+    </div>
+  );
+}
 
 function ManagerRow({
   installed,
@@ -35,6 +110,10 @@ function ManagerRow({
   const isLoaded = loadedId === installed.id;
   const isDefault = defaultModelId === installed.id;
   const loading = status === "loading";
+  const custom = isCustomModel(installed);
+  const isLocal = installed.source === "local";
+  // A custom model without a chat format loads but can't talk yet.
+  const needsTemplate = custom && installed.chat_template == null;
 
   const handleRemove = async () => {
     setConfirming(false);
@@ -60,7 +139,7 @@ function ManagerRow({
       </span>
       <div className={styles.body}>
         <div className={styles.nameRow}>
-          <span className={styles.name}>{entry?.name ?? installed.id}</span>
+          <span className={styles.name}>{displayNameOf(installed, entry)}</span>
           {isDefault && (
             <span className={styles.defaultTag} title={t.defaultTagTitle}>
               {t.defaultTag}
@@ -86,7 +165,21 @@ function ManagerRow({
               </span>
             </>
           )}
+          {!entry && installed.context_length != null && (
+            <span className={styles.tag}>
+              <b>{f.contextK(installed.context_length)}</b> · {t.context}
+            </span>
+          )}
+          {custom && (
+            <span className={styles.tag}>{isLocal ? t.sourceLocal : t.sourceUrl}</span>
+          )}
+          {custom && (
+            <span className={styles.tag} title={t.unverifiedTitle}>
+              {t.unverified}
+            </span>
+          )}
         </div>
+        {custom && <TemplatePicker installed={installed} />}
         <div className={styles.meta}>
           <span>
             {t.installedAt} · <b>{f.ago(installed.installed_at)}</b>
@@ -108,9 +201,9 @@ function ManagerRow({
         </span>
         {confirming ? (
           <div className={styles.verbs}>
-            <span className={styles.confirmLabel}>{t.confirmRemove}</span>
+            <span className={styles.confirmLabel}>{isLocal ? t.confirmForget : t.confirmRemove}</span>
             <button className={`${styles.verbLink} ${styles.verbDanger}`} onClick={() => void handleRemove()}>
-              {t.remove}
+              {isLocal ? t.forget : t.remove}
             </button>
             <span className={styles.verbSep}>·</span>
             <button className={styles.verbLink} onClick={() => setConfirming(false)}>
@@ -121,7 +214,8 @@ function ManagerRow({
           <div className={styles.verbs}>
             <button
               className={styles.verbLink}
-              disabled={isLoaded || loading}
+              disabled={isLoaded || loading || needsTemplate}
+              title={needsTemplate ? t.templateMissing : undefined}
               onClick={() => void load(installed.id, "ritual")}
             >
               {isLoaded ? t.awakeNow : t.awaken}
@@ -149,7 +243,7 @@ function ManagerRow({
               title={isLoaded ? t.removeBlocked : undefined}
               onClick={() => setConfirming(true)}
             >
-              {t.remove}
+              {isLocal ? t.forget : t.remove}
             </button>
           </div>
         )}
@@ -284,6 +378,24 @@ export function ManagerPane() {
               </span>
               <span className={styles.catalogRight}>
                 <span>{t.remoteCatalog}</span>
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M3 8h10M9 4l4 4-4 4"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+            </button>
+            <button className={styles.catalogRow} onClick={() => setModelsPane("import")}>
+              <span className={styles.catalogLeft}>
+                <span className={styles.catalogPlus}>+</span>
+                <span>{t.bringYourOwn}</span>
+              </span>
+              <span className={styles.catalogRight}>
+                <span>{t.bringYourOwnSub}</span>
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                   <path
                     d="M3 8h10M9 4l4 4-4 4"

@@ -86,6 +86,9 @@ export const commands = {
 	 *
 	 *  If the file is already gone from disk the DB row is still removed — this
 	 *  handles the case where the user deleted the file externally.
+	 *
+	 *  A `Local` model is the user's own file, referenced in place: only the row
+	 *  is removed, the file is left where it was.
 	 */
 	deleteModel: (modelId: string) => typedError<null, CommandError>(__TAURI_INVOKE("delete_model", { modelId })),
 	/**
@@ -94,11 +97,11 @@ export const commands = {
 	 */
 	isModelInstalled: (modelId: string) => typedError<boolean, CommandError>(__TAURI_INVOKE("is_model_installed", { modelId })),
 	/**
-	 *  Load an installed model into the inference engine. Replaces the temporary
-	 *  `dev_load_model` from Fase 3.5 with a catalog-driven flow: the frontend
-	 *  passes a `model_id`, this resolves the on-disk path through the registry
-	 *  and hands it to `ModelManager::load`. The "one model loaded at a time"
-	 *  invariant from Fase 3.3 is preserved by the manager itself.
+	 *  Load an installed model into the inference engine. The frontend passes a
+	 *  `model_id`; this resolves the on-disk path, chat template and context
+	 *  length through the registry and hands them to `ModelManager::load`. The
+	 *  "one model loaded at a time" invariant from Fase 3.3 is preserved by the
+	 *  manager itself.
 	 */
 	loadInstalledModel: (modelId: string) => typedError<null, CommandError>(__TAURI_INVOKE("load_installed_model", { modelId })),
 	/**
@@ -110,13 +113,49 @@ export const commands = {
 	 *  (e.g. a legacy dev load).
 	 */
 	getLoadedModel: () => typedError<string | null, CommandError>(__TAURI_INVOKE("get_loaded_model")),
+	/**
+	 *  Open the native file picker filtered to `.gguf`. Returns the chosen path,
+	 *  or `None` if the user dismissed the dialog.
+	 */
+	pickGgufFile: () => typedError<string | null, CommandError>(__TAURI_INVOKE("pick_gguf_file")),
+	/**
+	 *  Register a GGUF that already exists on disk, in place — no copy. The file
+	 *  is validated by reading its header, which also yields the name, context
+	 *  length and whether its embedded chat template is usable. Importing the
+	 *  same file twice updates the existing row instead of creating a second.
+	 *
+	 *  `template` overrides the chat template (for GGUFs whose embedded template
+	 *  llama.cpp can't render, or when the user knows better).
+	 */
+	importLocalModel: (path: string, template: "Llama3" | "ChatML" | "Mistral" | "Gemma" | "Gemma4" | "Qwen" | "Qwen3" | "Phi3" | "DeepSeek" | "Llama2" | "CommandR" | "GLM4" | null) => typedError<InstalledModel, CommandError>(__TAURI_INVOKE("import_local_model", { path, template })),
+	/**
+	 *  Turn a pasted link into the GGUF files it offers, each annotated with an
+	 *  estimated compatibility tier so the UI can point at the one that fits.
+	 */
+	resolveModelSource: (input: string) => typedError<ResolvedSource, CommandError>(__TAURI_INVOKE("resolve_model_source", { input })),
+	/**
+	 *  Download one of the files from `resolve_model_source`. Returns the
+	 *  `model_id` the `DownloadEvent`s will be keyed by. No checksum is known for
+	 *  a user URL, so the file is not verified; its GGUF header is read once the
+	 *  bytes land, and a file that isn't a GGUF is discarded with an
+	 *  `InvalidGguf` failure event.
+	 */
+	startUrlDownload: (request: UrlDownloadRequest) => typedError<string, CommandError>(__TAURI_INVOKE("start_url_download", { request })),
+	/**
+	 *  Choose how prompts are rendered for an installed model: a family, or
+	 *  `None` to go back to the GGUF's embedded template. Takes effect at once
+	 *  if that model is the one loaded.
+	 */
+	setModelChatTemplate: (modelId: string, template: "Llama3" | "ChatML" | "Mistral" | "Gemma" | "Gemma4" | "Qwen" | "Qwen3" | "Phi3" | "DeepSeek" | "Llama2" | "CommandR" | "GLM4" | null) => typedError<InstalledModel, CommandError>(__TAURI_INVOKE("set_model_chat_template", { modelId, template })),
 	getAppSettings: () => typedError<AppSettings, CommandError>(__TAURI_INVOKE("get_app_settings")),
 	setAppSettings: (settings: AppSettings) => typedError<AppSettings, CommandError>(__TAURI_INVOKE("set_app_settings", { settings })),
 	diskUsage: () => typedError<DiskUsage, CommandError>(__TAURI_INVOKE("disk_usage")),
 	/**
 	 *  Re-hash every installed model file against the registry's SHA256
 	 *  ("conferir integridade"). Persists the result as `last_integrity_check`
-	 *  and returns it. Missing files count as corrupt.
+	 *  and returns it. Missing files count as corrupt. Rows without a checksum
+	 *  (models the user brought themselves) have nothing to compare against and
+	 *  are skipped.
 	 */
 	verifyInstalledModels: () => typedError<IntegrityCheck, CommandError>(__TAURI_INVOKE("verify_installed_models")),
 	/**
@@ -128,6 +167,8 @@ export const commands = {
 	 *  "Queimar tudo": cancels any download, unloads the model, deletes every
 	 *  file in the models directory (including `.part` leftovers), then wipes
 	 *  conversations, the installed-models registry, and all preferences.
+	 *  Models imported from elsewhere on disk (`ModelSource::Local`) are the
+	 *  user's own files: their rows go, the files stay.
 	 *
 	 *  File deletions are best-effort: a file still mapped by an in-flight
 	 *  generation (Windows locks mapped files) is logged and skipped, and the
@@ -369,9 +410,37 @@ export type InstalledModel = {
 	filename: string,
 	path: string,
 	size_bytes: number,
-	sha256: string,
+	// `None` for user-supplied models: nothing to verify them against.
+	sha256: string | null,
 	installed_at: string,
+	source: ModelSource,
+	// The URL a `Url` model was fetched from (the HF page or direct link).
+	source_url: string | null,
+	/**
+	 *  Human name. Catalog rows leave this `None` and the frontend uses the
+	 *  catalog entry; custom rows fill it from the GGUF's `general.name`.
+	 */
+	display_name: string | null,
+	/**
+	 *  `None` = not decided yet. For a custom model this means the GGUF had
+	 *  no usable embedded template and the user has to pick a family before
+	 *  the model can chat.
+	 */
+	chat_template: InstalledTemplate | null,
+	context_length: number | null,
 };
+
+/**
+ *  How prompts are rendered for an installed model.
+ *
+ *  Stored as text in `installed_models.chat_template`: a `ChatTemplate`
+ *  family name, or `"Embedded"` for the GGUF's own `tokenizer.chat_template`.
+ */
+export type InstalledTemplate =
+// One of the hand-written family renderers in `chat::templates`.
+{ kind: "family"; family: ChatTemplate } |
+// The Jinja template baked into the GGUF, rendered by llama.cpp.
+{ kind: "embedded" };
 
 // Result of the last "conferir integridade" run over installed models.
 export type IntegrityCheck = {
@@ -419,12 +488,53 @@ export type ModelEntry = {
 	min_vram_mb: number | null,
 };
 
+// Where an installed model came from.
+export type ModelSource =
+// Downloaded from the remote catalog; checksum-verified.
+"catalog" |
+// A GGUF the user already had on disk, referenced in place.
+"local" |
+// Downloaded from a URL the user supplied; not verified.
+"url";
+
 export type OsFamily = "Windows" | "MacOs" | "Linux" | "Other";
 
 export type OsInfo = {
 	family: OsFamily,
 	version: string | null,
 	arch: string,
+};
+
+// A GGUF that can be downloaded, as presented to the frontend.
+export type RemoteGguf = {
+	// File name the download will be saved under.
+	filename: string,
+	// Direct download URL.
+	url: string,
+	/**
+	 *  `None` when the server didn't say (direct links without
+	 *  `Content-Length`).
+	 */
+	size_bytes: number | null,
+	/**
+	 *  Shard of a multi-file GGUF (`-00001-of-00003.gguf`). Listed so the
+	 *  user understands why it's greyed out; not downloadable.
+	 */
+	split: boolean,
+	/**
+	 *  Fit against the detected hardware, estimated from the file size.
+	 *  Filled in by the command layer; `None` when the size is unknown.
+	 */
+	tier: CompatibilityTier | null,
+};
+
+// What a pasted link resolved to.
+export type ResolvedSource = {
+	// `owner/repo` for Hugging Face sources; `None` for direct links.
+	repo: string | null,
+	// The normalised link the row will remember as its `source_url`.
+	source_url: string,
+	files: RemoteGguf[],
 };
 
 export type SamplingParams = {
@@ -463,6 +573,21 @@ export type SystemInfo = {
 	os: OsInfo,
 	cpu: CpuInfo,
 	memory: MemoryInfo,
+};
+
+// One file picked from a `ResolvedSource`, as the frontend sends it back.
+export type UrlDownloadRequest = {
+	// Direct download URL (`RemoteGguf::url`).
+	url: string,
+	// File name to save under (`RemoteGguf::filename`).
+	filename: string,
+	/**
+	 *  The link the user pasted, remembered on the row
+	 *  (`ResolvedSource::source_url`).
+	 */
+	source_url: string,
+	// Size announced by the listing, for progress before the first byte.
+	expected_size: number | null,
 };
 
 export type VulkanDeviceType = "discrete" | "integrated" | "virtual" | "cpu" | "other";

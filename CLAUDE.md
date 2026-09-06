@@ -195,10 +195,13 @@ app/
 │   │   │   ├── mod.rs
 │   │   │   ├── catalog.rs    # fetch + parse do catálogo remoto
 │   │   │   ├── download.rs   # download com resume + checksum
-│   │   │   └── registry.rs   # modelos instalados no disco
+│   │   │   ├── gguf.rs       # leitura do header GGUF (nome, contexto, template)
+│   │   │   ├── hf.rs         # resolução de links do Hugging Face / URLs .gguf
+│   │   │   └── registry.rs   # modelos instalados (catálogo, arquivo local ou URL)
 │   │   ├── chat/             # Lógica de conversa
 │   │   │   ├── mod.rs
 │   │   │   ├── templates.rs  # chat templates por família de modelo
+│   │   │   ├── embedded.rs   # template embutido no GGUF, via llama.cpp
 │   │   │   ├── context.rs    # gerenciamento de janela de contexto
 │   │   │   └── generation.rs # params de geração (temperature, etc.)
 │   │   ├── db/               # Persistência

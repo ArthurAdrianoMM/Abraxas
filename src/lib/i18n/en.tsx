@@ -408,6 +408,24 @@ export const en = {
     resume: "resume",
     pause: "pause",
     awaken: "awaken the model",
+    completedUnverified: "complete · no seal to check",
+    backToImport: "back to your models",
+    unknownSize: "size unknown",
+
+    invalidGguf: {
+      badge: "vii · not a model",
+      title: "What arrived is not a model.",
+      quiet: "the link answered, but not with a gguf.",
+      gloss: (reason: string) => (
+        <>
+          The bytes came down whole, but the file does not open as a GGUF — {reason}. The link may
+          point at a web page, a pointer file, or a different format. The file was discarded.
+        </>
+      ),
+      link: "link",
+      retry: "try again",
+      back: "choose another file",
+    },
 
     checksumFailed: {
       badge: "vi · seal does not match",
@@ -446,6 +464,44 @@ export const en = {
   },
 
 
+  importPane: {
+    kickerStep: "your own",
+    kickerSub: "models from outside the compendium",
+    h1Lead: "Bring your own model.",
+    h1Quiet: "a file you already have, or a link you trust.",
+    gloss:
+      "Any GGUF works: a file already on this computer, a Hugging Face repository, or a direct link. Nothing is verified against a published checksum — you vouch for what you bring.",
+
+    local: {
+      title: "From this computer",
+      desc: "The file is used where it is — nothing is copied. Removing it from the shelf later leaves the file untouched.",
+      pick: "choose a .gguf file",
+      importing: "reading the file…",
+      imported: (name: string) => `${name} is on the shelf.`,
+      importedNoTemplate: (name: string) =>
+        `${name} is on the shelf — choose its chat format before waking it.`,
+      awaken: "awaken it",
+      seeShelf: "see the shelf",
+      failed: "the file could not be brought in",
+    },
+
+    link: {
+      title: "From a link",
+      desc: "Paste a Hugging Face repository, a file inside one, or a direct link to a .gguf.",
+      placeholder: "huggingface.co/owner/model  ·  owner/model  ·  https://…/model.gguf",
+      resolve: "look",
+      resolving: "looking…",
+      filesHead: (n: number) => (n === 1 ? "1 file" : `${n} files`),
+      from: (repo: string) => `in ${repo}`,
+      sizeUnknown: "size unknown",
+      split: "split file · not supported",
+      download: "download",
+      installed: "already installed",
+      busy: "one download at a time — another model is already descending",
+      failed: "the link did not resolve",
+      hint: "Repositories with several quantizations list them all; the lighter ones come first.",
+    },
+  },
   manager: {
     kickerStep: "the atelier",
     kickerSub: "installed models",
@@ -489,6 +545,33 @@ export const en = {
     empty: "no codex on the shelf yet — the remote compendium has plenty to download.",
     browseCatalog: "browse the catalogue",
     remoteCatalog: "remote compendium",
+    bringYourOwn: "bring your own model",
+    bringYourOwnSub: "from disk or a link",
+    sourceLocal: "from your computer",
+    sourceUrl: "from a link",
+    unverified: "unverified",
+    unverifiedTitle: "no published checksum to check this file against",
+    templateLabel: "chat format",
+    templateEmbedded: "as written in the file",
+    templateChoose: "choose…",
+    templateMissing:
+      "this file does not say how it talks — choose a chat format before waking it.",
+    templateFamilies: {
+      Llama3: "Llama 3",
+      Llama2: "Llama 2",
+      ChatML: "ChatML",
+      Mistral: "Mistral",
+      Gemma: "Gemma",
+      Gemma4: "Gemma 4",
+      Qwen: "Qwen",
+      Qwen3: "Qwen 3",
+      Phi3: "Phi-3",
+      DeepSeek: "DeepSeek",
+      CommandR: "Command R",
+      GLM4: "GLM-4",
+    },
+    confirmForget: "forget this codex? the file stays where it is.",
+    forget: "forget",
 
     loadFailed: {
       badge: "i · did not load",
@@ -524,6 +607,8 @@ export const en = {
     backToCatalog: "back to the compendium",
     modelDownload: "model download",
     models: "models",
+    importPane: "bring your own",
+    backToImport: "back to your models",
   },
 
   sidebar: {
@@ -668,7 +753,7 @@ export const en = {
       count: (n: number): string => (n === 1 ? "model" : "models"),
       available: (gb: string) => ` · available: ${gb} gb`,
       integrity: "check integrity",
-      integrityDesc: "recompute hashes of the downloaded files.",
+      integrityDesc: "recompute hashes of the downloaded files — models you brought yourself have no seal and are skipped.",
       checking: "checking…",
       checkNow: "check now",
       nothingToCheck: "nothing on the shelf to check",

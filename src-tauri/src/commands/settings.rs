@@ -84,7 +84,9 @@ pub async fn disk_usage(app: AppHandle) -> Result<DiskUsage, CommandError> {
 
 /// Re-hash every installed model file against the registry's SHA256
 /// ("conferir integridade"). Persists the result as `last_integrity_check`
-/// and returns it. Missing files count as corrupt.
+/// and returns it. Missing files count as corrupt. Rows without a checksum
+/// (models the user brought themselves) have nothing to compare against and
+/// are skipped.
 #[tauri::command]
 #[specta::specta]
 pub async fn verify_installed_models(db: State<'_, Db>) -> Result<IntegrityCheck, CommandError> {
@@ -92,11 +94,14 @@ pub async fn verify_installed_models(db: State<'_, Db>) -> Result<IntegrityCheck
 
     let mut corrupt = Vec::new();
     for row in rows {
+        let Some(expected) = row.sha256.as_deref() else {
+            continue;
+        };
         let path = PathBuf::from(&row.path);
         let ok = tauri::async_runtime::spawn_blocking(move || sha256_of_file(&path))
             .await
             .expect("integrity hash task panicked")
-            .map(|got| got.eq_ignore_ascii_case(&row.sha256))
+            .map(|got| got.eq_ignore_ascii_case(expected))
             .unwrap_or(false);
         if !ok {
             tracing::warn!(model_id = %row.id, path = %row.path, "integrity check failed");
@@ -154,6 +159,8 @@ pub async fn clear_conversations(db: State<'_, Db>) -> Result<(), CommandError> 
 /// "Queimar tudo": cancels any download, unloads the model, deletes every
 /// file in the models directory (including `.part` leftovers), then wipes
 /// conversations, the installed-models registry, and all preferences.
+/// Models imported from elsewhere on disk (`ModelSource::Local`) are the
+/// user's own files: their rows go, the files stay.
 ///
 /// File deletions are best-effort: a file still mapped by an in-flight
 /// generation (Windows locks mapped files) is logged and skipped, and the
@@ -178,10 +185,12 @@ pub async fn clear_all_data(
     let mut files_left: Vec<String> = Vec::new();
 
     for row in &rows {
-        if let Err(e) = tokio::fs::remove_file(&row.path).await {
-            if e.kind() != std::io::ErrorKind::NotFound {
-                tracing::warn!(path = %row.path, error = %e, "clear_all_data: file kept (in use?)");
-                files_left.push(row.filename.clone());
+        if row.source != registry::ModelSource::Local {
+            if let Err(e) = tokio::fs::remove_file(&row.path).await {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    tracing::warn!(path = %row.path, error = %e, "clear_all_data: file kept (in use?)");
+                    files_left.push(row.filename.clone());
+                }
             }
         }
         registry::remove(db.pool(), &row.id)

@@ -1,7 +1,23 @@
 import { create } from "zustand";
-import { commands, type InstalledModel } from "../lib/tauri/bindings";
+import { commands, type InstalledModel, type ModelEntry } from "../lib/tauri/bindings";
 import { describeError, unwrap } from "../lib/tauri/result";
 import { useSettingsStore } from "./settings";
+
+/** The name to show for an installed model. Custom rows carry their own
+ *  (from the GGUF header); catalog rows written before custom models existed
+ *  don't, so the catalog entry fills in, and the id is the last resort. */
+export function displayNameOf(
+  installed: InstalledModel | null | undefined,
+  entry?: ModelEntry | null,
+  fallback?: string | null,
+): string {
+  return installed?.display_name ?? entry?.name ?? installed?.id ?? fallback ?? "";
+}
+
+/** A model the user brought themselves (not from the catalog). */
+export function isCustomModel(installed: InstalledModel): boolean {
+  return installed.source !== "catalog";
+}
 
 export type ModelStatus =
   | "unknown" // haven't asked the backend yet

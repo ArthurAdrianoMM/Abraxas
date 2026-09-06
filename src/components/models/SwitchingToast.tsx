@@ -1,6 +1,6 @@
 import { useT } from "../../lib/i18n";
 import { useCatalogStore } from "../../stores/catalog";
-import { useModelStore } from "../../stores/model";
+import { displayNameOf, useModelStore } from "../../stores/model";
 import styles from "./SwitchingToast.module.css";
 
 /** The quiet "despertando X…" toast from the chat design — shown for
@@ -11,10 +11,15 @@ export function SwitchingToast() {
   const loadingId = useModelStore((s) => s.loadingId);
   const presentation = useModelStore((s) => s.loadPresentation);
   const catalogModels = useCatalogStore((s) => s.models);
+  const installed = useModelStore((s) => s.installed);
 
   if (status !== "loading" || presentation !== "toast" || !loadingId) return null;
 
-  const name = catalogModels.find((m) => m.model.id === loadingId)?.model.name ?? loadingId;
+  const name = displayNameOf(
+    installed.find((m) => m.id === loadingId),
+    catalogModels.find((m) => m.model.id === loadingId)?.model,
+    loadingId,
+  );
 
   return (
     <div className={styles.switching} role="status" aria-live="polite">

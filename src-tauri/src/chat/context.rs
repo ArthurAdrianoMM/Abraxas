@@ -10,11 +10,8 @@ use std::future::Future;
 
 use thiserror::Error;
 
-use crate::chat::templates::{
-    render_chat_template_with_options, ChatMessage, ChatRole, RenderOptions, TemplateError,
-};
+use crate::chat::templates::{ChatMessage, ChatRole, PromptTemplate, RenderOptions, TemplateError};
 use crate::inference::InferenceError;
-use crate::models::catalog::ChatTemplate;
 
 /// Reserve this many tokens of headroom on top of the completion budget for
 /// template/tokenizer boundary differences and final control tokens.
@@ -53,7 +50,7 @@ pub enum ContextError {
 /// conversation of N messages. Fine for typical chat depth; revisit with a
 /// binary search if profiling ever shows this on the hot path.
 pub async fn fit_prompt_to_context<F, Fut>(
-    template: ChatTemplate,
+    template: &PromptTemplate,
     messages: &[ChatMessage],
     n_ctx: u32,
     completion_budget: u32,
@@ -122,7 +119,7 @@ where
 }
 
 async fn render_and_count<F, Fut>(
-    template: ChatTemplate,
+    template: &PromptTemplate,
     messages: Vec<ChatMessage>,
     count_tokens: &mut F,
 ) -> Result<FittedPrompt, ContextError>
@@ -130,7 +127,7 @@ where
     F: FnMut(String) -> Fut,
     Fut: Future<Output = Result<usize, InferenceError>>,
 {
-    let prompt = render_chat_template_with_options(template, &messages, RenderOptions::default())?;
+    let prompt = template.render(&messages, RenderOptions::default())?;
     let prompt_tokens = count_tokens(prompt.clone())
         .await
         .map_err(|e| ContextError::TokenCount(e.to_string()))?;
@@ -156,6 +153,8 @@ mod tests {
     use super::*;
     use crate::models::catalog::ChatTemplate;
 
+    const CHATML: PromptTemplate = PromptTemplate::Family(ChatTemplate::ChatML);
+
     fn msg(role: ChatRole, content: &str) -> ChatMessage {
         ChatMessage::new(role, content)
     }
@@ -168,13 +167,9 @@ mod tests {
             msg(ChatRole::Assistant, "hello"),
             msg(ChatRole::User, "bye"),
         ];
-        let fitted = fit_prompt_to_context(
-            ChatTemplate::ChatML,
-            &msgs,
-            4096,
-            256,
-            |prompt| async move { Ok(prompt.len() / 4) },
-        )
+        let fitted = fit_prompt_to_context(&CHATML, &msgs, 4096, 256, |prompt| async move {
+            Ok(prompt.len() / 4)
+        })
         .await
         .unwrap();
 
@@ -192,16 +187,15 @@ mod tests {
             msg(ChatRole::User, "recent-user"),
             msg(ChatRole::User, "current"),
         ];
-        let fitted =
-            fit_prompt_to_context(ChatTemplate::ChatML, &msgs, 128, 32, |prompt| async move {
-                if prompt.contains("old-user") || prompt.contains("old-assistant") {
-                    Ok(1_000)
-                } else {
-                    Ok(40)
-                }
-            })
-            .await
-            .unwrap();
+        let fitted = fit_prompt_to_context(&CHATML, &msgs, 128, 32, |prompt| async move {
+            if prompt.contains("old-user") || prompt.contains("old-assistant") {
+                Ok(1_000)
+            } else {
+                Ok(40)
+            }
+        })
+        .await
+        .unwrap();
 
         assert!(fitted.messages.iter().any(|m| m.role == ChatRole::System));
         assert!(fitted.messages.iter().any(|m| m.content == "recent-user"));
@@ -219,16 +213,15 @@ mod tests {
             msg(ChatRole::Assistant, "old-assistant"),
             msg(ChatRole::User, "tail"),
         ];
-        let fitted =
-            fit_prompt_to_context(ChatTemplate::ChatML, &msgs, 96, 32, |prompt| async move {
-                if prompt.contains("old-user") || prompt.contains("old-assistant") {
-                    Ok(1_000)
-                } else {
-                    Ok(32)
-                }
-            })
-            .await
-            .unwrap();
+        let fitted = fit_prompt_to_context(&CHATML, &msgs, 96, 32, |prompt| async move {
+            if prompt.contains("old-user") || prompt.contains("old-assistant") {
+                Ok(1_000)
+            } else {
+                Ok(32)
+            }
+        })
+        .await
+        .unwrap();
 
         assert!(fitted
             .messages
@@ -246,11 +239,9 @@ mod tests {
             msg(ChatRole::User, "current"),
         ];
 
-        let err = fit_prompt_to_context(ChatTemplate::ChatML, &msgs, 128, 32, |_prompt| async {
-            Ok(100)
-        })
-        .await
-        .unwrap_err();
+        let err = fit_prompt_to_context(&CHATML, &msgs, 128, 32, |_prompt| async { Ok(100) })
+            .await
+            .unwrap_err();
 
         assert_eq!(
             err,
@@ -263,11 +254,9 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn empty_input_returns_template_error() {
-        let err = fit_prompt_to_context(ChatTemplate::ChatML, &[], 4096, 256, |_prompt| async {
-            Ok(0)
-        })
-        .await
-        .unwrap_err();
+        let err = fit_prompt_to_context(&CHATML, &[], 4096, 256, |_prompt| async { Ok(0) })
+            .await
+            .unwrap_err();
 
         assert!(matches!(err, ContextError::Template(_)));
     }
