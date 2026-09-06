@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { useT } from "../../lib/i18n";
 
 interface ComposerProps {
   value: string;
@@ -20,6 +21,7 @@ export function Composer({
   onSend,
   onStop,
 }: ComposerProps) {
+  const t = useT().chat;
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   const autosize = useCallback(() => {
@@ -43,7 +45,7 @@ export function Composer({
     <div className="composer-wrap">
       <div className="composer-inner">
         <div className="composer">
-          <button className="icon-btn" title="anexar fragmento" aria-label="anexar">
+          <button className="icon-btn" title={t.attach} aria-label={t.attachAria}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path
                 d="M10.5 4.5L5.7 9.3a2 2 0 1 0 2.8 2.8l5.5-5.5a3.5 3.5 0 0 0-5-5L3 7.6a5 5 0 1 0 7 7l4.5-4.5"
@@ -72,7 +74,7 @@ export function Composer({
             }}
           />
           {generating ? (
-            <button className="send-btn" aria-label="parar" title="parar" onClick={onStop}>
+            <button className="send-btn" aria-label={t.stop} title={t.stop} onClick={onStop}>
               <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
                 <rect
                   x="3.5"
@@ -88,7 +90,7 @@ export function Composer({
           ) : (
             <button
               className="send-btn"
-              aria-label="enviar"
+              aria-label={t.send}
               onClick={onSend}
               disabled={!canSend}
               style={{ opacity: canSend ? 1 : 0.4, cursor: canSend ? "pointer" : "default" }}

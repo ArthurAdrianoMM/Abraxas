@@ -120,7 +120,7 @@ export const commands = {
 	 */
 	verifyInstalledModels: () => typedError<IntegrityCheck, CommandError>(__TAURI_INVOKE("verify_installed_models")),
 	/**
-	 *  "Apagar todo o histórico": every conversation and (via cascade) every
+	 *  "Delete all history": every conversation and (via cascade) every
 	 *  message. Models and preferences stay.
 	 */
 	clearConversations: () => typedError<null, CommandError>(__TAURI_INVOKE("clear_conversations")),
@@ -164,6 +164,8 @@ export type AppSettings = {
 	 */
 	onboarding_complete: boolean,
 	font_size: FontSize,
+	// `None` until the frontend resolves the host locale (see [`Locale`]).
+	locale: Locale | null,
 	// Model auto-loaded on startup. `None` = first installed model.
 	default_model_id: string | null,
 	/**
@@ -381,6 +383,16 @@ export type IntegrityCheck = {
 	 */
 	corrupt: string[],
 };
+
+/**
+ *  UI language. Stored as `Option` so a fresh install can be told apart from
+ *  a deliberate choice: `None` means "never chosen", and the frontend resolves
+ *  it once from the host's `navigator.language` and persists the result. That
+ *  keeps the decision out of Rust (which has no view of the browser locale)
+ *  without needing a migration for existing installs, whose rows simply stay
+ *  absent and read back as `None`.
+ */
+export type Locale = "en" | "pt";
 
 export type MemoryInfo = {
 	total_bytes: number,

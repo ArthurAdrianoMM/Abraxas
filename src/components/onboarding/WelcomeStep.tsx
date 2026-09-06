@@ -1,10 +1,12 @@
 import { useEffect } from "react";
 import fibonacci from "../../assets/fibonacci.gif";
+import { useT } from "../../lib/i18n";
 import styles from "./WelcomeStep.module.css";
 
 /** First-open invocation per "Abraxas Welcome.html": spiral figure, mark +
  *  wordmark, one CTA into the exame, and the quiet skip underneath. */
 export function WelcomeStep({ onBegin, onSkip }: { onBegin: () => void; onSkip: () => void }) {
+  const t = useT().onboarding.welcome;
   // Keyboard-first, like the chat: Enter/Space proceed.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -37,15 +39,12 @@ export function WelcomeStep({ onBegin, onSkip }: { onBegin: () => void; onSkip: 
           <span className={styles.wordmark}>ABRAXAS</span>
         </div>
 
-        <p className={styles.invocation}>
-          Uma inteligência que vive na sua máquina, fala apenas com você, e não
-          deve nada à nuvem.
-        </p>
+        <p className={styles.invocation}>{t.invocation}</p>
 
         <span className={styles.rule} aria-hidden="true" />
 
         <button className={styles.enterBtn} onClick={onBegin}>
-          <span>começar · examinar a máquina</span>
+          <span>{t.begin}</span>
           <span className={styles.arrow} aria-hidden="true">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path
@@ -60,7 +59,7 @@ export function WelcomeStep({ onBegin, onSkip }: { onBegin: () => void; onSkip: 
         </button>
 
         <button className={styles.altLink} onClick={onSkip}>
-          já conheço a casa — entrar direto →
+          {t.skip}
         </button>
       </div>
     </div>

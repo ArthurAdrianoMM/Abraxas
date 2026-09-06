@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import fibonacci from "../../assets/fibonacci.gif";
 import type { HardwareDetection } from "../../lib/tauri/bindings";
-import { gb } from "../../lib/format";
+import type { Format } from "../../lib/format";
+import { useFormat, useT, type Dict } from "../../lib/i18n";
 import { useDiskStore } from "../../stores/disk";
 import { useHardwareStore } from "../../stores/hardware";
 import styles from "./CheckStep.module.css";
 
 const ROW_DEFS = [
-  { key: "ram", name: "memória ram", roman: "I." },
-  { key: "cpu", name: "processador", roman: "II." },
-  { key: "gpu", name: "placa gráfica", roman: "III." },
-  { key: "vram", name: "memória de vídeo", roman: "IV." },
-  { key: "storage", name: "armazenamento", roman: "V." },
+  { key: "ram", roman: "I." },
+  { key: "cpu", roman: "II." },
+  { key: "gpu", roman: "III." },
+  { key: "vram", roman: "IV." },
+  { key: "storage", roman: "V." },
 ] as const;
 
 type RowKey = (typeof ROW_DEFS)[number]["key"];
@@ -20,76 +21,28 @@ type Row = { detail: string; state: RowState };
 
 type Tier = "optimal" | "medium" | "low" | "error";
 
-const VERDICTS: Record<Tier, { tier: string; main: string; gloss: React.ReactNode; cta: string }> =
-  {
-    optimal: {
-      tier: "resultado · ótimo",
-      main: "Seu computador está pronto para a IA local.",
-      gloss: (
-        <>
-          Pode rodar modelos médios e grandes sem suar. Na próxima página, o baralho já vem com a{" "}
-          <em>escolha recomendada</em> no centro.
-        </>
-      ),
-      cta: "continuar",
-    },
-    medium: {
-      tier: "resultado · adequado",
-      main: "Seu computador roda melhor os modelos menores.",
-      gloss: (
-        <>
-          Modelos pequenos e quantizados respondem bem. Os maiores podem ficar lentos — vamos
-          sugerir uma boa primeira escolha.
-        </>
-      ),
-      cta: "continuar",
-    },
-    low: {
-      tier: "resultado · limitado",
-      main: "Pode ficar lento, mas modelos leves devem funcionar.",
-      gloss: (
-        <>
-          Use modelos quantizados de 1–3B. As respostas serão <em>devagar</em>, no espírito da
-          escrita à pena.
-        </>
-      ),
-      cta: "continuar mesmo assim",
-    },
-    error: {
-      tier: "falha · não foi possível ler",
-      main: "Não conseguimos completar o exame.",
-      gloss: (
-        <>
-          Algumas leituras falharam. Feche outras aplicações pesadas e tente novamente — costuma
-          resolver.
-        </>
-      ),
-      cta: "continuar mesmo assim",
-    },
-  };
-
-/** GB with pt-BR comma from megabytes. */
-function gbFromMb(mb: number, digits = 1): string {
-  return (mb / 1024).toFixed(digits).replace(".", ",");
-}
-
 function buildRows(
   detection: HardwareDetection | null,
   disk: { free_bytes: number; total_bytes: number } | null,
+  t: Dict["onboarding"]["check"],
+  f: Format,
 ): Record<RowKey, Row> {
+  /** VRAM arrives in mebibytes, not bytes, so it can't go through `f.gb`. */
+  const gib = (mb: number) => f.decimal(mb / 1024, 1);
+
   if (!detection) {
-    const fail: Row = { detail: "leitura interrompida", state: "fail" };
+    const fail: Row = { detail: t.interrupted, state: "fail" };
     return { ram: fail, cpu: fail, gpu: fail, vram: fail, storage: fail };
   }
   const { memory, cpu } = detection.system;
   const gpu = detection.gpu;
 
   const ram: Row = {
-    detail: `${gb(memory.available_bytes, 1)} GB livres de ${gb(memory.total_bytes, 0)} GB`,
+    detail: t.free(f.gb(memory.available_bytes, 1), f.gb(memory.total_bytes, 0)),
     state: memory.total_bytes >= 12e9 ? "ok" : "warn",
   };
   const cpuRow: Row = {
-    detail: `${cpu.brand.trim()} · ${cpu.logical_cores} núcleos`,
+    detail: t.cores(cpu.brand.trim(), cpu.logical_cores),
     state: "ok",
   };
 
@@ -98,31 +51,31 @@ function buildRows(
   switch (gpu.kind) {
     case "metal":
       gpuRow = { detail: "Apple Silicon · Metal", state: "ok" };
-      vramRow = { detail: "unificada com a memória do sistema", state: "ok" };
+      vramRow = { detail: t.unified, state: "ok" };
       break;
     case "cuda":
       gpuRow = { detail: `${gpu.name} · CUDA`, state: "ok" };
-      vramRow = { detail: `${gbFromMb(gpu.vram_mb)} GB dedicados`, state: "ok" };
+      vramRow = { detail: t.dedicated(gib(gpu.vram_mb)), state: "ok" };
       break;
     case "vulkan":
       gpuRow = { detail: `${gpu.name} · Vulkan`, state: "ok" };
       vramRow =
         gpu.vram_mb != null
-          ? { detail: `${gbFromMb(gpu.vram_mb)} GB dedicados`, state: "ok" }
-          : { detail: "compartilhada com a memória", state: "warn" };
+          ? { detail: t.dedicated(gib(gpu.vram_mb)), state: "ok" }
+          : { detail: t.shared, state: "warn" };
       break;
     default:
-      gpuRow = { detail: "nenhuma gpu dedicada — usaremos o processador", state: "warn" };
-      vramRow = { detail: "compartilhada com a memória", state: "warn" };
+      gpuRow = { detail: t.noGpu, state: "warn" };
+      vramRow = { detail: t.shared, state: "warn" };
   }
 
   const storage: Row =
     disk && disk.total_bytes > 0
       ? {
-          detail: `${gb(disk.free_bytes, 0)} GB livres de ${gb(disk.total_bytes, 0)} GB`,
+          detail: t.free(f.gb(disk.free_bytes, 0), f.gb(disk.total_bytes, 0)),
           state: disk.free_bytes >= 20e9 ? "ok" : "warn",
         }
-      : { detail: "não foi possível ler o disco", state: "warn" };
+      : { detail: t.diskUnreadable, state: "warn" };
 
   return { ram, cpu: cpuRow, gpu: gpuRow, vram: vramRow, storage };
 }
@@ -143,6 +96,8 @@ function tierFor(detection: HardwareDetection | null, failed: boolean): Tier {
  *  fast; the ledger animation sets the pace, settling one row at a time and
  *  only revealing the verdict when the last entry lands. */
 export function CheckStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => void }) {
+  const t = useT().onboarding.check;
+  const f = useFormat();
   const detection = useHardwareStore((s) => s.detection);
   const hwError = useHardwareStore((s) => s.error);
   const initHardware = useHardwareStore((s) => s.init);
@@ -173,11 +128,11 @@ export function CheckStep({ onContinue, onSkip }: { onContinue: () => void; onSk
   }, [revealed, scanId]);
 
   const failed = !detection && hwError !== null;
-  const rows = useMemo(() => buildRows(detection, usage), [detection, usage]);
+  const rows = useMemo(() => buildRows(detection, usage, t, f), [detection, usage, t, f]);
   const done = revealed >= ROW_DEFS.length;
   const tier = tierFor(detection, failed);
-  const verdict = VERDICTS[tier];
-  const scanningKey = !done ? ROW_DEFS[revealed]?.name : null;
+  const verdict = t.verdicts[tier];
+  const scanningRow = !done ? ROW_DEFS[revealed]?.key : null;
 
   const retry = () => {
     setRevealed(0);
@@ -207,8 +162,8 @@ export function CheckStep({ onContinue, onSkip }: { onContinue: () => void; onSk
           {!done ? (
             <div className={styles.pre}>
               <h1 className={styles.title}>
-                <span>Examinando</span>
-                <span className={styles.titleQuiet}>o instrumento.</span>
+                <span>{t.titleLead}</span>
+                <span className={styles.titleQuiet}>{t.titleQuiet}</span>
               </h1>
             </div>
           ) : (
@@ -226,9 +181,7 @@ export function CheckStep({ onContinue, onSkip }: { onContinue: () => void; onSk
           {!done && (
             <div className={styles.whisper}>
               <span>
-                {scanningKey
-                  ? `lendo ${scanningKey}`
-                  : "verificando o que seu computador roda com folga"}
+                {scanningRow ? t.scanning(t.rows[scanningRow]) : t.scanningIdle}
               </span>
               <span className={styles.barwrap} />
             </div>
@@ -240,7 +193,7 @@ export function CheckStep({ onContinue, onSkip }: { onContinue: () => void; onSk
       <section className={styles.leafR}>
         <div className={styles.ledger}>
           <div className={styles.head}>
-            <span className={styles.kicker}>— inventário do hardware</span>
+            <span className={styles.kicker}>{t.ledger}</span>
           </div>
 
           <div className={styles.entries}>
@@ -248,7 +201,7 @@ export function CheckStep({ onContinue, onSkip }: { onContinue: () => void; onSk
               const state: "pending" | "scanning" | RowState =
                 i < revealed ? rows[def.key].state : i === revealed && !done ? "scanning" : "pending";
               const detail =
-                i < revealed ? rows[def.key].detail : i === revealed && !done ? "lendo" : "aguardando";
+                i < revealed ? rows[def.key].detail : i === revealed && !done ? t.reading : t.waiting;
               return (
                 <div className={styles.entry} data-state={state} key={def.key}>
                   <span className={styles.num}>{def.roman}</span>
@@ -256,7 +209,7 @@ export function CheckStep({ onContinue, onSkip }: { onContinue: () => void; onSk
                     <span className={styles.dot} />
                   </span>
                   <div className={styles.body}>
-                    <span className={styles.name}>{def.name}</span>
+                    <span className={styles.name}>{t.rows[def.key]}</span>
                     <span className={styles.detail}>{detail}</span>
                   </div>
                 </div>
@@ -277,11 +230,11 @@ export function CheckStep({ onContinue, onSkip }: { onContinue: () => void; onSk
                   strokeLinejoin="round"
                 />
               </svg>
-              verificar novamente
+              {t.retry}
             </button>
             {done && tier === "error" && (
               <button className={styles.ghostLink} onClick={onSkip}>
-                pular e entrar no estúdio →
+                {t.skip}
               </button>
             )}
           </div>
@@ -292,7 +245,7 @@ export function CheckStep({ onContinue, onSkip }: { onContinue: () => void; onSk
             disabled={!done}
             onClick={onContinue}
           >
-            <span>{done ? verdict.cta : "aguarde…"}</span>
+            <span>{done ? verdict.cta : t.wait}</span>
             <span className={styles.arrow} aria-hidden="true">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                 <path

@@ -1,4 +1,4 @@
-import { ago } from "../../lib/format";
+import { useFormat, useT } from "../../lib/i18n";
 import { useCatalogStore } from "../../stores/catalog";
 import { useConversationsStore } from "../../stores/conversations";
 import { useModelStore } from "../../stores/model";
@@ -7,6 +7,7 @@ import { ModelSwitcher } from "./ModelSwitcher";
 import styles from "./Topbar.module.css";
 
 function BackLink({ onClick }: { onClick: () => void }) {
+  const t = useT().topbar;
   return (
     <button className={styles.backLink} onClick={onClick}>
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -18,7 +19,7 @@ function BackLink({ onClick }: { onClick: () => void }) {
           strokeLinejoin="round"
         />
       </svg>
-      voltar ao estúdio
+      {t.backToStudio}
     </button>
   );
 }
@@ -28,6 +29,7 @@ function Meta({ children }: { children: React.ReactNode }) {
 }
 
 function ChatTopbar() {
+  const t = useT().topbar;
   const setView = useUiStore((s) => s.setView);
   const setOrdersOpen = useUiStore((s) => s.setOrdersOpen);
   const switcherOpen = useUiStore((s) => s.switcherOpen);
@@ -48,14 +50,14 @@ function ChatTopbar() {
         <span className={`title ${styles.title}`}>{active.title}</span>
       ) : (
         <span className={`title ${styles.title}`}>
-          <em style={{ opacity: 0.6 }}>nova conversa</em>
+          <em style={{ opacity: 0.6 }}>{t.newConversation}</em>
         </span>
       )}
 
       {/* model pill → switcher popover */}
       <button
         className={styles.modelPill}
-        title="trocar a voz"
+        title={t.switchVoice}
         aria-haspopup="true"
         aria-expanded={switcherOpen}
         onClick={() => setSwitcherOpen(!switcherOpen)}
@@ -65,8 +67,8 @@ function ChatTopbar() {
           {modelStatus === "loaded" && loadedName
             ? loadedName
             : modelStatus === "loading"
-              ? "despertando…"
-              : "sem voz"}
+              ? t.awakening
+              : t.noVoice}
         </span>
         <svg className={styles.modelPillChev} width="11" height="11" viewBox="0 0 16 16" fill="none">
           <path
@@ -83,7 +85,7 @@ function ChatTopbar() {
 
       <button
         className={styles.toolBtn}
-        title="ordens desta conversa"
+        title={t.orders}
         aria-haspopup="dialog"
         disabled={!active}
         style={!active ? { opacity: 0.35, cursor: "default" } : undefined}
@@ -97,7 +99,7 @@ function ChatTopbar() {
         </svg>
       </button>
 
-      <button className={styles.toolBtn} title="preferências" onClick={() => setView("settings")}>
+      <button className={styles.toolBtn} title={t.preferences} onClick={() => setView("settings")}>
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <circle cx="8" cy="8" r="2.6" stroke="currentColor" strokeWidth="1.2" />
           <line x1="8" y1="1.5" x2="8" y2="3.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
@@ -109,7 +111,8 @@ function ChatTopbar() {
 
       <Meta>
         <span>
-          <span className="dot"></span>offline
+          <span className="dot"></span>
+          {t.offline}
         </span>
       </Meta>
     </header>
@@ -117,6 +120,8 @@ function ChatTopbar() {
 }
 
 function ModelsTopbar() {
+  const t = useT().topbar;
+  const f = useFormat();
   const setView = useUiStore((s) => s.setView);
   const pane = useUiStore((s) => s.modelsPane);
   const setModelsPane = useUiStore((s) => s.setModelsPane);
@@ -136,13 +141,13 @@ function ModelsTopbar() {
               strokeLinejoin="round"
             />
           </svg>
-          ateliê dos modelos
+          {t.atelier}
         </button>
         <Meta>
           <span>
             <span className="dot"></span>
-            {source === "cache" ? "cópia local" : "catálogo"}
-            {fetchedAt ? ` · sincronizado ${ago(fetchedAt)}` : ""}
+            {source === "cache" ? t.localCopy : t.catalogue}
+            {fetchedAt ? t.synced(f.ago(fetchedAt)) : ""}
           </span>
         </Meta>
       </header>
@@ -162,11 +167,12 @@ function ModelsTopbar() {
               strokeLinejoin="round"
             />
           </svg>
-          voltar ao compêndio
+          {t.backToCatalog}
         </button>
         <Meta>
           <span>
-            <span className="dot"></span>download do modelo
+            <span className="dot"></span>
+            {t.modelDownload}
           </span>
         </Meta>
       </header>
@@ -178,22 +184,25 @@ function ModelsTopbar() {
       <BackLink onClick={() => setView("chat")} />
       <Meta>
         <span>
-          <span className="dot"></span>offline
+          <span className="dot"></span>
+          {t.offline}
         </span>
-        <span>modelos</span>
+        <span>{t.models}</span>
       </Meta>
     </header>
   );
 }
 
 function SettingsTopbar() {
+  const t = useT().topbar;
   const setView = useUiStore((s) => s.setView);
   return (
     <header className="topbar">
       <BackLink onClick={() => setView("chat")} />
       <Meta>
         <span>
-          <span className="dot"></span>preferências
+          <span className="dot"></span>
+          {t.preferences}
         </span>
       </Meta>
     </header>

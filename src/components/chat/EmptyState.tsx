@@ -1,39 +1,9 @@
+import { useT } from "../../lib/i18n";
 import styles from "./EmptyState.module.css";
-
-const SEEDS = [
-  {
-    roman: "I",
-    kind: "leitura",
-    label: (
-      <>
-        o que Hesse quis dizer com <em>“abraxas”</em>?
-      </>
-    ),
-    prompt: "Me explique, sem academicismo, o que significa Abraxas em Demian de Hesse.",
-  },
-  {
-    roman: "II",
-    kind: "escrita",
-    label: <>reescreva como uma nota de margem</>,
-    prompt: "Reescreva este parágrafo como se Borges o estivesse anotando na margem.",
-  },
-  {
-    roman: "III",
-    kind: "técnica",
-    label: <>o que é quantização, em voz baixa</>,
-    prompt:
-      "Explique de forma honesta o que é quantização de modelos e por que importa para rodar localmente.",
-  },
-  {
-    roman: "IV",
-    kind: "conselho",
-    label: <>uma rotina contemplativa para hoje</>,
-    prompt: "Me dê uma rotina contemplativa de 20 minutos para esta noite.",
-  },
-];
 
 /** The "new conversation" invocation — a still page before the first word. */
 export function EmptyState({ onSeed }: { onSeed: (prompt: string) => void }) {
+  const t = useT().chat.empty;
   return (
     <section className={`thread ${styles.empty}`}>
       <div className={styles.invocation}>
@@ -47,22 +17,19 @@ export function EmptyState({ onSeed }: { onSeed: (prompt: string) => void }) {
           </svg>
         </div>
 
-        <span className={styles.kicker}>i · um silêncio sem palavras</span>
+        <span className={styles.kicker}>{t.kicker}</span>
 
         <h1 className={styles.title}>
-          <span>Diga a primeira palavra.</span>
-          <span className={styles.quiet}>o resto vem.</span>
+          <span>{t.titleLead}</span>
+          <span className={styles.quiet}>{t.titleQuiet}</span>
         </h1>
 
         <span className={styles.rule} aria-hidden="true"></span>
 
-        <p className={styles.gloss}>
-          Abraxas escuta em silêncio até você falar. Pergunte, peça uma leitura, traga um
-          fragmento — ou comece por uma das passagens abaixo.
-        </p>
+        <p className={styles.gloss}>{t.gloss}</p>
 
         <div className={styles.seeds}>
-          {SEEDS.map((seed) => (
+          {t.seeds.map((seed) => (
             <button key={seed.roman} className={styles.seed} onClick={() => onSeed(seed.prompt)}>
               <span className={styles.roman}>{seed.roman}</span>
               <span className={styles.text}>
@@ -74,7 +41,7 @@ export function EmptyState({ onSeed }: { onSeed: (prompt: string) => void }) {
         </div>
 
         <span className={styles.belowHint}>
-          <kbd>↵</kbd> enviar · <kbd>shift</kbd>+<kbd>↵</kbd> quebrar linha
+          <kbd>↵</kbd> {t.hintSend} · <kbd>shift</kbd>+<kbd>↵</kbd> {t.hintNewline}
         </span>
       </div>
     </section>

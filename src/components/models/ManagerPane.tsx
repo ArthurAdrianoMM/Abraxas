@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { InstalledModel, ModelEntry } from "../../lib/tauri/bindings";
 import { describeError } from "../../lib/tauri/result";
-import { ago, contextK, gb, roman } from "../../lib/format";
+import { useFormat, useT } from "../../lib/i18n";
 import { useCatalogStore } from "../../stores/catalog";
 import { useDiskStore } from "../../stores/disk";
 import { useModelStore } from "../../stores/model";
@@ -21,6 +21,8 @@ function ManagerRow({
   entry: ModelEntry | null;
   index: number;
 }) {
+  const t = useT().manager;
+  const f = useFormat();
   const loadedId = useModelStore((s) => s.loadedId);
   const status = useModelStore((s) => s.status);
   const load = useModelStore((s) => s.load);
@@ -44,7 +46,7 @@ function ManagerRow({
       const kind = (e as { kind?: string })?.kind;
       setRemoveError(
         kind === "ModelLoaded"
-          ? "esta voz está desperta — desperte outra antes de remover."
+          ? t.removeLoaded
           : describeError(e),
       );
     }
@@ -52,16 +54,16 @@ function ManagerRow({
 
   return (
     <article className={styles.row} data-loaded={isLoaded} data-default={isDefault}>
-      <span className={styles.roman}>{roman(index)}</span>
-      <span className={styles.sealMark} title={isLoaded ? "voz desperta" : undefined}>
+      <span className={styles.roman}>{f.roman(index)}</span>
+      <span className={styles.sealMark} title={isLoaded ? t.awakeTitle : undefined}>
         <span className={styles.star}>★</span>
       </span>
       <div className={styles.body}>
         <div className={styles.nameRow}>
           <span className={styles.name}>{entry?.name ?? installed.id}</span>
           {isDefault && (
-            <span className={styles.defaultTag} title="acorda com o app">
-              padrão
+            <span className={styles.defaultTag} title={t.defaultTagTitle}>
+              {t.defaultTag}
             </span>
           )}
           <span className={styles.id}>
@@ -74,45 +76,45 @@ function ManagerRow({
           {entry && (
             <>
               <span className={styles.tag}>
-                <b>{entry.params_b}B</b> parâmetros
+                <b>{entry.params_b}B</b> {t.params}
               </span>
               <span className={styles.tag}>
-                <b>{entry.quantization.toLowerCase()}</b> · quantização
+                <b>{entry.quantization.toLowerCase()}</b> · {t.quantization}
               </span>
               <span className={styles.tag}>
-                <b>{contextK(entry.context_length)}</b> · contexto
+                <b>{f.contextK(entry.context_length)}</b> · {t.context}
               </span>
             </>
           )}
         </div>
         <div className={styles.meta}>
           <span>
-            instalado · <b>{ago(installed.installed_at)}</b>
+            {t.installedAt} · <b>{f.ago(installed.installed_at)}</b>
           </span>
         </div>
         {removeError && (
           <div className={styles.rowNotice}>
             {removeError}
             <button className={styles.rowNoticeDismiss} onClick={() => setRemoveError(null)}>
-              ok
+              {t.dismiss}
             </button>
           </div>
         )}
       </div>
       <div className={styles.actions}>
         <span className={styles.size}>
-          {gb(installed.size_bytes, 1)}
+          {f.gb(installed.size_bytes, 1)}
           <span className={styles.sizeSym}>gb</span>
         </span>
         {confirming ? (
           <div className={styles.verbs}>
-            <span className={styles.confirmLabel}>remover este codex?</span>
+            <span className={styles.confirmLabel}>{t.confirmRemove}</span>
             <button className={`${styles.verbLink} ${styles.verbDanger}`} onClick={() => void handleRemove()}>
-              remover
+              {t.remove}
             </button>
             <span className={styles.verbSep}>·</span>
             <button className={styles.verbLink} onClick={() => setConfirming(false)}>
-              manter
+              {t.keep}
             </button>
           </div>
         ) : (
@@ -122,32 +124,32 @@ function ManagerRow({
               disabled={isLoaded || loading}
               onClick={() => void load(installed.id, "ritual")}
             >
-              {isLoaded ? "desperta agora" : "despertar"}
+              {isLoaded ? t.awakeNow : t.awaken}
             </button>
             <span className={styles.verbSep}>·</span>
             <button
               className={styles.verbLink}
               disabled={isDefault}
-              title={isDefault ? undefined : "acordar esta voz ao abrir o app"}
+              title={isDefault ? undefined : t.makeDefaultTitle}
               onClick={() => void saveSettings({ default_model_id: installed.id })}
             >
-              {isDefault ? "já é padrão" : "tornar padrão"}
+              {isDefault ? t.isDefault : t.makeDefault}
             </button>
             <span className={styles.verbSep}>·</span>
             <button
               className={styles.verbLink}
               onClick={() => void revealItemInDir(installed.path).catch(() => undefined)}
             >
-              abrir pasta
+              {t.openFolder}
             </button>
             <span className={styles.verbSep}>·</span>
             <button
               className={`${styles.verbLink} ${styles.verbDanger}`}
               disabled={isLoaded}
-              title={isLoaded ? "desperte outra voz antes de remover esta" : undefined}
+              title={isLoaded ? t.removeBlocked : undefined}
               onClick={() => setConfirming(true)}
             >
-              remover
+              {t.remove}
             </button>
           </div>
         )}
@@ -157,6 +159,8 @@ function ManagerRow({
 }
 
 export function ManagerPane() {
+  const t = useT().manager;
+  const f = useFormat();
   const installed = useModelStore((s) => s.installed);
   const modelStatus = useModelStore((s) => s.status);
   const loadError = useModelStore((s) => s.error);
@@ -187,35 +191,27 @@ export function ManagerPane() {
       <div className={styles.inner}>
         <div className={styles.mhead}>
           <div className={styles.kicker}>
-            <span className={styles.kickerStep}>o ateliê</span>
+            <span className={styles.kickerStep}>{t.kickerStep}</span>
             <span className={styles.kickerSep}>·</span>
-            <span>modelos instalados</span>
+            <span>{t.kickerSub}</span>
           </div>
           <h1 className={styles.h1}>
-            <span>Os modelos da casa.</span>{" "}
-            <span className={styles.h1Quiet}>leves, médios, e os que pesam.</span>
+            <span>{t.h1Lead}</span> <span className={styles.h1Quiet}>{t.h1Quiet}</span>
           </h1>
           <p className={styles.gloss}>
-            Cada modelo é um codex carregado do firmamento e guardado neste computador.
-            {installed.length > 0
-              ? ` ${installed.length === 1 ? "Um está pronto" : `${installed.length} estão prontos`} para conversar; nada sai daqui sem você pedir.`
-              : " A estante ainda está vazia — procure o compêndio para trazer o primeiro."}
+            {t.glossLead}
+            {installed.length > 0 ? t.glossReady(installed.length) : t.glossEmpty}
           </p>
         </div>
 
         {loadError && (
           <ErrorCard
-            badge="i · não carregou"
+            badge={t.loadFailed.badge}
             code="err.load.weights"
-            title="O oráculo não acordou."
-            quiet="o arquivo está aqui, mas recusou."
-            gloss={
-              <>
-                O modelo <em>{loadingId ?? "escolhido"}</em> não pôde ser lido para a memória. O
-                arquivo continua no disco; tente de novo ou desperte outra voz.
-              </>
-            }
-            diag={[{ k: "causa provável", v: loadError, italic: true }]}
+            title={t.loadFailed.title}
+            quiet={t.loadFailed.quiet}
+            gloss={t.loadFailed.gloss(loadingId ?? t.loadFailed.chosen)}
+            diag={[{ k: t.loadFailed.diagKey, v: loadError, italic: true }]}
             actions={
               <>
                 {loadingId && (
@@ -225,31 +221,28 @@ export function ManagerPane() {
                       void load(loadingId, "ritual");
                     }}
                   >
-                    tentar de novo
+                    {t.loadFailed.retry}
                   </ErrorAction>
                 )}
-                <ErrorLink onClick={dismissError}>dispensar</ErrorLink>
+                <ErrorLink onClick={dismissError}>{t.loadFailed.dismiss}</ErrorLink>
               </>
             }
           />
         )}
 
         {installed.length > 0 && (
-          <div className={styles.disk} role="group" aria-label="Espaço em disco">
+          <div className={styles.disk} role="group" aria-label={t.diskAria}>
             <div className={styles.diskTop}>
               <div className={styles.diskLhs}>
-                <b>{gb(totalBytes, 1)} GB</b> consagrados aos modelos
+                <b>{f.gb(totalBytes, 1)} GB</b> {t.consecrated}
                 {usage && usage.total_bytes > 0 && (
-                  <span className={styles.diskFree}>
-                    {" "}
-                    · {gb(usage.free_bytes, 0)} GB livres no disco
-                  </span>
+                  <span className={styles.diskFree}>{t.freeOnDisk(f.gb(usage.free_bytes, 0))}</span>
                 )}
               </div>
               <div className={styles.diskRhs}>
                 {usage && usage.total_bytes > 0
-                  ? `${((totalBytes / usage.total_bytes) * 100).toFixed(1).replace(".", ",")}% do disco`
-                  : `${installed.length} ${installed.length === 1 ? "codex" : "codices"}`}
+                  ? t.diskPct(f.decimal((totalBytes / usage.total_bytes) * 100, 1))
+                  : `${installed.length} ${t.codexCount(installed.length)}`}
               </div>
             </div>
             {usage && usage.total_bytes > 0 && (
@@ -266,16 +259,14 @@ export function ManagerPane() {
         <div>
           <div className={styles.entriesHead}>
             <span className={styles.entriesHeadLeft}>
-              — os codices · {installed.length} {installed.length === 1 ? "instalado" : "instalados"}
+              {t.entriesHead(installed.length)}
             </span>
-            <span className={styles.entriesHeadRight}>tamanho</span>
+            <span className={styles.entriesHeadRight}>{t.sizeCol}</span>
           </div>
 
           <div className={styles.entries}>
             {installed.length === 0 && modelStatus !== "unknown" && modelStatus !== "initializing" && (
-              <div className={styles.empty}>
-                nenhum codex na estante ainda — o compêndio remoto tem o que baixar.
-              </div>
+              <div className={styles.empty}>{t.empty}</div>
             )}
             {installed.map((m, i) => (
               <ManagerRow
@@ -289,10 +280,10 @@ export function ManagerPane() {
             <button className={styles.catalogRow} onClick={() => setModelsPane("catalog")}>
               <span className={styles.catalogLeft}>
                 <span className={styles.catalogPlus}>+</span>
-                <span>procurar no catálogo</span>
+                <span>{t.browseCatalog}</span>
               </span>
               <span className={styles.catalogRight}>
-                <span>compêndio remoto</span>
+                <span>{t.remoteCatalog}</span>
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                   <path
                     d="M3 8h10M9 4l4 4-4 4"

@@ -1,20 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ClassifiedModel, CompatibilityTier } from "../../lib/tauri/bindings";
-import { contextK, gb } from "../../lib/format";
+import { useFormat, useT } from "../../lib/i18n";
 import { useCatalogStore } from "../../stores/catalog";
 import { useDiskStore } from "../../stores/disk";
 import { ErrorAction, ErrorCard, ErrorLink } from "../models/ErrorCard";
 import { fitsOnDisk } from "../models/StorageRow";
 import styles from "./ChooseStep.module.css";
 
-const COMPAT: Record<CompatibilityTier, { key: string; label: string }> = {
-  Recommended: { key: "recommended", label: "recomendado" },
-  Viable: { key: "works", label: "roda bem" },
-  Heavy: { key: "slow", label: "pode ficar lento" },
-  NotSupported: { key: "not", label: "não recomendado" },
+/** Styling hook only — the visible label comes from the dictionary. */
+const COMPAT_CLASS: Record<CompatibilityTier, string> = {
+  Recommended: "recommended",
+  Viable: "works",
+  Heavy: "slow",
+  NotSupported: "not",
 };
-
-const PIPS = ["sol", "lua", "sigilo", "colunas", "torre"];
 
 /** Hermetic card emblems from the design, cycled by card index. */
 function Emblem({ index }: { index: number }) {
@@ -86,11 +85,6 @@ function Emblem({ index }: { index: number }) {
   );
 }
 
-function romanFor(i: number): string {
-  const romans = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
-  return romans[i] ?? String(i + 1);
-}
-
 function posClass(delta: number): string {
   if (delta === 0) return styles.pos0;
   if (delta === -1) return styles.posL1;
@@ -113,6 +107,9 @@ export function ChooseStep({
   onChoose: (entry: ClassifiedModel) => void;
   onSkip: () => void;
 }) {
+  const t = useT().onboarding.choose;
+  const tFlow = useT().onboarding;
+  const f = useFormat();
   const status = useCatalogStore((s) => s.status);
   const models = useCatalogStore((s) => s.models);
   const source = useCatalogStore((s) => s.source);
@@ -160,22 +157,15 @@ export function ChooseStep({
       <div className={styles.page}>
         <div className={styles.centerCard}>
           <ErrorCard
-            badge="i · compêndio inalcançável"
+            badge={t.offline.badge}
             code="err.catalog.network"
-            title="O compêndio não respondeu."
-            quiet="sem rede não há catálogo — mas a casa continua de pé."
-            gloss={
-              <>
-                Não conseguimos baixar a lista de modelos — {error ?? "a rede parece indisponível"}
-                . O Abraxas funciona 100% offline <em>depois</em> que um modelo é instalado; este
-                primeiro passo é o único que precisa de internet. Conecte-se e tente de novo, ou
-                entre no estúdio e busque o modelo mais tarde no ateliê.
-              </>
-            }
+            title={t.offline.title}
+            quiet={t.offline.quiet}
+            gloss={t.offline.gloss(error ?? t.offline.reason)}
             actions={
               <>
-                <ErrorAction onClick={() => void refresh()}>tentar de novo</ErrorAction>
-                <ErrorLink onClick={onSkip}>entrar no estúdio sem modelo →</ErrorLink>
+                <ErrorAction onClick={() => void refresh()}>{t.offline.retry}</ErrorAction>
+                <ErrorLink onClick={onSkip}>{t.offline.skip}</ErrorLink>
               </>
             }
             pulse
@@ -190,7 +180,7 @@ export function ChooseStep({
       <div className={styles.page}>
         <div className={styles.loading}>
           <span className={styles.whisperBar} />
-          consultando o compêndio de modelos
+          {t.loading}
         </div>
       </div>
     );
@@ -203,21 +193,15 @@ export function ChooseStep({
         <div className={styles.centerCard}>
           <ErrorCard
             tier="warn"
-            badge="ii · máquina abaixo do compêndio"
+            badge={t.unsupported.badge}
             code="err.compat.none"
-            title="Nenhum modelo do compêndio cabe nesta máquina."
-            quiet="preferimos dizer isso agora a prometer o que não roda."
-            gloss={
-              <>
-                Todos os modelos do catálogo pedem mais memória do que este computador tem hoje.
-                Você ainda pode entrar no estúdio e conferir o compêndio no ateliê — modelos
-                menores são adicionados com o tempo.
-              </>
-            }
+            title={t.unsupported.title}
+            quiet={t.unsupported.quiet}
+            gloss={t.unsupported.gloss}
             actions={
               <>
-                <ErrorAction onClick={onSkip}>entrar no estúdio mesmo assim</ErrorAction>
-                <ErrorLink onClick={onBack}>voltar ao exame</ErrorLink>
+                <ErrorAction onClick={onSkip}>{t.unsupported.enter}</ErrorAction>
+                <ErrorLink onClick={onBack}>{t.unsupported.back}</ErrorLink>
               </>
             }
           />
@@ -233,25 +217,25 @@ export function ChooseStep({
   return (
     <div className={styles.page}>
       <span className={styles.stepMeta}>
-        passo 03 · <b>a escolha do modelo</b>
-        {source === "cache" && <span className={styles.cacheNote}> · catálogo salvo (offline)</span>}
+        {tFlow.step("03")} · <b>{t.stepMeta}</b>
+        {source === "cache" && <span className={styles.cacheNote}>{t.cached}</span>}
       </span>
 
       {/* ============== TABLE ============== */}
       <main className={styles.table}>
         <div className={styles.deck}>
           {models.map((m, i) => {
-            const compat = COMPAT[m.tier];
+            const compatLabel = t.compat[m.tier];
             const isRec = m.tier === "Recommended" && i === recommendedIdx;
             return (
               <article
                 key={m.model.id}
                 className={`${styles.card} ${posClass(i - idx)}`}
-                data-compat={compat.key}
+                data-compat={COMPAT_CLASS[m.tier]}
                 data-recommended={isRec}
                 role="button"
                 tabIndex={0}
-                aria-label={`${m.model.name}, ${compat.label}`}
+                aria-label={t.cardAria(m.model.name, compatLabel)}
                 onClick={() => i !== idx && setActive(i)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
@@ -265,25 +249,25 @@ export function ChooseStep({
                 {isRec ? (
                   <span className={styles.recBanner}>
                     <span className={styles.recLine} />
-                    recomendado para você
+                    {t.recommended}
                     <span className={styles.recLine} />
                   </span>
                 ) : (
                   <span className={styles.compat}>
                     <span className={styles.compatBullet} />
-                    {compat.label}
+                    {compatLabel}
                   </span>
                 )}
 
                 {!isRec && (
                   <>
                     <span className={`${styles.index} ${styles.indexTl}`}>
-                      <span className={styles.indexGlyph}>{romanFor(i)}</span>
-                      <span className={styles.indexPip}>{PIPS[i % 5]}</span>
+                      <span className={styles.indexGlyph}>{f.roman(i)}</span>
+                      <span className={styles.indexPip}>{t.pips[i % 5]}</span>
                     </span>
                     <span className={`${styles.index} ${styles.indexBr}`}>
-                      <span className={styles.indexGlyph}>{romanFor(i)}</span>
-                      <span className={styles.indexPip}>{PIPS[i % 5]}</span>
+                      <span className={styles.indexGlyph}>{f.roman(i)}</span>
+                      <span className={styles.indexPip}>{t.pips[i % 5]}</span>
                     </span>
                   </>
                 )}
@@ -295,17 +279,17 @@ export function ChooseStep({
                 <div className={styles.content}>
                   <h3 className={styles.cardName}>{m.model.name}</h3>
                   <span className={styles.cardMono}>
-                    {gb(m.model.size_bytes)} gb · {m.model.params_b}b ·{" "}
+                    {f.gb(m.model.size_bytes)} gb · {m.model.params_b}b ·{" "}
                     {m.model.quantization.toLowerCase()}
                   </span>
                   <span className={styles.cardRule} />
                   <p className={styles.rationale}>{m.model.description}</p>
                   <div className={styles.tags}>
                     <span className={styles.tag}>
-                      ctx · <b>{contextK(m.model.context_length)}</b>
+                      {t.ctx} · <b>{f.contextK(m.model.context_length)}</b>
                     </span>
                     <span className={styles.tag}>
-                      ram · <b>{Math.round(m.model.min_ram_mb / 1024)} gb</b>
+                      {t.ram} · <b>{Math.round(m.model.min_ram_mb / 1024)} gb</b>
                     </span>
                   </div>
                 </div>
@@ -318,9 +302,10 @@ export function ChooseStep({
       {/* disk verdict for the centered card, only when it matters */}
       {active && !activeFits && (
         <div className={styles.diskWarn}>
-          espaço crítico — este modelo pede {gb(active.model.size_bytes)} gb e o disco tem{" "}
-          {freeBytes !== null ? gb(freeBytes, 0) : "?"} gb livres. escolha um menor ou libere
-          espaço.
+          {t.diskWarn(
+            f.gb(active.model.size_bytes),
+            freeBytes !== null ? f.gb(freeBytes, 0) : "?",
+          )}
         </div>
       )}
 
@@ -337,10 +322,10 @@ export function ChooseStep({
                 strokeLinejoin="round"
               />
             </svg>
-            voltar ao exame
+            {t.back}
           </button>
           <button className={styles.skipLink} onClick={onSkip}>
-            pular · entrar sem modelo →
+            {t.skip}
           </button>
         </div>
 
@@ -349,7 +334,7 @@ export function ChooseStep({
             className={styles.navBtn}
             disabled={idx === 0}
             onClick={() => setActive(idx - 1)}
-            aria-label="anterior"
+            aria-label={t.previous}
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path
@@ -368,7 +353,7 @@ export function ChooseStep({
             className={styles.navBtn}
             disabled={idx === models.length - 1}
             onClick={() => setActive(idx + 1)}
-            aria-label="próximo"
+            aria-label={t.next}
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path
@@ -390,7 +375,7 @@ export function ChooseStep({
                 className={styles.dotBtn}
                 data-active={i === idx}
                 onClick={() => setActive(i)}
-                aria-label={`ir para ${m.model.name}`}
+                aria-label={t.goTo(m.model.name)}
               >
                 <span className={styles.dotMark} />
               </button>
@@ -401,14 +386,14 @@ export function ChooseStep({
             disabled={activeBlocked}
             title={
               active?.tier === "NotSupported"
-                ? "este modelo pede uma máquina maior"
+                ? t.tooBig
                 : !activeFits
-                  ? "não cabe no disco com folga"
+                  ? t.noRoom
                   : undefined
             }
             onClick={() => active && !activeBlocked && onChoose(active)}
           >
-            <span>confirmar</span>
+            <span>{t.confirm}</span>
             <span className={styles.useArrow} aria-hidden="true">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                 <path

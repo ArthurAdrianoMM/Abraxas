@@ -1,23 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { contextK, gb } from "../../lib/format";
+import { useFormat, useT } from "../../lib/i18n";
 import { useCatalogStore } from "../../stores/catalog";
 import { useModelStore } from "../../stores/model";
 import { useUiStore } from "../../stores/ui";
 import styles from "./LoadRitual.module.css";
 
-const LABORS = [
-  { key: "weights", label: "abrindo os pesos" },
-  { key: "memory", label: "alocando a memória" },
-  { key: "context", label: "semeando o contexto" },
-  { key: "warmup", label: "aquecendo o forno" },
-] as const;
-
-const SUBTITLES: Record<string, string> = {
-  weights: "preparando",
-  memory: "alocando",
-  context: "semeando",
-  warmup: "aquecendo",
-};
+/** Labor order; the visible label and its subtitle come from the dictionary. */
+const LABORS = ["weights", "memory", "context", "warmup"] as const;
 
 /** Full-window "despertando o oráculo" overlay per "Abraxas Load Model.html".
  *  Mounts while a ritual-presented load is in flight; the labor checklist
@@ -25,6 +14,9 @@ const SUBTITLES: Record<string, string> = {
  *  only completes when the backend confirms. On success it hands off to the
  *  chat; on failure it retreats and lets the Models view surface the error. */
 export function LoadRitual() {
+  const t = useT().ritual;
+  const tShell = useT().onboarding;
+  const f = useFormat();
   const status = useModelStore((s) => s.status);
   const loadingId = useModelStore((s) => s.loadingId);
   const loadedId = useModelStore((s) => s.loadedId);
@@ -89,31 +81,31 @@ export function LoadRitual() {
 
   if (!visibleId) return null;
 
-  const asides: Record<string, string> = {
-    weights: row ? `${gb(row.size_bytes, 1)} gb` : "—",
-    memory: entry ? `${(entry.min_ram_mb / 1024).toFixed(1).replace(".", ",")} gb · ram` : "ram",
-    context: entry ? `${contextK(entry.context_length)} tokens` : "—",
+  const asides: Record<(typeof LABORS)[number], string> = {
+    weights: row ? `${f.gb(row.size_bytes, 1)} gb` : "—",
+    memory: entry ? `${f.decimal(entry.min_ram_mb / 1024, 1)} gb · ${t.ram}` : t.ram,
+    context: entry ? t.tokens(f.contextK(entry.context_length)) : "—",
     warmup: "—",
   };
 
-  const activeKey = done ? "done" : LABORS[Math.min(laborIdx, LABORS.length - 1)].key;
+  const activeKey = LABORS[Math.min(laborIdx, LABORS.length - 1)];
 
   return (
-    <div className={`${styles.page} ${fading ? styles.fading : ""}`} role="dialog" aria-label="modelo carregando">
-      <span className={`${styles.corner} ${styles.cornerTl}`}>abraxas · v.0</span>
+    <div className={`${styles.page} ${fading ? styles.fading : ""}`} role="dialog" aria-label={t.aria}>
+      <span className={`${styles.corner} ${styles.cornerTl}`}>{tShell.wordmark}</span>
       <span className={`${styles.corner} ${styles.cornerBr}`}>
         <span className="pulse" />
-        local · offline
+        {tShell.offline}
       </span>
 
       <div className={styles.stage}>
         <div className={styles.markRow}>
-          <span className={styles.markStep}>despertar</span>
+          <span className={styles.markStep}>{t.step}</span>
           <span className={styles.markSep}>·</span>
-          <span>o oráculo sobe à memória</span>
+          <span>{t.subtitle}</span>
         </div>
 
-        <div className={styles.seal} role="img" aria-label="modelo carregando">
+        <div className={styles.seal} role="img" aria-label={t.aria}>
           <svg viewBox="0 0 300 300" aria-hidden="true">
             <circle className={styles.ringOuter} cx="150" cy="150" r="138" />
             <circle className={styles.ringInner} cx="150" cy="150" r="110" />
@@ -142,24 +134,24 @@ export function LoadRitual() {
               <line x1="11" y1="16" x2="21" y2="16" stroke="#7d2233" strokeWidth="0.7" />
               <circle cx="16" cy="11" r="1.4" fill="#b89968" />
             </svg>
-            <span className={styles.sub}>{done ? "pronto" : SUBTITLES[activeKey] ?? "preparando"}</span>
+            <span className={styles.sub}>{done ? t.ready : t.subtitles[activeKey]}</span>
           </div>
         </div>
 
         <h1 className={styles.verb}>
-          <span>Despertando o oráculo,</span>
-          <span className={styles.verbQuiet}>um instante apenas.</span>
+          <span>{t.verbLead}</span>
+          <span className={styles.verbQuiet}>{t.verbQuiet}</span>
         </h1>
 
         <ol className={styles.labors} aria-live="polite">
           {LABORS.map((labor, i) => {
             const state = done || i < laborIdx ? "done" : i === laborIdx ? "active" : "idle";
             return (
-              <li className={styles.labor} data-state={state} key={labor.key}>
+              <li className={styles.labor} data-state={state} key={labor}>
                 <span className={styles.mark} />
-                <span>{labor.label}</span>
+                <span>{t.labors[labor]}</span>
                 <span className={styles.aside}>
-                  {state === "done" ? "concluído" : asides[labor.key]}
+                  {state === "done" ? t.doneLabor : asides[labor]}
                 </span>
               </li>
             );
@@ -167,7 +159,7 @@ export function LoadRitual() {
         </ol>
 
         <div className={styles.chosen}>
-          <span>carregando</span>
+          <span>{t.loading}</span>
           <b>{entry?.name ?? visibleId}</b>
           <span className={styles.chosenMono}>
             {entry ? `${entry.params_b}B · ${entry.quantization.toUpperCase()}` : ""}

@@ -17,6 +17,19 @@ use crate::chat::SamplingParams;
 /// generation fallback and the settings default never drift apart.
 pub const DEFAULT_MAX_COMPLETION_TOKENS: u32 = 512;
 
+/// UI language. Stored as `Option` so a fresh install can be told apart from
+/// a deliberate choice: `None` means "never chosen", and the frontend resolves
+/// it once from the host's `navigator.language` and persists the result. That
+/// keeps the decision out of Rust (which has no view of the browser locale)
+/// without needing a migration for existing installs, whose rows simply stay
+/// absent and read back as `None`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "lowercase")]
+pub enum Locale {
+    En,
+    Pt,
+}
+
 /// Reading-size preset for chat prose. Purely presentational; the frontend
 /// maps it onto a root data attribute.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -48,6 +61,8 @@ pub struct AppSettings {
     /// exist, so existing users are never onboarded retroactively.
     pub onboarding_complete: bool,
     pub font_size: FontSize,
+    /// `None` until the frontend resolves the host locale (see [`Locale`]).
+    pub locale: Option<Locale>,
     /// Model auto-loaded on startup. `None` = first installed model.
     pub default_model_id: Option<String>,
     /// Stamped onto new conversations at creation time (existing
@@ -69,6 +84,7 @@ impl Default for AppSettings {
         let defaults = Self {
             onboarding_complete: false,
             font_size: FontSize::Comoda,
+            locale: None,
             default_model_id: None,
             default_temperature: 0.8,
             default_top_p: 0.95,
@@ -190,6 +206,7 @@ mod tests {
         let settings = AppSettings {
             onboarding_complete: true,
             font_size: FontSize::Ampla,
+            locale: Some(Locale::Pt),
             default_model_id: Some("tinyllama-1.1b".into()),
             default_temperature: 1.2,
             default_top_p: 0.5,

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { commands, type FontSize, type InferenceBackend } from "../lib/tauri/bindings";
+import { commands, type FontSize, type Locale } from "../lib/tauri/bindings";
 import { describeError, unwrap } from "../lib/tauri/result";
-import { ago, gb } from "../lib/format";
+import { useFormat, useLocale, useT, LOCALES, LOCALE_NAMES } from "../lib/i18n";
 import { useConversationsStore } from "../stores/conversations";
 import { useDiskStore } from "../stores/disk";
 import { useHardwareStore } from "../stores/hardware";
@@ -10,18 +10,9 @@ import { useModelStore } from "../stores/model";
 import { useSettingsStore } from "../stores/settings";
 import styles from "./SettingsView.module.css";
 
-const FONT_SIZES: { value: FontSize; label: string }[] = [
-  { value: "compacta", label: "compacta" },
-  { value: "comoda", label: "cômoda" },
-  { value: "ampla", label: "ampla" },
-];
-
-const BACKEND_LABEL: Record<InferenceBackend, { name: string; gloss: string }> = {
-  metal: { name: "metal", gloss: "gpu unificada" },
-  cuda: { name: "cuda", gloss: "gpu nvidia" },
-  vulkan: { name: "vulkan", gloss: "gpu amd · intel" },
-  cpu: { name: "cpu", gloss: "processador" },
-};
+/** Persisted identifiers, not copy: these are the Rust `FontSize` variants
+ *  stored in SQLite. Their visible labels come from the dictionary. */
+const FONT_SIZES: FontSize[] = ["compacta", "comoda", "ampla"];
 
 /** Click/drag slider (same interaction as the OrdersDrawer one), but commits
  *  to the backend only on release so a drag is one settings write. */
@@ -129,6 +120,7 @@ function DangerAction({
   busyLabel: string;
   onConfirm: () => Promise<void>;
 }) {
+  const t = useT().settings;
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,11 +149,11 @@ function DangerAction({
           className={`${styles.verbLink} ${styles.verbDanger}`}
           onClick={() => void run()}
         >
-          sim, apagar
+          {t.confirmYes}
         </button>
         <span className={styles.verbSep}>·</span>
         <button className={styles.verbLink} onClick={() => setConfirming(false)}>
-          manter
+          {t.confirmNo}
         </button>
       </div>
     );
@@ -180,6 +172,9 @@ function DangerAction({
 }
 
 export function SettingsView() {
+  const t = useT().settings;
+  const f = useFormat();
+  const locale = useLocale();
   const settings = useSettingsStore((s) => s.settings);
   const save = useSettingsStore((s) => s.save);
   const refreshSettings = useSettingsStore((s) => s.refresh);
@@ -261,7 +256,7 @@ export function SettingsView() {
     try {
       await revealItemInDir(usage.models_dir);
     } catch {
-      setFolderError("a pasta ainda não existe — nada foi baixado até aqui.");
+      setFolderError(t.folder.folderMissing);
     }
   };
 
@@ -276,65 +271,83 @@ export function SettingsView() {
   };
 
   const burnEverything = async () => {
-    await unwrap(commands.clearAllData());
+    try {
+      await unwrap(commands.clearAllData());
+    } catch (e) {
+      // `PartialClear` carries the leftover file list as its message; the
+      // sentence around it is ours to phrase, in the user's language.
+      if ((e as { kind?: string })?.kind === "PartialClear") {
+        const files = describeError(e);
+        throw new Error(t.about.partialClear(files.split(", ").length, files));
+      }
+      throw e;
+    }
     startNew();
     await Promise.all([loadConversations(), refreshInstalled(), refreshSettings(), refreshDisk()]);
   };
 
   const integrity = settings?.last_integrity_check ?? null;
   const totalModelBytes = installed.reduce((acc, m) => acc + m.size_bytes, 0);
-  const backend = detection ? BACKEND_LABEL[detection.choice.backend] : null;
+  const backend = detection ? detection.choice.backend : null;
 
   return (
     <section className={styles.column}>
       <div className={styles.inner}>
         <div className={styles.shead}>
           <div className={styles.kicker}>
-            <span className={styles.kickerStep}>preferências</span>
+            <span className={styles.kickerStep}>{t.kickerStep}</span>
             <span className={styles.kickerSep}>·</span>
-            <span>as ordens da casa</span>
+            <span>{t.kickerSub}</span>
           </div>
           <h1 className={styles.h1}>
-            <span>As preferências.</span>{" "}
-            <span className={styles.h1Quiet}>cinco capítulos breves.</span>
+            <span>{t.h1Lead}</span> <span className={styles.h1Quiet}>{t.h1Quiet}</span>
           </h1>
           {settingsError && (
             <span className={`${styles.statLine} ${styles.statBad}`}>{settingsError}</span>
           )}
         </div>
 
-        {/* I · aparência */}
-        <Section
-          roman="I"
-          name="A aparência da página"
-          gloss="A casa nasceu em pergaminho noturno; o que se ajusta é a medida da letra."
-        >
-          <Field name="tamanho da letra" desc="para leitura longa.">
+        {/* I · appearance */}
+        <Section roman="I" name={t.appearance.name} gloss={t.appearance.gloss}>
+          <Field name={t.appearance.fontSize} desc={t.appearance.fontSizeDesc}>
             <div className={styles.radioRow}>
-              {FONT_SIZES.map((f) => {
-                const active = (settings?.font_size ?? "comoda") === f.value;
+              {FONT_SIZES.map((size) => {
+                const active = (settings?.font_size ?? "comoda") === size;
                 return (
                   <button
-                    key={f.value}
+                    key={size}
                     className={`${styles.radioChip} ${active ? styles.radioChipActive : ""}`}
-                    onClick={() => void save({ font_size: f.value })}
+                    onClick={() => void save({ font_size: size })}
                   >
                     <span className={styles.radioDot} />
-                    {f.label}
+                    {t.fontSizes[size]}
                   </button>
                 );
               })}
             </div>
           </Field>
+
+          <Field name={t.appearance.language} desc={t.appearance.languageDesc}>
+            <div className={styles.radioRow}>
+              {LOCALES.map((code) => (
+                <button
+                  key={code}
+                  className={`${styles.radioChip} ${
+                    locale === code ? styles.radioChipActive : ""
+                  }`}
+                  onClick={() => void save({ locale: code as Locale })}
+                >
+                  <span className={styles.radioDot} />
+                  {LOCALE_NAMES[code]}
+                </button>
+              ))}
+            </div>
+          </Field>
         </Section>
 
-        {/* II · pasta dos modelos */}
-        <Section
-          roman="II"
-          name="A pasta dos modelos"
-          gloss="Onde os codices ficam guardados neste computador."
-        >
-          <Field name="caminho" desc="absoluto, no seu sistema.">
+        {/* II · models folder */}
+        <Section roman="II" name={t.folder.name} gloss={t.folder.gloss}>
+          <Field name={t.folder.path} desc={t.folder.pathDesc}>
             <div className={styles.ti}>
               <input
                 className={styles.tiInput}
@@ -344,7 +357,7 @@ export function SettingsView() {
               />
               <button
                 className={styles.iconBtnInline}
-                title="abrir pasta"
+                title={t.folder.openFolder}
                 onClick={() => void openModelsFolder()}
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -357,23 +370,23 @@ export function SettingsView() {
               </button>
             </div>
             <span className={styles.statLine}>
-              {installed.length} {installed.length === 1 ? "modelo" : "modelos"} ·{" "}
-              {gb(totalModelBytes, 1)} gb
-              {usage && usage.total_bytes > 0 && <> · disponível: {gb(usage.free_bytes, 0)} gb</>}
+              {installed.length} {t.folder.count(installed.length)} ·{" "}
+              {f.gb(totalModelBytes, 1)} gb
+              {usage && usage.total_bytes > 0 && t.folder.available(f.gb(usage.free_bytes, 0))}
             </span>
             {folderError && (
               <span className={`${styles.statLine} ${styles.statBad}`}>{folderError}</span>
             )}
           </Field>
 
-          <Field name="conferir integridade" desc="recalcular hashes dos arquivos baixados.">
+          <Field name={t.folder.integrity} desc={t.folder.integrityDesc}>
             <div className={styles.actionRow}>
               <button
                 className={styles.verbLink}
                 disabled={checking || installed.length === 0}
                 onClick={() => void runIntegrityCheck()}
               >
-                {checking ? "conferindo…" : "conferir agora"}
+                {checking ? t.folder.checking : t.folder.checkNow}
               </button>
               <span className={styles.verbSep}>·</span>
               <span
@@ -382,31 +395,26 @@ export function SettingsView() {
                 }`}
               >
                 {installed.length === 0
-                  ? "nada na estante para conferir"
+                  ? t.folder.nothingToCheck
                   : integrity
-                    ? `última: ${ago(integrity.at)} · ${
+                    ? t.folder.last(
+                        f.ago(integrity.at),
                         integrity.corrupt.length === 0
-                          ? "íntegro"
-                          : `${integrity.corrupt.length} ${
-                              integrity.corrupt.length === 1 ? "corrompido" : "corrompidos"
-                            }`
-                      }`
-                    : "nunca conferido"}
+                          ? t.folder.intact
+                          : t.folder.corrupt(integrity.corrupt.length),
+                      )
+                    : t.folder.never}
               </span>
             </div>
           </Field>
         </Section>
 
-        {/* III · parâmetros de geração */}
-        <Section
-          roman="III"
-          name="A medida do verbo"
-          gloss="Os parâmetros que entram em toda conversa nova. Cada conversa pode sobrescrever os seus."
-        >
-          <Field name="temperatura" desc="quão dilatado o modelo se permite ser.">
+        {/* III · generation parameters */}
+        <Section roman="III" name={t.generation.name} gloss={t.generation.gloss}>
+          <Field name={t.generation.temperature} desc={t.generation.temperatureDesc}>
             <div className={styles.sliderRow}>
               <div className={styles.sliderTop}>
-                <span>movimento</span>
+                <span>{t.generation.movement}</span>
                 <span className={styles.reading}>{temp.toFixed(2)}</span>
               </div>
               <Slider
@@ -416,16 +424,16 @@ export function SettingsView() {
                 onCommit={() => void save({ default_temperature: temp })}
               />
               <div className={styles.sliderBounds}>
-                <span>0 · pedra</span>
-                <span>2 · febre</span>
+                <span>{t.generation.boundLow}</span>
+                <span>{t.generation.boundHigh}</span>
               </div>
             </div>
           </Field>
 
-          <Field name="top-p" desc="fração de probabilidade considerada por token.">
+          <Field name={t.generation.topP} desc={t.generation.topPDesc}>
             <div className={styles.sliderRow}>
               <div className={styles.sliderTop}>
-                <span>amplitude</span>
+                <span>{t.generation.amplitude}</span>
                 <span className={styles.reading}>{topP.toFixed(2)}</span>
               </div>
               <Slider
@@ -441,7 +449,7 @@ export function SettingsView() {
             </div>
           </Field>
 
-          <Field name="máximo de tokens" desc="o quanto pode dizer numa só resposta.">
+          <Field name={t.generation.maxTokens} desc={t.generation.maxTokensDesc}>
             <div className={styles.ti} style={{ maxWidth: 200 }}>
               <input
                 className={`${styles.tiInput} ${styles.tiNum}`}
@@ -452,28 +460,25 @@ export function SettingsView() {
                 onBlur={commitMaxTokens}
                 onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
               />
-              <span className={styles.tiSuffix}>tokens</span>
+              <span className={styles.tiSuffix}>{t.generation.tokens}</span>
             </div>
           </Field>
 
-          <Field
-            name="semente"
-            desc="para reproduzir uma mesma resposta; em branco, usa a semente padrão."
-          >
+          <Field name={t.generation.seed} desc={t.generation.seedDesc}>
             <div className={styles.ti} style={{ maxWidth: 260 }}>
               <input
                 className={`${styles.tiInput} ${styles.tiNum}`}
                 type="text"
                 inputMode="numeric"
                 value={seed}
-                placeholder="padrão · ex.: 365"
+                placeholder={t.generation.seedPlaceholder}
                 onChange={(e) => setSeed(e.target.value)}
                 onBlur={commitSeed}
                 onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
               />
               <button
                 className={styles.iconBtnInline}
-                title="voltar ao padrão"
+                title={t.generation.resetToDefault}
                 onClick={() => {
                   setSeed("");
                   void save({ default_seed: null });
@@ -493,38 +498,36 @@ export function SettingsView() {
           </Field>
         </Section>
 
-        {/* IV · instrumento */}
-        <Section
-          roman="IV"
-          name="O instrumento"
-          gloss="Se trocou de máquina ou ligou outro periférico, refaça o exame."
-        >
-          <Field name="backend" desc="como o modelo é executado — escolhido pela casa.">
+        {/* IV · instrument */}
+        <Section roman="IV" name={t.instrument.name} gloss={t.instrument.gloss}>
+          <Field name={t.instrument.backend} desc={t.instrument.backendDesc}>
             <div className={styles.backendBox}>
               {backend ? (
                 <span>
-                  <span className={styles.backendName}>{backend.name}</span> · {backend.gloss}
+                  <span className={styles.backendName}>{backend}</span> · {t.backends[backend]}
                 </span>
               ) : (
-                <span>examinando…</span>
+                <span>{t.instrument.examining}</span>
               )}
             </div>
             {detection && (
               <span className={styles.statLine}>
-                detectado · {detection.system.cpu.physical_cores} núcleos ·{" "}
-                {gb(detection.system.memory.total_bytes, 0)} gb de memória
+                {t.instrument.detected(
+                  detection.system.cpu.physical_cores,
+                  f.gb(detection.system.memory.total_bytes, 0),
+                )}
               </span>
             )}
           </Field>
 
-          <Field name="refazer o exame" desc="recalcula o que esta máquina aguenta.">
+          <Field name={t.instrument.redo} desc={t.instrument.redoDesc}>
             <div className={styles.actionRow}>
               <button
                 className={styles.gbtn}
                 disabled={redetecting}
                 onClick={() => void redetect()}
               >
-                {redetecting ? "examinando…" : "examinar de novo"}
+                {redetecting ? t.instrument.examining : t.instrument.examineAgain}
                 <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
                   <path
                     d="M3 8h10M9 4l4 4-4 4"
@@ -538,54 +541,48 @@ export function SettingsView() {
               {detection && !redetecting && (
                 <span className={styles.statLine}>
                   {detection.from_cache
-                    ? `exame guardado · ${ago(detection.detected_at)}`
-                    : `examinado ${ago(detection.detected_at)}`}
+                    ? t.instrument.cached(f.ago(detection.detected_at))
+                    : t.instrument.examined(f.ago(detection.detected_at))}
                 </span>
               )}
             </div>
           </Field>
         </Section>
 
-        {/* V · sobre + ações irreversíveis */}
-        <Section
-          roman="V"
-          name="A casa, em poucas linhas"
-          gloss="Versão, créditos, e as ações irreversíveis que se faz à meia-noite."
-        >
-          <Field name="sobre" desc="o que está sendo usado.">
+        {/* V · about + irreversible actions */}
+        <Section roman="V" name={t.about.name} gloss={t.about.gloss}>
+          <Field name={t.about.about} desc={t.about.aboutDesc}>
             <div className={styles.about}>
               <p>
-                <span className={styles.aboutKey}>versão</span>
+                <span className={styles.aboutKey}>{t.about.version}</span>
                 <b>Abraxas {version ?? "—"}</b>
               </p>
               <p>
-                <span className={styles.aboutKey}>tempo de execução</span>
-                llama.cpp{backend ? <> · {backend.name}</> : null}
+                <span className={styles.aboutKey}>{t.about.runtime}</span>
+                llama.cpp{backend ? <> · {backend}</> : null}
               </p>
               <p>
-                <span className={styles.aboutKey}>licença</span>
-                <em>uso pessoal e contemplativo · MIT</em>
+                <span className={styles.aboutKey}>{t.about.license}</span>
+                <em>{t.about.licenseValue}</em>
               </p>
-              <p className={styles.aboutQuote}>
-                “O pássaro luta para sair do ovo. O ovo é o mundo.”
-              </p>
+              <p className={styles.aboutQuote}>{t.about.quote}</p>
             </div>
           </Field>
 
-          <Field name="apagar conversas" desc="remove o histórico, mantém modelos. não há volta.">
+          <Field name={t.about.clearConversations} desc={t.about.clearConversationsDesc}>
             <DangerAction
-              label="apagar todo o histórico"
-              confirmLabel="todo o histórico, para sempre?"
-              busyLabel="apagando…"
+              label={t.about.clearLabel}
+              confirmLabel={t.about.clearConfirm}
+              busyLabel={t.about.clearBusy}
               onConfirm={clearAllConversations}
             />
           </Field>
 
-          <Field name="apagar tudo" desc="conversas, modelos, preferências. a casa vai esquecer.">
+          <Field name={t.about.burn} desc={t.about.burnDesc}>
             <DangerAction
-              label="queimar tudo"
-              confirmLabel="conversas, modelos e preferências — tudo?"
-              busyLabel="queimando…"
+              label={t.about.burnLabel}
+              confirmLabel={t.about.burnConfirm}
+              busyLabel={t.about.burnBusy}
               onConfirm={burnEverything}
             />
           </Field>

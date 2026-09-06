@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { eta, gb, mbps, size } from "../../lib/format";
+import { useFormat, useT } from "../../lib/i18n";
 import { useDiskStore } from "../../stores/disk";
 import { useDownloadsStore } from "../../stores/downloads";
 import { useModelStore } from "../../stores/model";
@@ -9,24 +9,9 @@ import { SealDial } from "./SealDial";
 import { StorageRow } from "./StorageRow";
 import styles from "./DownloadPane.module.css";
 
-const BADGE: Record<string, string> = {
-  confirm: "confirmação",
-  starting: "conectando",
-  downloading: "descendo",
-  verifying: "verificando",
-  paused: "pausado",
-  completed: "completo · sha-256 íntegro",
-};
-
-const SITUATION: Record<string, string> = {
-  starting: "estabelecendo",
-  downloading: "estável",
-  verifying: "conferindo selo",
-  paused: "pausado",
-  completed: "íntegro",
-};
-
 export function DownloadPane() {
+  const t = useT().downloadPane;
+  const f = useFormat();
   const session = useDownloadsStore((s) => s.session);
   const start = useDownloadsStore((s) => s.start);
   const pause = useDownloadsStore((s) => s.pause);
@@ -80,26 +65,17 @@ export function DownloadPane() {
   const etaText =
     phase === "downloading"
       ? speedBps && speedBps > 0
-        ? eta(remaining / speedBps)
-        : "estimando"
+        ? f.eta(remaining / speedBps)
+        : t.estimating
       : phase === "verifying"
-        ? "< 1 min"
+        ? t.underAMinute
         : phase === "paused"
-          ? "pausado"
+          ? t.pausedShort
           : phase === "starting"
-            ? "estimando"
+            ? t.estimating
             : "—";
 
   const origin = model.url.replace(/^https?:\/\//, "");
-
-  const verbLine: Record<string, string> = {
-    confirm: "aguardando a sua palavra para começar.",
-    starting: "estabelecendo o canal com o repositório.",
-    downloading: "o texto está atravessando a rede.",
-    verifying: "conferindo o selo: sha-256 byte a byte.",
-    paused: "o download está suspenso. retome quando quiser.",
-    completed: "o modelo está em casa.",
-  };
 
   return (
     <section className={styles.page}>
@@ -119,36 +95,36 @@ export function DownloadPane() {
             </span>
             {phase === "confirm" && (
               <button className={styles.reverseLink} onClick={backToCatalog}>
-                trocar →
+                {t.change}
               </button>
             )}
           </div>
 
           <div className={styles.entries}>
             <div className={styles.entry}>
-              <span className={styles.entryLabel}>parâmetros</span>
+              <span className={styles.entryLabel}>{t.params}</span>
               <span className={styles.entryValue}>
                 {model.params_b} B · {model.quantization}
               </span>
             </div>
             <div className={styles.entry}>
-              <span className={styles.entryLabel}>tamanho</span>
+              <span className={styles.entryLabel}>{t.size}</span>
               <span className={styles.entryValue}>
-                <b>{gb(model.size_bytes)} GB</b>
+                <b>{f.gb(model.size_bytes)} GB</b>
               </span>
             </div>
             <div className={styles.entry}>
-              <span className={styles.entryLabel}>tempo</span>
+              <span className={styles.entryLabel}>{t.time}</span>
               <span className={styles.entryValue}>
                 {phase === "downloading" && speedBps
-                  ? `${etaText} · ${mbps(speedBps)} mb/s`
+                  ? `${etaText} · ${f.mbps(speedBps)} mb/s`
                   : phase === "confirm"
-                    ? "estimado ao começar"
+                    ? t.estimatedOnStart
                     : etaText}
               </span>
             </div>
             <div className={styles.entry}>
-              <span className={styles.entryLabel}>origem</span>
+              <span className={styles.entryLabel}>{t.origin}</span>
               <span className={`${styles.entryValue} ${styles.entryMono}`}>{origin}</span>
             </div>
           </div>
@@ -175,12 +151,12 @@ export function DownloadPane() {
                 strokeLinejoin="round"
               />
             </svg>
-            retomado em{" "}
+            {t.resumedAt}{" "}
             <b>
-              {gb(resumedFrom, 1)} GB / {gb(totalBytes)} GB
+              {f.gb(resumedFrom, 1)} GB / {f.gb(totalBytes)} GB
             </b>
             <button className={styles.recoveryDismiss} onClick={() => setRecoveryDismissed(true)}>
-              ok
+              {t.dismiss}
             </button>
           </div>
         )}
@@ -192,25 +168,25 @@ export function DownloadPane() {
             <div className={styles.stateCaption} data-state={phase}>
               <span className={styles.stateBadge}>
                 <span className={styles.stateGlyph} />
-                {BADGE[phase]}
+                {t.badge[phase]}
               </span>
-              <span className={styles.verbLine}>{verbLine[phase]}</span>
+              <span className={styles.verbLine}>{t.verb[phase]}</span>
             </div>
 
             {phase === "confirm" ? (
               <SealDial progress={0} state="confirm" armed>
                 <div className="pct">
-                  {gb(model.size_bytes)}
+                  {f.gb(model.size_bytes)}
                   <span className="sym"> gb</span>
                 </div>
                 <div className="below">
-                  <span>a descer</span>
+                  <span>{t.toDescend}</span>
                 </div>
               </SealDial>
             ) : phase === "completed" ? (
               <SealDial progress={100} state="complete" showCheck>
                 <div className="below" style={{ marginTop: 62 }}>
-                  <b>{gb(totalBytes)} gb</b> · íntegro
+                  <b>{f.gb(totalBytes)} gb</b> · {t.intact}
                 </div>
               </SealDial>
             ) : (
@@ -228,8 +204,8 @@ export function DownloadPane() {
                 </div>
                 <div className="below">
                   <span>
-                    <b>{size(phase === "verifying" ? hashedBytes : downloadedBytes)}</b> de{" "}
-                    <b>{gb(totalBytes)} gb</b>
+                    <b>{f.size(phase === "verifying" ? hashedBytes : downloadedBytes)}</b>{" "}
+                    {t.of} <b>{f.gb(totalBytes)} gb</b>
                   </span>
                 </div>
               </SealDial>
@@ -238,19 +214,19 @@ export function DownloadPane() {
             {phase !== "confirm" && phase !== "completed" && (
               <div className={styles.metrics}>
                 <div className={`${styles.metric} ${phase !== "downloading" ? styles.metricDim : ""}`}>
-                  <span className={styles.metricK}>vazão</span>
+                  <span className={styles.metricK}>{t.throughput}</span>
                   <span className={styles.metricV}>
-                    {phase === "downloading" && speedBps ? mbps(speedBps) : "—"}{" "}
+                    {phase === "downloading" && speedBps ? f.mbps(speedBps) : "—"}{" "}
                     <span className={styles.metricSub}>mb/s</span>
                   </span>
                 </div>
                 <div className={styles.metric}>
-                  <span className={styles.metricK}>restam</span>
+                  <span className={styles.metricK}>{t.remaining}</span>
                   <span className={styles.metricV}>{etaText}</span>
                 </div>
                 <div className={styles.metric}>
-                  <span className={styles.metricK}>situação</span>
-                  <span className={styles.metricV}>{SITUATION[phase] ?? "—"}</span>
+                  <span className={styles.metricK}>{t.situationLabel}</span>
+                  <span className={styles.metricV}>{t.situation[phase] ?? "—"}</span>
                 </div>
               </div>
             )}
@@ -267,10 +243,10 @@ export function DownloadPane() {
                       strokeLinejoin="round"
                     />
                   </svg>
-                  <span>voltar ao compêndio</span>
+                  <span>{t.backToCatalog}</span>
                 </button>
                 <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => void start()}>
-                  <span>começar</span>
+                  <span>{t.begin}</span>
                   <span className={styles.btnArrow} aria-hidden="true">
                     <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                       <path
@@ -296,8 +272,8 @@ export function DownloadPane() {
                   disabled={phase !== "paused"}
                   title={
                     phase !== "paused"
-                      ? "pause antes de escolher outro modelo"
-                      : "devolve ao compêndio; os bytes baixados ficam salvos"
+                      ? t.pauseFirst
+                      : t.returnsToCatalog
                   }
                   onClick={backToCatalog}
                 >
@@ -310,21 +286,21 @@ export function DownloadPane() {
                       strokeLinejoin="round"
                     />
                   </svg>
-                  <span>escolher outro modelo</span>
+                  <span>{t.chooseAnother}</span>
                 </button>
                 <button
                   className={`${styles.btn} ${styles.btnWarn}`}
                   disabled={phase === "verifying"}
                   onClick={abandon}
                 >
-                  cancelar
+                  {t.cancel}
                 </button>
                 <button
                   className={`${styles.btn} ${styles.btnPrimary}`}
                   disabled={phase === "verifying" || phase === "starting"}
                   onClick={() => (phase === "paused" ? void start() : void pause())}
                 >
-                  <span>{phase === "paused" ? "retomar" : "pausar"}</span>
+                  <span>{phase === "paused" ? t.resume : t.pause}</span>
                 </button>
               </div>
             )}
@@ -332,7 +308,7 @@ export function DownloadPane() {
             {phase === "completed" && (
               <div className={styles.actionsRow}>
                 <button className={styles.ghostLink} onClick={backToCatalog}>
-                  voltar ao compêndio
+                  {t.backToCatalog}
                 </button>
                 <button
                   className={`${styles.btn} ${styles.btnPrimary}`}
@@ -343,7 +319,7 @@ export function DownloadPane() {
                     void load(id, "ritual");
                   }}
                 >
-                  <span>despertar o modelo</span>
+                  <span>{t.awaken}</span>
                   <span className={styles.btnArrow} aria-hidden="true">
                     <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                       <path
@@ -367,6 +343,8 @@ export function DownloadPane() {
 
 /** Failure card variants inside the download spread (Error States II / VI). */
 function DownloadFailure() {
+  const t = useT().downloadPane;
+  const f = useFormat();
   const session = useDownloadsStore((s) => s.session);
   const start = useDownloadsStore((s) => s.start);
   const reset = useDownloadsStore((s) => s.reset);
@@ -384,25 +362,21 @@ function DownloadFailure() {
   if (errorKind === "ChecksumMismatch") {
     return (
       <ErrorCard
-        badge="vi · selo não confere"
+        badge={t.checksumFailed.badge}
         code="err.integrity.sha256"
-        title="O selo do arquivo não confere."
-        quiet="não vou abrir um codex que possa ter sido tocado."
-        gloss={
-          <>
-            Os bytes chegaram inteiros, mas a soma <em>sha-256</em> não bate com a publicada pelo
-            autor do modelo. Pode ter sido corrupção no caminho — pode ter sido troca. O arquivo
-            foi descartado; preferimos não usar.
-          </>
-        }
+        title={t.checksumFailed.title}
+        quiet={t.checksumFailed.quiet}
+        gloss={t.checksumFailed.gloss}
         diag={[
-          { k: "esperado", v: entry.model.sha256.slice(0, 24) + "…" },
-          { k: "arquivo", v: "descartado · não é exposto à conversa", italic: true },
+          { k: t.checksumFailed.expected, v: entry.model.sha256.slice(0, 24) + "…" },
+          { k: t.checksumFailed.file, v: t.checksumFailed.discarded, italic: true },
         ]}
         actions={
           <>
-            <ErrorAction onClick={() => void start()}>baixar de novo</ErrorAction>
-            <ErrorLink onClick={discard}>voltar ao compêndio</ErrorLink>
+            <ErrorAction onClick={() => void start()}>
+              {t.checksumFailed.redownload}
+            </ErrorAction>
+            <ErrorLink onClick={discard}>{t.backToCatalog}</ErrorLink>
           </>
         }
       />
@@ -411,36 +385,31 @@ function DownloadFailure() {
 
   return (
     <ErrorCard
-      badge="ii · download interrompido"
+      badge={t.networkFailed.badge}
       code="err.download.network"
-      title="O fio se cortou no meio."
-      quiet={pct > 0 ? `${pct}% chegaram. retomamos.` : "nada se perdeu. tentamos de novo."}
-      gloss={
-        <>
-          A descida foi interrompida — {errorMessage ?? "o servidor remoto parou de responder"}. Os
-          bytes baixados ficaram salvos; podemos continuar de onde paramos sem recomeçar.
-        </>
-      }
+      title={t.networkFailed.title}
+      quiet={pct > 0 ? t.networkFailed.quietProgress(pct) : t.networkFailed.quietNone}
+      gloss={t.networkFailed.gloss(errorMessage ?? t.networkFailed.reason)}
       diag={[
         {
-          k: "progresso",
+          k: t.networkFailed.progress,
           v: (
             <>
               <b>
-                {gb(downloadedBytes)} / {gb(totalBytes)}
+                {f.gb(downloadedBytes)} / {f.gb(totalBytes)}
               </b>{" "}
               GB · {pct}%
             </>
           ),
         },
-        { k: "link", v: entry.model.url.replace(/^https?:\/\//, "") },
+        { k: t.networkFailed.link, v: entry.model.url.replace(/^https?:\/\//, "") },
       ]}
       actions={
         <>
           <ErrorAction onClick={() => void start()}>
-            {pct > 0 ? `retomar de ${pct}%` : "tentar de novo"}
+            {pct > 0 ? t.networkFailed.resumeFrom(pct) : t.networkFailed.retry}
           </ErrorAction>
-          <ErrorLink onClick={discard}>cancelar download</ErrorLink>
+          <ErrorLink onClick={discard}>{t.networkFailed.cancelDownload}</ErrorLink>
         </>
       }
       pulse

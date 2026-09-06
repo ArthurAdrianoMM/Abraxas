@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ClassifiedModel } from "../../lib/tauri/bindings";
+import { useT } from "../../lib/i18n";
 import { useDownloadsStore } from "../../stores/downloads";
 import { useSettingsStore } from "../../stores/settings";
 import { useUiStore } from "../../stores/ui";
@@ -25,6 +26,7 @@ const STEP_NUMBER: Record<Step, string> = {
  * hatch to the shell; nothing here can trap the user.
  */
 export function OnboardingFlow() {
+  const t = useT().onboarding;
   const [step, setStep] = useState<Step>("welcome");
   const completeOnboarding = useUiStore((s) => s.completeOnboarding);
   const initSettings = useSettingsStore((s) => s.init);
@@ -51,13 +53,11 @@ export function OnboardingFlow() {
 
   return (
     <div className={styles.flow}>
-      <span className={`${styles.corner} ${styles.cornerTl}`}>abraxas · v.0</span>
-      <span className={`${styles.corner} ${styles.cornerBl}`}>
-        passo {STEP_NUMBER[step]} / 04
-      </span>
+      <span className={`${styles.corner} ${styles.cornerTl}`}>{t.wordmark}</span>
+      <span className={`${styles.corner} ${styles.cornerBl}`}>{t.step(STEP_NUMBER[step])}</span>
       <span className={`${styles.corner} ${styles.cornerBr}`}>
         <span className="pulse" />
-        local · offline
+        {t.offline}
       </span>
 
       <div className={styles.stepHost} key={step}>

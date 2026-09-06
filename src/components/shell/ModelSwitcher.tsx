@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { gb } from "../../lib/format";
+import { useFormat, useT } from "../../lib/i18n";
 import { useCatalogStore } from "../../stores/catalog";
 import { useHardwareStore } from "../../stores/hardware";
 import { useModelStore } from "../../stores/model";
@@ -11,6 +11,8 @@ import styles from "./ModelSwitcher.module.css";
  *  foot links into the Models view. Lightweight — the Models view is the
  *  full surface. */
 export function ModelSwitcher() {
+  const t = useT().shell.switcher;
+  const f = useFormat();
   const open = useUiStore((s) => s.switcherOpen);
   const setOpen = useUiStore((s) => s.setSwitcherOpen);
   const openModels = useUiStore((s) => s.openModels);
@@ -39,17 +41,17 @@ export function ModelSwitcher() {
   return (
     <>
       <div className={styles.scrim} onClick={() => setOpen(false)} />
-      <aside className={styles.popover} role="menu" aria-label="trocar de modelo">
+      <aside className={styles.popover} role="menu" aria-label={t.aria}>
         <div className={styles.head}>
-          <span className={styles.kicker}>— qual voz desta vez</span>
+          <span className={styles.kicker}>{t.kicker}</span>
           <span className={styles.machine}>
-            sua máq · <b>{machine}</b>
+            {t.machine} · <b>{machine}</b>
           </span>
         </div>
 
         <div className={styles.list}>
           {installed.length === 0 && (
-            <div className={styles.empty}>nenhum codex instalado ainda.</div>
+            <div className={styles.empty}>{t.empty}</div>
           )}
           {installed.map((m) => {
             const entry = catalogModels.find((c) => c.model.id === m.id)?.model ?? null;
@@ -79,21 +81,20 @@ export function ModelSwitcher() {
                   </span>
                   <span className={styles.itemMeta}>
                     {active ? (
-                      <>
-                        <b>já carregada</b>
-                      </>
+                      <b>{t.loaded}</b>
                     ) : (
                       <>
-                        trocar descarrega a atual · <b>desperta em instantes</b>
+                        {t.switchHint}
+                        <b>{t.switchHintBold}</b>
                       </>
                     )}
                   </span>
                 </span>
                 <span className={styles.itemRight}>
                   <span className={styles.itemSize}>
-                    <b>{gb(m.size_bytes, 1)}</b> gb
+                    <b>{f.gb(m.size_bytes, 1)}</b> gb
                   </span>
-                  {active && <span className={styles.itemNow}>agora</span>}
+                  {active && <span className={styles.itemNow}>{t.now}</span>}
                 </span>
               </button>
             );
@@ -107,8 +108,8 @@ export function ModelSwitcher() {
               openModels("catalog");
             }}
           >
-            <span>procurar no catálogo</span>
-            <span className={styles.footRight}>remoto →</span>
+            <span>{t.browseCatalog}</span>
+            <span className={styles.footRight}>{t.remote}</span>
           </button>
           <button
             onClick={() => {
@@ -116,8 +117,8 @@ export function ModelSwitcher() {
               openModels("manager");
             }}
           >
-            <span>ateliê dos modelos</span>
-            <span className={styles.footRight}>instalados →</span>
+            <span>{t.atelier}</span>
+            <span className={styles.footRight}>{t.installed}</span>
           </button>
         </div>
       </aside>

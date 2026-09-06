@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { StoredMessage } from "../../lib/tauri/bindings";
+import { useT } from "../../lib/i18n";
 import { useGenerationStore } from "../../stores/generation";
 import { Seal } from "./Seal";
 import styles from "./Thread.module.css";
@@ -11,12 +12,13 @@ function AssistantBody({ content }: { content: string }) {
 }
 
 function Turn({ message }: { message: StoredMessage }) {
+  const t = useT().chat;
   const isUser = message.role === "user";
   return (
     <article className={isUser ? "turn user" : "turn"}>
       <div className="who">
         {!isUser && <Seal />}
-        <span>{isUser ? "você" : "abraxas"}</span>
+        <span>{isUser ? t.you : t.assistant}</span>
       </div>
       <div className="msg">
         {isUser ? <p>{message.content}</p> : <AssistantBody content={message.content} />}
@@ -28,20 +30,21 @@ function Turn({ message }: { message: StoredMessage }) {
 /** The in-flight assistant turn: typing dots until the first token, then the
  *  streamed text rendered live. */
 function LiveTurn() {
+  const t = useT().chat;
   const streamText = useGenerationStore((s) => s.streamText);
   return (
     <article className="turn">
       <div className="who">
         <Seal />
         <span>
-          abraxas <span className={styles.thinking}>— pensando devagar</span>
+          {t.assistant} <span className={styles.thinking}>{t.thinking}</span>
         </span>
       </div>
       <div className="msg">
         {streamText ? (
           <AssistantBody content={streamText} />
         ) : (
-          <span className="typing" aria-label="modelo digitando">
+          <span className="typing" aria-label={t.typing}>
             <i></i>
             <i></i>
             <i></i>

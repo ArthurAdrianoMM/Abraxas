@@ -1,4 +1,4 @@
-import { gb } from "../../lib/format";
+import { useFormat, useT } from "../../lib/i18n";
 import styles from "./StorageRow.module.css";
 
 /** The storage row from the Download design: models dir, free-space meter
@@ -17,6 +17,8 @@ export function StorageRow({
   /** Bytes still to land on disk (full size before start, shrinking after). */
   remainingBytes: number;
 }) {
+  const t = useT().storage;
+  const f = useFormat();
   const MARGIN_BYTES = 1e9;
   const hasDisk = freeBytes !== null && totalBytes !== null;
   const warn = hasDisk && remainingBytes + MARGIN_BYTES > freeBytes;
@@ -32,8 +34,8 @@ export function StorageRow({
         <span className={styles.storagePath}>{modelsDir ?? "…"}</span>
         <span className={styles.storageRhs}>
           {hasDisk
-            ? `${gb(totalBytes - freeBytes, 0)} / ${gb(totalBytes, 0)} gb`
-            : `+${gb(remainingBytes)} gb`}
+            ? `${f.gb(totalBytes - freeBytes, 0)} / ${f.gb(totalBytes, 0)} gb`
+            : `+${f.gb(remainingBytes)} gb`}
         </span>
       </div>
       {hasDisk && (
@@ -47,14 +49,12 @@ export function StorageRow({
           </div>
           {warn ? (
             <span className={styles.storageWarnLine}>
-              espaço crítico — libere pelo menos{" "}
-              {gb(Math.max(0, remainingBytes + MARGIN_BYTES - freeBytes), 1)} gb ou escolha um
-              modelo menor.
+              {t.critical(f.gb(Math.max(0, remainingBytes + MARGIN_BYTES - freeBytes), 1))}
             </span>
           ) : (
             <div className={styles.storageFoot}>
               <span className={styles.storageVerdictOk}>
-                cabe com folga · restam {gb(afterBytes, 0)} gb depois
+                {t.fits(f.gb(afterBytes, 0))}
               </span>
             </div>
           )}
@@ -64,8 +64,8 @@ export function StorageRow({
   );
 }
 
-/** Same 1 GB margin the meter warns with — exported so flows can gate
- *  actions ("confirmar", "começar") on the identical rule. */
+/** Same 1 GB margin the meter warns with — exported so flows can gate their
+ *  confirm/begin actions on the identical rule. */
 export function fitsOnDisk(sizeBytes: number, freeBytes: number | null): boolean {
   if (freeBytes === null) return true; // no reading — don't block on a guess
   return sizeBytes + 1e9 <= freeBytes;

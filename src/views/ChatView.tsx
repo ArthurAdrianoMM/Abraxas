@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useT } from "../lib/i18n";
 import { Composer } from "../components/chat/Composer";
 import { EmptyState } from "../components/chat/EmptyState";
 import { OrdersDrawer } from "../components/chat/OrdersDrawer";
@@ -11,6 +12,7 @@ import styles from "./ChatView.module.css";
 
 /** Inline notice for the degraded chat (no model installed / load failed). */
 function ModelNotice() {
+  const t = useT().chat;
   const status = useModelStore((s) => s.status);
   const error = useModelStore((s) => s.error);
   const setView = useUiStore((s) => s.setView);
@@ -20,25 +22,24 @@ function ModelNotice() {
   return (
     <div className={styles.modelNotice}>
       <span>
-        {status === "error"
-          ? `A voz não pôde despertar: ${error}`
-          : "Nenhuma voz desperta — o Abraxas precisa de um modelo instalado para falar."}
+        {status === "error" ? t.voiceFailed(String(error)) : t.noVoice}
       </span>
       <button className={styles.modelNoticeLink} onClick={() => setView("models")}>
-        ir ao ateliê dos modelos →
+        {t.goToAtelier}
       </button>
     </div>
   );
 }
 
 function GenerationError() {
+  const t = useT().chat;
   const error = useGenerationStore((s) => s.error);
   const dismiss = useGenerationStore((s) => s.dismissError);
   if (!error) return null;
   return (
     <div className={styles.genError}>
-      <span>o verbo falhou: {error}</span>
-      <button className={styles.genErrorDismiss} onClick={dismiss} aria-label="dispensar">
+      <span>{t.generationFailed(error)}</span>
+      <button className={styles.genErrorDismiss} onClick={dismiss} aria-label={t.dismiss}>
         ✕
       </button>
     </div>
@@ -46,6 +47,7 @@ function GenerationError() {
 }
 
 export function ChatView() {
+  const tChat = useT().chat;
   const activeId = useConversationsStore((s) => s.activeId);
   const messages = useConversationsStore((s) => s.messages);
   const loadConversations = useConversationsStore((s) => s.load);
@@ -95,7 +97,7 @@ export function ChatView() {
 
       <Composer
         value={draft}
-        placeholder={showEmpty ? "diga a primeira palavra…" : "pergunte ao abraxas…"}
+        placeholder={showEmpty ? tChat.placeholderFirst : tChat.placeholder}
         generating={generating}
         disabled={degraded}
         onChange={setDraft}

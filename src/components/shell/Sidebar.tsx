@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Conversation } from "../../lib/tauri/bindings";
+import { useFormat, useT } from "../../lib/i18n";
 import { useConversationsStore } from "../../stores/conversations";
 import { useHardwareStore } from "../../stores/hardware";
 import { useModelStore } from "../../stores/model";
@@ -7,18 +8,20 @@ import { useUiStore } from "../../stores/ui";
 import { AbraxasGlyph } from "./AbraxasGlyph";
 import styles from "./Sidebar.module.css";
 
-type Group = { label: string; items: Conversation[] };
+type GroupKey = "today" | "week" | "older";
+type Group = { key: GroupKey; items: Conversation[] };
 
-/** Buckets by updated_at into the design's três groups. */
+/** Buckets by updated_at into the design's three groups. Keyed rather than
+ *  labelled so the bucket survives a language change. */
 function groupConversations(conversations: Conversation[]): Group[] {
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const startOfWeek = startOfToday - 6 * 24 * 60 * 60 * 1000;
 
   const groups: Group[] = [
-    { label: "— hoje", items: [] },
-    { label: "— esta semana", items: [] },
-    { label: "— mais antigas", items: [] },
+    { key: "today", items: [] },
+    { key: "week", items: [] },
+    { key: "older", items: [] },
   ];
   for (const c of conversations) {
     const t = Date.parse(c.updated_at);
@@ -30,6 +33,7 @@ function groupConversations(conversations: Conversation[]): Group[] {
 }
 
 function ConversationRow({ conversation }: { conversation: Conversation }) {
+  const t = useT().sidebar;
   const activeId = useConversationsStore((s) => s.activeId);
   const select = useConversationsStore((s) => s.select);
   const remove = useConversationsStore((s) => s.remove);
@@ -39,7 +43,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
   if (confirming) {
     return (
       <div className={`conv ${styles.convConfirm}`}>
-        <span className={styles.confirmLabel}>apagar esta conversa?</span>
+        <span className={styles.confirmLabel}>{t.confirmDelete}</span>
         <span className={styles.confirmActions}>
           <button
             className={styles.confirmYes}
@@ -48,7 +52,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
               void remove(conversation.id);
             }}
           >
-            apagar
+            {t.delete}
           </button>
           <button
             className={styles.confirmNo}
@@ -57,7 +61,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
               setConfirming(false);
             }}
           >
-            manter
+            {t.keep}
           </button>
         </span>
       </div>
@@ -75,8 +79,8 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
       <span className={styles.convTitle}>{conversation.title}</span>
       <button
         className={styles.convDelete}
-        title="apagar conversa"
-        aria-label="apagar conversa"
+        title={t.deleteConversation}
+        aria-label={t.deleteConversation}
         onClick={(e) => {
           e.stopPropagation();
           setConfirming(true);
@@ -95,11 +99,11 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
   );
 }
 
-function formatGb(bytes: number): string {
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-}
-
 function ModelFooter() {
+  const t = useT().sidebar;
+  const f = useFormat();
+  /** Gibibytes, so it can't go through `f.gb` (which is decimal GB). */
+  const formatGb = (bytes: number) => `${f.decimal(bytes / 1024 ** 3, 1)} GB`;
   const setView = useUiStore((s) => s.setView);
   const status = useModelStore((s) => s.status);
   const loadedId = useModelStore((s) => s.loadedId);
@@ -123,7 +127,7 @@ function ModelFooter() {
     <>
       <div
         className={`model-row ${styles.modelRow}`}
-        title="ateliê dos modelos"
+        title={t.atelier}
         onClick={() => setView("models")}
       >
         {status === "loaded" && loaded ? (
@@ -133,13 +137,13 @@ function ModelFooter() {
           </>
         ) : (
           <span className={styles.modelIdle}>
-            {status === "loading" ? "despertando…" : "nenhuma voz desperta"}
+            {status === "loading" ? t.awakening : t.noVoiceAwake}
           </span>
         )}
       </div>
       <div className="model-meta">
         {status === "loaded" && loaded
-          ? `${formatGb(loaded.size_bytes)}${ramMeta ? ` · ${ramMeta}` : " · local"}`
+          ? `${formatGb(loaded.size_bytes)}${ramMeta ? ` · ${ramMeta}` : ` · ${t.local}`}`
           : ramMeta ? `— · ${ramMeta}` : "— · —"}
       </div>
     </>
@@ -147,6 +151,7 @@ function ModelFooter() {
 }
 
 export function Sidebar() {
+  const t = useT().sidebar;
   const view = useUiStore((s) => s.view);
   const setView = useUiStore((s) => s.setView);
   const conversations = useConversationsStore((s) => s.conversations);
@@ -166,7 +171,7 @@ export function Sidebar() {
         <AbraxasGlyph />
         <div className={styles.brandText}>
           <span className="name">ABRAXAS</span>
-          <span className="tag">v.0 · local</span>
+          <span className="tag">{t.tag}</span>
         </div>
       </div>
 
@@ -177,13 +182,13 @@ export function Sidebar() {
           setView("chat");
         }}
       >
-        + nova conversa
+        {t.newConversation}
       </button>
 
-      <nav className="conv-scroll" aria-label="Conversas">
+      <nav className="conv-scroll" aria-label={t.conversationsAria}>
         {groups.map((group) => (
-          <div key={group.label}>
-            <div className="group-label">{group.label}</div>
+          <div key={group.key}>
+            <div className="group-label">{t.groups[group.key]}</div>
             {group.items.map((c) => (
               <ConversationRow key={c.id} conversation={c} />
             ))}
@@ -194,18 +199,18 @@ export function Sidebar() {
       <div className="footer">
         <ModelFooter />
 
-        <nav className={styles.footerNav} aria-label="Atalhos">
+        <nav className={styles.footerNav} aria-label={t.shortcutsAria}>
           <button
             className={`${styles.footerLink} ${view === "models" ? styles.footerLinkActive : ""}`}
             onClick={() => setView("models")}
           >
-            modelos
+            {t.models}
           </button>
           <button
             className={`${styles.footerLink} ${view === "settings" ? styles.footerLinkActive : ""}`}
             onClick={() => setView("settings")}
           >
-            preferências
+            {t.preferences}
           </button>
         </nav>
       </div>

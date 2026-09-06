@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Conversation, ConversationGenerationParams } from "../../lib/tauri/bindings";
+import { useFormat, useT } from "../../lib/i18n";
 import { useConversationsStore } from "../../stores/conversations";
 import { useSettingsStore } from "../../stores/settings";
 import { useUiStore } from "../../stores/ui";
 import styles from "./OrdersDrawer.module.css";
 
 /** Last-resort fallbacks when settings haven't loaded yet — mirror
- *  `AppSettings::default()`. The live "herdar do padrão" hints come from
+ *  `AppSettings::default()`. The live "inherit from default" hints come from
  *  the user's actual saved defaults. */
 const FALLBACK = { temperature: 0.8, top_p: 0.95, max_completion_tokens: 512, seed: 1234 };
 
@@ -75,36 +76,27 @@ function InheritToggle({
   hint: string;
   onToggle: () => void;
 }) {
+  const t = useT().chat.orders;
   return (
     <button
       className={`${styles.inherit} ${inherit ? styles.inheritOn : ""}`}
       onClick={onToggle}
     >
       <span className={styles.checkbox}></span>
-      herdar do padrão ({hint})
+      {t.inherit(hint)}
     </button>
   );
 }
 
-function relativeAge(iso: string): string {
-  const started = Date.parse(iso);
-  if (Number.isNaN(started)) return "";
-  const minutes = Math.max(0, Math.round((Date.now() - started) / 60_000));
-  if (minutes < 1) return "iniciada agora";
-  if (minutes < 60) return `iniciada há ${minutes} min`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `iniciada há ${hours} h`;
-  const days = Math.round(hours / 24);
-  return `iniciada há ${days} d`;
-}
-
 export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
+  const t = useT().chat.orders;
+  const f = useFormat();
   const setOrdersOpen = useUiStore((s) => s.setOrdersOpen);
   const updateParams = useConversationsStore((s) => s.updateParams);
   const messageCount = useConversationsStore((s) => s.messages.length);
   const settings = useSettingsStore((s) => s.settings);
 
-  // "herdar do padrão" points at the user's saved defaults, not literals.
+  // "inherit from default" points at the user's saved defaults, not literals.
   const DEFAULTS = {
     temperature: settings?.default_temperature ?? FALLBACK.temperature,
     top_p: settings?.default_top_p ?? FALLBACK.top_p,
@@ -151,7 +143,7 @@ export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
     }
   };
 
-  const turnos = messageCount === 1 ? "1 turno" : `${messageCount} turnos`;
+  const turns = t.turns(messageCount);
 
   return (
     <>
@@ -159,15 +151,16 @@ export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
       <aside
         className={styles.drawer}
         role="dialog"
-        aria-label="ordens desta conversa"
+        aria-label={t.aria}
         aria-modal="true"
       >
         <div className={styles.head}>
           <div className={styles.kicker}>
             <span>
-              <span className={styles.step}>ordens</span> · desta conversa
+              <span className={styles.step}>{t.step}</span>
+              {t.kickerRest}
             </span>
-            <button className={styles.close} onClick={close} aria-label="fechar">
+            <button className={styles.close} onClick={close} aria-label={t.close}>
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                 <path
                   d="M4 4l8 8M12 4l-8 8"
@@ -178,19 +171,17 @@ export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
               </svg>
             </button>
           </div>
-          <h1 className={styles.heading}>As ordens desta conversa.</h1>
+          <h1 className={styles.heading}>{t.heading}</h1>
           <span className={styles.convName}>
-            <b>“{conversation.title}”</b> · {turnos} · {relativeAge(conversation.created_at)}
+            <b>“{conversation.title}”</b> · {turns} · {t.started(f.ago(conversation.created_at))}
           </span>
         </div>
 
         <div className={styles.body}>
           <div className={styles.section}>
             <div className={styles.sectionHead}>
-              <span className={styles.sectionName}>i · a medida do verbo</span>
-              <p className={styles.sectionGloss}>
-                parâmetros desta conversa. desmarque para herdar das preferências.
-              </p>
+              <span className={styles.sectionName}>{t.sectionName}</span>
+              <p className={styles.sectionGloss}>{t.sectionGloss}</p>
             </div>
 
             {/* temperatura */}
@@ -213,12 +204,12 @@ export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
               <div className={styles.valueArea}>
                 <div className={styles.sliderRow}>
                   <div className={styles.sliderTop}>
-                    <span>movimento</span>
+                    <span>{t.movement}</span>
                     <span className={styles.reading}>
                       {(fields.temperature ?? DEFAULTS.temperature).toFixed(2)}
                       {fields.temperature !== null && (
                         <span className={styles.readingVs}>
-                          · padrão {DEFAULTS.temperature.toFixed(2)}
+                          {t.vsDefault(DEFAULTS.temperature.toFixed(2))}
                         </span>
                       )}
                     </span>
@@ -235,7 +226,7 @@ export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
             {/* top-p */}
             <div className={`${styles.field} ${fields.top_p === null ? styles.fieldMuted : ""}`}>
               <div className={styles.fieldTop}>
-                <span className={styles.label}>top-p</span>
+                <span className={styles.label}>{t.topP}</span>
                 <InheritToggle
                   inherit={fields.top_p === null}
                   hint={DEFAULTS.top_p.toFixed(2)}
@@ -250,12 +241,12 @@ export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
               <div className={styles.valueArea}>
                 <div className={styles.sliderRow}>
                   <div className={styles.sliderTop}>
-                    <span>amplitude</span>
+                    <span>{t.amplitude}</span>
                     <span className={styles.reading}>
                       {(fields.top_p ?? DEFAULTS.top_p).toFixed(2)}
                       {fields.top_p !== null && (
                         <span className={styles.readingVs}>
-                          · padrão {DEFAULTS.top_p.toFixed(2)}
+                          {t.vsDefault(DEFAULTS.top_p.toFixed(2))}
                         </span>
                       )}
                     </span>
@@ -269,14 +260,14 @@ export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
               </div>
             </div>
 
-            {/* máximo de tokens */}
+            {/* max tokens */}
             <div
               className={`${styles.field} ${
                 fields.max_completion_tokens === null ? styles.fieldMuted : ""
               }`}
             >
               <div className={styles.fieldTop}>
-                <span className={styles.label}>máximo de tokens</span>
+                <span className={styles.label}>{t.maxTokens}</span>
                 <InheritToggle
                   inherit={fields.max_completion_tokens === null}
                   hint={String(DEFAULTS.max_completion_tokens)}
@@ -306,7 +297,7 @@ export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
                       }));
                     }}
                   />
-                  <span className={styles.numUnit}>tokens</span>
+                  <span className={styles.numUnit}>{t.tokens}</span>
                 </div>
               </div>
             </div>
@@ -314,11 +305,11 @@ export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
             {/* semente */}
             <div className={`${styles.field} ${fields.seed === null ? styles.fieldMuted : ""}`}>
               <div className={styles.fieldTop}>
-                <span className={styles.label}>semente</span>
+                <span className={styles.label}>{t.seed}</span>
                 <InheritToggle
                   inherit={fields.seed === null}
                   hint={
-                    settings?.default_seed != null ? String(settings.default_seed) : "aleatória"
+                    settings?.default_seed != null ? String(settings.default_seed) : t.random
                   }
                   onToggle={() =>
                     setFields((f) => ({
@@ -334,7 +325,7 @@ export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
                     type="text"
                     inputMode="numeric"
                     value={fields.seed ?? ""}
-                    placeholder={`padrão · ex.: 365`}
+                    placeholder={t.seedPlaceholder}
                     onChange={(e) => {
                       const n = parseInt(e.target.value, 10);
                       setFields((f) => ({
@@ -361,10 +352,10 @@ export function OrdersDrawer({ conversation }: { conversation: Conversation }) {
               })
             }
           >
-            restaurar tudo ao padrão
+            {t.resetAll}
           </button>
           <button className={styles.applyBtn} onClick={apply} disabled={saving}>
-            aplicar à conversa
+            {t.apply}
             <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
               <path
                 d="M3 8h10M9 4l4 4-4 4"

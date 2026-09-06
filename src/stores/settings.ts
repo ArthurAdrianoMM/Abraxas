@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { commands, type AppSettings } from "../lib/tauri/bindings";
 import { describeError, unwrap } from "../lib/tauri/result";
+import { resolveHostLocale } from "../lib/i18n/locale";
 
 export type SettingsStatus = "idle" | "loading" | "ready" | "error";
 
@@ -44,6 +45,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         const settings = await unwrap(commands.getAppSettings());
         applyFontSize(settings);
         set({ status: "ready", settings, error: null });
+        // First run: nothing has ever chosen a language, so adopt the host's
+        // and persist it. Done after `set` so the UI paints immediately in
+        // the resolved locale rather than waiting on the write.
+        if (settings.locale === null) {
+          void get().save({ locale: resolveHostLocale() });
+        }
       } catch (e) {
         set({ status: "error", error: describeError(e) });
       } finally {

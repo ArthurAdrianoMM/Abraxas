@@ -139,7 +139,7 @@ fn sha256_of_file(path: &Path) -> std::io::Result<String> {
         .collect())
 }
 
-/// "Apagar todo o histórico": every conversation and (via cascade) every
+/// "Delete all history": every conversation and (via cascade) every
 /// message. Models and preferences stay.
 #[tauri::command]
 #[specta::specta]
@@ -230,11 +230,11 @@ pub async fn clear_all_data(
     if !files_left.is_empty() {
         return Err(CommandError {
             kind: "PartialClear".into(),
-            message: format!(
-                "tudo foi esquecido, mas {} arquivo(s) estavam em uso e ficaram no disco — feche e reabra o app para removê-los: {}",
-                files_left.len(),
-                files_left.join(", ")
-            ),
+            // Data, not prose: the frontend composes the localized sentence
+            // around this list (see `settings.about.partialClear`). Keeping
+            // user-facing wording out of Rust is what lets the message follow
+            // the UI language, which the backend has no view of.
+            message: files_left.join(", "),
         });
     }
     Ok(())

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ClassifiedModel, CompatibilityTier } from "../../lib/tauri/bindings";
-import { gb } from "../../lib/format";
+import { useFormat, useT } from "../../lib/i18n";
 import { useCatalogStore } from "../../stores/catalog";
 import { useDownloadsStore } from "../../stores/downloads";
 import { useHardwareStore } from "../../stores/hardware";
@@ -11,38 +11,12 @@ import styles from "./CatalogPane.module.css";
 
 const TIER_ORDER: CompatibilityTier[] = ["Recommended", "Viable", "Heavy", "NotSupported"];
 
-const TIER_META: Record<
-  CompatibilityTier,
-  { key: string; roman: string; name: string; gloss: string; chip: string }
-> = {
-  Recommended: {
-    key: "rec",
-    roman: "I",
-    name: "Recomendados",
-    gloss: "cabem na sua máquina sem suar.",
-    chip: "recomendados",
-  },
-  Viable: {
-    key: "via",
-    roman: "II",
-    name: "Viáveis",
-    gloss: "rodam bem; talvez peçam paciência em respostas longas.",
-    chip: "viáveis",
-  },
-  Heavy: {
-    key: "hea",
-    roman: "III",
-    name: "Pesados",
-    gloss: "rodam, com swap e paciência; mais para ocasiões.",
-    chip: "pesados",
-  },
-  NotSupported: {
-    key: "not",
-    roman: "IV",
-    name: "Não suportados",
-    gloss: "precisam de máquina maior — listados para você saber que existem.",
-    chip: "não suportados",
-  },
+/** Styling key + numeral only; every visible word comes from the dictionary. */
+const TIER_META: Record<CompatibilityTier, { key: string; roman: string }> = {
+  Recommended: { key: "rec", roman: "I" },
+  Viable: { key: "via", roman: "II" },
+  Heavy: { key: "hea", roman: "III" },
+  NotSupported: { key: "not", roman: "IV" },
 };
 
 function DownArrow() {
@@ -60,6 +34,8 @@ function DownArrow() {
 }
 
 function CatalogRow({ classified }: { classified: ClassifiedModel }) {
+  const t = useT().catalog;
+  const f = useFormat();
   const { model, tier } = classified;
   const installed = useModelStore((s) => s.installed.some((m) => m.id === model.id));
   const session = useDownloadsStore((s) => s.session);
@@ -76,24 +52,24 @@ function CatalogRow({ classified }: { classified: ClassifiedModel }) {
 
   let action: React.ReactNode;
   if (installed) {
-    action = <button className={styles.act}>já instalado</button>;
+    action = <button className={styles.act}>{t.row.installed}</button>;
   } else if (downloading) {
     const pct = session.totalBytes > 0 ? (session.downloadedBytes / session.totalBytes) * 100 : 0;
     action = (
       <button className={styles.act} onClick={() => setModelsPane("download")}>
-        descendo · {pct.toFixed(0)}%
+        {t.row.descending(pct.toFixed(0))}
       </button>
     );
   } else if (paused) {
     action = (
       <button className={styles.act} onClick={() => setModelsPane("download")}>
-        retomar download
+        {t.row.resume}
       </button>
     );
   } else if (tier === "NotSupported") {
     action = (
       <button className={styles.act} disabled>
-        fora do alcance
+        {t.row.outOfReach}
       </button>
     );
   } else {
@@ -101,13 +77,13 @@ function CatalogRow({ classified }: { classified: ClassifiedModel }) {
       <button
         className={styles.act}
         disabled={otherBusy}
-        title={otherBusy ? "um download por vez — outro modelo já está descendo" : undefined}
+        title={otherBusy ? t.row.busy : undefined}
         onClick={() => {
           begin(classified);
           setModelsPane("download");
         }}
       >
-        {tier === "Heavy" ? "baixar mesmo assim" : "baixar"}
+        {tier === "Heavy" ? t.row.downloadAnyway : t.row.download}
         <DownArrow />
       </button>
     );
@@ -134,7 +110,7 @@ function CatalogRow({ classified }: { classified: ClassifiedModel }) {
         </span>
       </div>
       <span className={styles.size}>
-        {gb(model.size_bytes, 1)}
+        {f.gb(model.size_bytes, 1)}
         <span className={styles.sizeSym}>gb</span>
       </span>
       {action}
@@ -143,6 +119,7 @@ function CatalogRow({ classified }: { classified: ClassifiedModel }) {
 }
 
 export function CatalogPane() {
+  const t = useT().catalog;
   const status = useCatalogStore((s) => s.status);
   const models = useCatalogStore((s) => s.models);
   const source = useCatalogStore((s) => s.source);
@@ -181,7 +158,7 @@ export function CatalogPane() {
   }, [models, query, tierFilter]);
 
   const machine = detection
-    ? `${Math.round(detection.system.memory.total_bytes / 1024 ** 3)} gb · ${detection.system.cpu.physical_cores} núcleos · ${detection.choice.backend}`
+    ? `${Math.round(detection.system.memory.total_bytes / 1024 ** 3)} gb · ${t.cores(detection.system.cpu.physical_cores)} · ${detection.choice.backend}`
     : "—";
 
   // Offline with nothing cached: the full ceremony error card (Error States V).
@@ -191,22 +168,19 @@ export function CatalogPane() {
         <div className={styles.inner}>
           <ErrorCard
             tier="warn"
-            badge="v · não consegui ler o compêndio"
+            badge={t.unreachable.badge}
             code="err.catalog.fetch"
-            title="O firmamento está fora do alcance."
-            quiet="e não há cópia local para mostrar."
-            gloss={
-              <>
-                O catálogo remoto não respondeu e nenhuma cópia anterior foi guardada nesta
-                máquina. Pode ser a rede, pode ser o servidor — confira a conexão e tente de novo.
-              </>
-            }
-            diag={[{ k: "resposta", v: error ?? "sem conexão", italic: true }]}
+            title={t.unreachable.title}
+            quiet={t.unreachable.quiet}
+            gloss={t.unreachable.gloss}
+            diag={[
+              { k: t.unreachable.diagKey, v: error ?? t.unreachable.noConnection, italic: true },
+            ]}
             actions={
               <>
-                <ErrorAction onClick={() => void refresh()}>tentar de novo</ErrorAction>
+                <ErrorAction onClick={() => void refresh()}>{t.unreachable.retry}</ErrorAction>
                 <ErrorLink onClick={() => setModelsPane("manager")}>
-                  voltar ao ateliê
+                  {t.unreachable.back}
                 </ErrorLink>
               </>
             }
@@ -228,22 +202,17 @@ export function CatalogPane() {
         <div className={styles.chead}>
           <div className={styles.cheadLeft}>
             <div className={styles.kicker}>
-              <span className={styles.kickerStep}>o compêndio</span>
+              <span className={styles.kickerStep}>{t.kickerStep}</span>
               <span className={styles.kickerSep}>·</span>
-              <span>catálogo remoto</span>
+              <span>{t.kickerSub}</span>
             </div>
             <h1 className={styles.h1}>
-              <span>Os modelos do mundo,</span>{" "}
-              <span className={styles.h1Quiet}>ainda do outro lado do firmamento.</span>
+              <span>{t.h1Lead}</span> <span className={styles.h1Quiet}>{t.h1Quiet}</span>
             </h1>
-            <p className={styles.gloss}>
-              Tudo que cabe nesta máquina aparece em <em>recomendado</em> ou <em>viável</em>. Os
-              pesados rodam, mas vão arrastar; os não-suportados estão listados por integridade,
-              não para serem baixados.
-            </p>
+            <p className={styles.gloss}>{t.gloss}</p>
           </div>
           <div className={styles.machine}>
-            sua máquina
+            {t.machine}
             <br />
             <b>{machine}</b>
           </div>
@@ -251,9 +220,9 @@ export function CatalogPane() {
 
         {(status === "error" || source === "cache") && models.length > 0 && (
           <div className={styles.staleNote}>
-            o firmamento está fora do alcance — mostrando a última cópia local do compêndio.
+            {t.stale}
             <button className={styles.staleRetry} onClick={() => void refresh()}>
-              tentar de novo
+              {t.staleRetry}
             </button>
           </div>
         )}
@@ -268,13 +237,13 @@ export function CatalogPane() {
             </span>
             <input
               type="text"
-              placeholder="procurar por nome, autor, quantização…"
+              placeholder={t.search}
               autoComplete="off"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
             <span className={styles.searchCount}>
-              {models.length} {models.length === 1 ? "modelo" : "modelos"}
+              {models.length} {t.count(models.length)}
             </span>
           </div>
           <div className={styles.chips} role="tablist">
@@ -282,7 +251,7 @@ export function CatalogPane() {
               className={`${styles.chip} ${tierFilter === "all" ? styles.chipActive : ""}`}
               onClick={() => setTierFilter("all")}
             >
-              todos <span className={styles.chipCount}>{models.length}</span>
+              {t.all} <span className={styles.chipCount}>{models.length}</span>
             </button>
             {TIER_ORDER.map((tier) => (
               <button
@@ -292,22 +261,22 @@ export function CatalogPane() {
                 onClick={() => setTierFilter(tier)}
               >
                 <span className={styles.chipDot} />
-                {TIER_META[tier].chip} <span className={styles.chipCount}>{counts[tier]}</span>
+                {t.tiers[tier].chip} <span className={styles.chipCount}>{counts[tier]}</span>
               </button>
             ))}
           </div>
         </div>
 
         {status === "loading" && models.length === 0 && (
-          <div className={styles.loadingNote}>consultando o firmamento…</div>
+          <div className={styles.loadingNote}>{t.loading}</div>
         )}
 
         {grouped.map((group) => (
           <div className={styles.tierGroup} key={group.tier}>
             <div className={styles.tierLabel}>
               <span className={styles.tierRoman}>{TIER_META[group.tier].roman}</span>
-              <span className={styles.tierName}>{TIER_META[group.tier].name}</span>
-              <span className={styles.tierGloss}>{TIER_META[group.tier].gloss}</span>
+              <span className={styles.tierName}>{t.tiers[group.tier].name}</span>
+              <span className={styles.tierGloss}>{t.tiers[group.tier].gloss}</span>
             </div>
             {group.items.map((m) => (
               <CatalogRow key={m.model.id} classified={m} />
