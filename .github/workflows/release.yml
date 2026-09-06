@@ -143,8 +143,10 @@ jobs:
             # de release pra diagnosticar. Espelha o `ci.yml`.
             args: --verbose --features vulkan --bundles deb,appimage
     runs-on: ${{ matrix.os }}
-    # nvcc com a lista completa de arquiteturas e o gargalo; o default de 6h e
-    # generoso demais pra um job travado.
+    # Com o cache do build nativo quente o Windows fecha em ~15 min; o teto
+    # continua dimensionado pro caminho frio, que e o que sobra quando a
+    # entrada foi despejada por LRU ou o `Cargo.lock` mudou sem o
+    # `warm-release-cache.yml` ter rodado depois.
     #
     # 150, nao 120: o Windows da v0.1.2 fechou em 1h31 com o Vulkan SDK
     # 1.3.290.0. O 1.4.357.0 traz um glslc que aceita mais extensoes
@@ -155,6 +157,56 @@ jobs:
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
+
+      # Antes do stamp de versao de proposito: o `set-version.sh` reescreve o
+      # `src-tauri/Cargo.lock`, e a chave de cache derivada aqui e a mesma que o
+      # `warm-release-cache.yml` deriva do lock *commitado*. Rodar depois do
+      # stamp faria a chave exata errar em toda tag, deixando so o fallback.
+      #
+      # A action e a fonte unica do ambiente (CUDA, Vulkan SDK, gerador do
+      # CMake, `CARGO_TARGET_DIR`) e da lista de arquiteturas — o que antes
+      # eram seis passos aqui, duplicados no workflow que aquece o cache.
+      - name: Windows GPU toolchain (CUDA + Vulkan)
+        id: toolchain
+        if: matrix.os == 'windows-2022'
+        uses: ./.github/actions/windows-gpu-toolchain
+
+      # `cache/restore`, nao `cache`: quem produz a entrada e o
+      # `warm-release-cache.yml`. Salvar aqui tambem gravaria uma segunda copia
+      # multi-GB por tag numa cota de 10 GB por repositorio, despejando por LRU
+      # justamente a entrada que os proximos releases querem encontrar.
+      #
+      # Um miss nao falha o job — so devolve o build frio de ~95 min. O passo
+      # seguinte torna isso visivel no log em vez de deixar a lentidao sem
+      # explicacao.
+      - name: Restore the llama.cpp native build
+        id: native-cache
+        if: matrix.os == 'windows-2022'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            D:\ct
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ steps.toolchain.outputs.cache-key }}
+          restore-keys: ${{ steps.toolchain.outputs.cache-restore-key }}
+
+      - name: Report the native build cache state
+        if: matrix.os == 'windows-2022'
+        shell: bash
+        env:
+          HIT: ${{ steps.native-cache.outputs.cache-hit }}
+          MATCHED: ${{ steps.native-cache.outputs.cache-matched-key }}
+          WANTED: ${{ steps.toolchain.outputs.cache-key }}
+        run: |
+          set -euo pipefail
+          if [[ "$HIT" == "true" ]]; then
+            echo "Cache exato: $MATCHED — o nvcc nao roda, o build fecha em ~15 min."
+          elif [[ -n "$MATCHED" ]]; then
+            echo "::notice::Hit parcial ($MATCHED em vez de $WANTED): o llama.cpp vem pronto, so os crates Rust recompilam."
+          else
+            echo "::warning::Nenhum cache para $WANTED — build frio de ~95 min. Rode o workflow 'Warm release cache' antes da proxima tag."
+          fi
 
       - name: Stamp version from tag
         # Primeiro passo depois do checkout: o `src-tauri/Cargo.toml` versionado
@@ -186,153 +238,23 @@ jobs:
             libfuse2 \
             patchelf
 
-      # Instalacao do CUDA espelha o ci.yml, inclusive o workaround do
-      # `visual_studio_integration` (senao o CMake nao acha o toolset CUDA do
-      # VS2022). So no Windows: o Linux nao compila mais o backend CUDA (ver o
-      # comentario da matrix).
-      - name: Install CUDA Toolkit (Windows)
-        if: matrix.os == 'windows-2022'
-        uses: Jimver/cuda-toolkit@v0.2.21
-        with:
-          cuda: '12.8.0'
-          method: 'network'
-          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
-
+      # Windows tem o Vulkan SDK instalado pela action composta acima, junto do
+      # CUDA e dos guards que so fazem sentido la. Aqui sobra o Linux.
+      #
       # `1.4.357.0` pelo mesmo motivo do ci.yml: o llama.cpp do `llama-cpp-2`
-      # 0.1.155 exige `find_package(SPIRV-Headers CONFIG REQUIRED)` e o SDK
-      # 1.3.290.0 do Windows nao traz o `SPIRV-HeadersConfig.cmake` — foi assim
-      # que a tag v0.1.4 morreu no build script do `llama-cpp-sys-2`. As duas
-      # versoes andam em par; mexer numa sem mexer na outra e bug.
-      - name: Install Vulkan SDK
-        if: matrix.os != 'macos-latest'
+      # 0.1.155 exige `find_package(SPIRV-Headers CONFIG REQUIRED)`, e o SDK
+      # 1.3.290.0 nao traz o `SPIRV-HeadersConfig.cmake` — foi assim que a tag
+      # v0.1.4 morreu no build script do `llama-cpp-sys-2`. A versao aparece em
+      # tres lugares (aqui, na action composta e no `ci.yml`); mexer num sem
+      # mexer nos outros e bug.
+      - name: Install Vulkan SDK (Linux)
+        if: matrix.os == 'ubuntu-22.04'
         uses: jakoch/install-vulkan-sdk-action@v1
         with:
           vulkan_version: '1.4.357.0'
           install_runtime: true
           cache: true
           stripdown: true
-
-      # Mesmo guard do ci.yml, e aqui e onde ele paga: sem ele a ausencia do
-      # `SPIRV-HeadersConfig.cmake` so aparece depois do nvcc, no fim do job.
-      - name: Check the Vulkan SDK ships the SPIRV-Headers CMake package
-        if: matrix.os == 'windows-2022'
-        shell: bash
-        run: |
-          set -euo pipefail
-          # `cygpath`: `$VULKAN_SDK` chega como `C:\VulkanSDK\...` e o `find`
-          # do Git Bash quer o caminho no formato POSIX.
-          sdk=$(cygpath -u "$VULKAN_SDK")
-          found=$(find "$sdk" -iname 'SPIRV-HeadersConfig.cmake' -print -quit 2>/dev/null || true)
-          if [[ -z "$found" ]]; then
-            echo "::error::$VULKAN_SDK nao tem SPIRV-HeadersConfig.cmake — o configure do ggml-vulkan vai abortar."
-            exit 1
-          fi
-          echo "SPIRV-Headers CMake package: $found"
-
-      - name: Set CUDA build flags
-        if: matrix.os == 'windows-2022'
-        # O ci.yml usa `75-real` (uma arquitetura) so pra provar que compila e
-        # linka. Num release precisamos de cobertura real de GPU — mas nao da
-        # lista inteira: `61;70;75;80;86;89;90` gera cubin *e* PTX pra cada uma
-        # das 7 arquiteturas e produziu um `abraxas.exe` de 1,29 GB, no qual o
-        # makensis morre em "Internal compiler error #12345: error mmapping
-        # file (1293887906, 33554432) is out of range".
-        #
-        # A lista abaixo e `-real` (so cubin, sem PTX por arch) nas quatro
-        # geracoes de GPU de consumidor + Blackwell, mais um unico
-        # `90-virtual` que deixa PTX embarcado como rede de seguranca pra
-        # arquiteturas >= 9.0 que nao existiam neste build:
-        #
-        #   sm_61  Pascal      GTX 10xx
-        #   sm_75  Turing      RTX 20xx, GTX 16xx
-        #   sm_86  Ampere      RTX 30xx        (cobre sm_87 tambem)
-        #   sm_89  Ada         RTX 40xx
-        #   sm_120 Blackwell   RTX 50xx        (exige nvcc >= 12.8)
-        #   compute_90 (PTX)   Hopper e o que vier depois, via JIT
-        #
-        # O que ficou fora — Maxwell (5.x), P100 (6.0), Volta (7.0) e A100
-        # (8.0) — nao tem kernel neste binario. `hardware::gpu::detect`
-        # conhece essa lista (`ComputeCapability::has_cuda_kernel`) e manda
-        # essas GPUs pro Vulkan em vez de deixar o ggml estourar em runtime
-        # com "no kernel image is available for execution on the device".
-        # Mexer numa lista sem mexer na outra e bug: elas sao um par.
-        #
-        # CMAKE_POSITION_INDEPENDENT_CODE: os objetos `.cu` do llama.cpp sao
-        # compilados sem -fPIC por default. Nasceu como conserto do link no
-        # Linux, que e PIE e falhava com "relocation R_X86_64_PC32 cannot be
-        # used against symbol 'stderr'; recompile with -fPIC"; fica aqui
-        # porque o `dynamic-backends` monta o `ggml-cuda` como biblioteca
-        # compartilhada, que exige codigo PIC em qualquer OS. O CMake traduz
-        # isso pra `-Xcompiler=-fPIC` no nvcc, e o `build.rs` do
-        # llama-cpp-sys-2 repassa qualquer variavel de ambiente `CMAKE_*` como
-        # `-D` pro CMake.
-        shell: bash
-        run: |
-          echo "CMAKE_CUDA_ARCHITECTURES=61-real;75-real;86-real;89-real;120-real;90-virtual" >> "$GITHUB_ENV"
-          echo "CMAKE_POSITION_INDEPENDENT_CODE=ON" >> "$GITHUB_ENV"
-
-      - name: Check nvcc supports every arch in the list
-        if: matrix.os == 'windows-2022'
-        # Roda em ~5s e falha cedo. `sm_120` (Blackwell) exige nvcc >= 12.8: se
-        # o toolkit for repinado pra baixo, ou uma arquitetura nova entrar na
-        # lista antes de o compilador conhece-la, sem este passo a descoberta
-        # vem depois de ~90 min de nvcc, no fim do job.
-        #
-        # `--list-gpu-code` / `--list-gpu-arch` em vez de compilar um `.cu` de
-        # teste: no Windows o runner roda bash sem o ambiente do MSVC, e
-        # qualquer compilacao de verdade morreria em "Cannot find compiler
-        # 'cl.exe' in PATH" — um falso negativo pior que o bug que estamos
-        # tentando pegar. Estas duas flags nao tocam no host compiler.
-        #
-        # A lista vem do `$GITHUB_ENV` do passo anterior; nao existe segunda
-        # copia aqui pra sair de sincronia.
-        shell: bash
-        run: |
-          set -euo pipefail
-          nvcc --version | tail -2
-
-          codes=$(nvcc --list-gpu-code)
-          arches=$(nvcc --list-gpu-arch)
-          missing=()
-
-          IFS=';' read -ra archs <<<"$CMAKE_CUDA_ARCHITECTURES"
-          for arch in "${archs[@]}"; do
-            n="${arch%%-*}"
-            case "$arch" in
-              # `-virtual` embarca PTX: precisa existir como compute_NN.
-              *-virtual) grep -qx "compute_$n" <<<"$arches" || missing+=("compute_$n") ;;
-              # `-real` e a forma sem sufixo geram cubin: precisa de sm_NN.
-              *)         grep -qx "sm_$n"      <<<"$codes"  || missing+=("sm_$n") ;;
-            esac
-          done
-
-          if (( ${#missing[@]} )); then
-            echo "::error::nvcc nao suporta: ${missing[*]} (CMAKE_CUDA_ARCHITECTURES=$CMAKE_CUDA_ARCHITECTURES)"
-            exit 1
-          fi
-          echo "nvcc suporta todas as arquiteturas de $CMAKE_CUDA_ARCHITECTURES"
-
-      # Mesmo motivo do ci.yml, os dois ajustes vem em par.
-      #
-      # CMAKE_GENERATOR=Ninja: o `vulkan-shaders-gen` do llama.cpp e um
-      # `ExternalProject_Add`, e o MSBuild do gerador Visual Studio roda os
-      # custom build steps dele em nos paralelos fora de ordem — o `install`
-      # dispara antes de o `configure` escrever o `cmake_install.cmake` e o
-      # build morre em MSB8066. O Ninja respeita o grafo de stamps.
-      #
-      # CARGO_TARGET_DIR: com o Ninja o CMake passa a rodar de fato o
-      # try-compile de deteccao do compilador, que aninha mais dois niveis sob
-      # o prefixo do ExternalProject e estoura o MAX_PATH — o cl.exe morre em
-      # "C1083: Cannot open compiler generated file: ''". `D:\ct` no lugar de
-      # `D:\a\Abraxas\Abraxas\src-tauri\target` devolve 32 caracteres.
-      # O `tauri-action` le `CARGO_TARGET_DIR` (tem precedencia sobre o
-      # .cargo/config) e acha os bundles no lugar novo.
-      - name: Windows build environment (Ninja + short target dir)
-        if: matrix.os == 'windows-2022'
-        shell: bash
-        run: |
-          echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
-          echo 'CARGO_TARGET_DIR=D:\ct' >> "$GITHUB_ENV"
 
       - uses: pnpm/action-setup@v4
         with:
@@ -347,10 +269,18 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # Sem `Swatinem/rust-cache` de proposito: release e build limpo, e o
-      # cache do runner Windows ja se mostrou instavel no ci.yml ("Cache
-      # service responded with 400"). Um cache parcialmente restaurado num
-      # artefato que vai pro publico nao vale os minutos economizados.
+      # Sem `Swatinem/rust-cache`: no Windows ele nem enxergaria o alvo, que
+      # esta em `D:\ct` (ele resolve o target dir relativo a raiz da workspace),
+      # e o `cache/restore` la em cima ja cobre alvo e registry. macOS e Linux
+      # ficam sem cache de proposito — fecham em 8 e 19 min, entao o que se
+      # economizaria nao paga o risco de um artefato publico sair de um estado
+      # parcialmente restaurado.
+      #
+      # (Nota historica: o "Cache service responded with 400" que motivava
+      # evitar cache aqui nao era instabilidade do runner Windows — era o cache
+      # interno do `Jimver/cuda-toolkit` batendo na v1 da API de cache, ja
+      # desligada. A action composta desliga esse caminho com
+      # `use-github-cache: false`.)
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile

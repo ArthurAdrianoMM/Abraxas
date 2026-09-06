@@ -1,0 +1,97 @@
+name: Warm release cache
+
+# O job Windows do `release.yml` levava 1h33 e ~78 desses minutos eram o nvcc
+# compilando os 186 `.cu` do llama.cpp uma vez por arquitetura CUDA. Nada disso
+# depende da tag: a versao do llama.cpp esta fixada no `Cargo.lock` e a lista de
+# arquiteturas vive na action composta. E, portanto, trabalho que da pra fazer
+# *antes*, fora do caminho critico do release.
+#
+# Este workflow builda com exatamente o mesmo ambiente e a mesma lista de
+# arquiteturas do release e salva `D:\ct` no cache do Actions. O `release.yml`
+# so restaura — nunca salva — e passa a fechar em ~15 min.
+#
+# O cron nao existe por gosto de agenda: o GitHub descarta cache nao acessado
+# ha 7 dias, e release e evento esparso. Duas vezes por semana o restore
+# renova o `last_accessed` e mantem a entrada viva. (Quando a chave ja existe,
+# o `actions/cache` restaura, atualiza o timestamp e pula o save — o custo do
+# run e o do build incremental, ~10 min, nao os 95 do caminho frio.)
+on:
+  schedule:
+    - cron: '0 5 * * 1,4'
+  # Pra reaquecer a mao logo antes de cortar uma tag, se o agendado tiver
+  # falhado ou o cache tiver sido despejado por pressao de cota.
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      # A versao do `llama-cpp-sys-2` esta fixada aqui: mudou o lock, a chave
+      # exata muda e o cache precisa ser refeito.
+      - 'src-tauri/Cargo.lock'
+      # Versoes de CUDA/Vulkan, lista de arquiteturas, flags de CMake.
+      - '.github/actions/windows-gpu-toolchain/**'
+      - '.github/workflows/warm-release-cache.yml'
+
+# Sem `cancel-in-progress`: um run de ~95 min cancelado no meio nao salva cache
+# nenhum, e o proximo recomeca do zero. Enfileirar e mais barato.
+concurrency:
+  group: warm-release-cache
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows (CUDA + Vulkan)
+    runs-on: windows-2022
+    # Mesmo teto do `release.yml`: o caminho frio aqui e o mesmo build.
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fonte unica do ambiente e da chave. A lista de arquiteturas nao e
+      # passada de proposito — o default da action *e* a lista de release, e e
+      # so por isso que a chave gerada aqui casa com a que o `release.yml`
+      # deriva.
+      - id: toolchain
+        uses: ./.github/actions/windows-gpu-toolchain
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # `actions/cache` (nao `restore`): este e o job que *produz* a entrada.
+      #
+      # O registry do cargo entra junto porque o `D:\ct` restaurado so poupa a
+      # compilacao — o cargo ainda revalida o fingerprint de cada dependencia e,
+      # sem as fontes em disco, rebaixa pra baixar e desempacotar os `.crate` de
+      # novo (~3 min medidos no run 33705396454). Mesma chave: o `Cargo.lock` ja
+      # e o que determina os dois conteudos.
+      - name: Cache the llama.cpp native build
+        uses: actions/cache@v4
+        with:
+          path: |
+            D:\ct
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ steps.toolchain.outputs.cache-key }}
+          restore-keys: ${{ steps.toolchain.outputs.cache-restore-key }}
+
+      # `--release`, nao `cargo build` puro: o OUT_DIR do build script vive sob
+      # o perfil (`D:\ct\release\build\llama-cpp-sys-2-*\out`), e o `tauri
+      # build` do release usa o perfil release. Um cache de debug nao aqueceria
+      # nada — e essa e exatamente a razao de este job existir em vez de
+      # reaproveitar o `gpu-build` do `ci.yml`, que roda em debug e com uma
+      # unica arquitetura.
+      #
+      # Sem `pnpm build` antes: o `tauri-build` so exige o `frontendDist` na
+      # hora de empacotar, nao na de compilar (o `gpu-build` do `ci.yml` prova
+      # isso ha varios runs). Menos passos, menos divergencia com o release.
+      - name: Build (cuda,vulkan)
+        working-directory: src-tauri
+        run: cargo build --release --locked --features cuda,vulkan
+
+      - name: Report what the release job will find
+        shell: bash
+        run: |
+          echo "Cache pronto sob a chave: ${{ steps.toolchain.outputs.cache-key }}"
+          echo "O job Windows do release.yml restaura essa entrada; um miss ali"
+          echo "significa build frio de ~95 min, nao falha."

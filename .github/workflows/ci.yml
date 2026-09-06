@@ -208,8 +208,20 @@ jobs:
     #
     # `CMAKE_CUDA_ARCHITECTURES=75-real` builds kernels for a single SM
     # (Turing) instead of llama.cpp's default fat-binary set covering ~6 archs.
-    # This cuts nvcc time roughly 5-10x. The release workflow uses the real
-    # end-user arch list; CI just needs to prove it links.
+    # Medido: ~11,8 min por arquitetura neste runner, entao uma arch em vez de
+    # seis e a diferenca entre ~27 min e ~95. A lista real do usuario final vive
+    # na action `.github/actions/windows-gpu-toolchain`; aqui o objetivo e so
+    # provar que compila e linka.
+    #
+    # Este job NAO aquece o cache do release, e nao deve tentar: alem da lista
+    # de archs ser outra, ele builda em debug, e o `OUT_DIR` do build script
+    # mora sob o perfil (`D:\ct\debug\...` contra `D:\ct\release\...`).
+    # Quem aquece e o `warm-release-cache.yml`.
+    #
+    # Os passos de CUDA e Vulkan abaixo sao uma copia deliberada dos da action
+    # composta, mantida porque este job tem matriz de dois OS e outra lista de
+    # archs. As versoes (CUDA 12.8.0, Vulkan SDK 1.4.357.0) precisam andar
+    # juntas nos dois lugares.
     name: GPU build (${{ matrix.os }})
     needs: changes
     if: needs.changes.outputs.src_tauri == 'true'

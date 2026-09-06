@@ -1,0 +1,258 @@
+name: Windows GPU toolchain
+description: >-
+  Instala e valida o toolchain CUDA + Vulkan de um build `cuda,vulkan` no
+  Windows, publica o ambiente de CMake que o `llama-cpp-sys-2` consome e deriva
+  a chave de cache do build nativo em `D:\ct`.
+
+# Existe porque dois workflows precisam montar *exatamente* o mesmo ambiente:
+# o `release.yml`, que consome o cache, e o `warm-release-cache.yml`, que o
+# produz. A chave e derivada de coisas que vivem neste arquivo (versao do CUDA,
+# versao do Vulkan SDK, lista de arquiteturas, gerador do CMake), entao manter
+# duas copias significaria: ou as duas divergem e o release nunca acha o cache
+# (95 min em vez de 15), ou divergem *depois* de a chave ja ter sido gravada e
+# o release reusa um `CMakeCache.txt` configurado com outros valores. As duas
+# falhas custam um ciclo de release inteiro pra diagnosticar; este arquivo e o
+# que as torna impossiveis.
+#
+# O `ci.yml` continua com a propria copia desses passos de proposito: o
+# `gpu-build` de la existe pra dar feedback rapido de PR e compila uma unica
+# arquitetura (`75-real`), com cache proprio que nao deve colidir com o de
+# release. Se a versao do CUDA ou do Vulkan SDK mudar aqui, mude tambem la.
+
+inputs:
+  cuda-architectures:
+    description: >-
+      Valor de `CMAKE_CUDA_ARCHITECTURES`. O default e a lista de *release* —
+      ela e a fonte da verdade e mora aqui justamente pra que o workflow que
+      aquece o cache e o que o consome nao possam discordar.
+    required: false
+    # `-real` (so cubin, sem PTX por arch) nas quatro geracoes de GPU de
+    # consumidor + Blackwell, mais um unico `90-virtual` que deixa PTX
+    # embarcado como rede de seguranca pra arquiteturas >= 9.0 que nao
+    # existiam neste build:
+    #
+    #   sm_61  Pascal      GTX 10xx
+    #   sm_75  Turing      RTX 20xx, GTX 16xx
+    #   sm_86  Ampere      RTX 30xx        (cobre sm_87 tambem)
+    #   sm_89  Ada         RTX 40xx
+    #   sm_120 Blackwell   RTX 50xx        (exige nvcc >= 12.8)
+    #   compute_90 (PTX)   Hopper e o que vier depois, via JIT
+    #
+    # A lista inteira (`61;70;75;80;86;89;90`, com cubin *e* PTX por arch)
+    # produziu um `abraxas.exe` de 1,29 GB, no qual o makensis morre em
+    # "Internal compiler error #12345: error mmapping file ... out of range".
+    #
+    # O que ficou fora — Maxwell (5.x), P100 (6.0), Volta (7.0) e A100 (8.0) —
+    # nao tem kernel neste binario. `hardware::gpu::detect` conhece essa lista
+    # (`ComputeCapability::has_cuda_kernel`) e manda essas GPUs pro Vulkan em
+    # vez de deixar o ggml estourar em runtime com "no kernel image is
+    # available for execution on the device". Mexer numa lista sem mexer na
+    # outra e bug: elas sao um par.
+    default: '61-real;75-real;86-real;89-real;120-real;90-virtual'
+
+outputs:
+  cache-key:
+    description: Chave exata do cache de `D:\ct` + registry do cargo.
+    value: ${{ steps.key.outputs.key }}
+  cache-restore-key:
+    description: >-
+      Prefixo de fallback: mesmo toolchain e mesma configuracao de CMake, outro
+      `Cargo.lock`. Degradar ate aqui e seguro (ver o passo que a deriva).
+    value: ${{ steps.key.outputs.restore_key }}
+
+runs:
+  using: composite
+  steps:
+    # O instalador do CUDA custa ~4,5 min por run. A action tem cache proprio
+    # (`use-github-cache`, default true), mas ele fala com a v1 da API de cache
+    # do GitHub, que foi desligada — o passo loga `Failed to restore: Cache
+    # service responded with 400` e rebaixa pra download completo em *toda*
+    # execucao. Por isso o `use-github-cache: false`, e o cache real por conta
+    # do `actions/cache@v4`, que usa a v2.
+    #
+    # A chave nao tem `hashFiles`: o conteudo depende so da versao do CUDA e da
+    # lista de sub-pacotes, ambos literais aqui.
+    - name: Cache CUDA Toolkit
+      id: cuda-cache
+      uses: actions/cache@v4
+      with:
+        path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8
+        key: cuda-12.8.0-windows-2022-nvcc-cudart-cublas-v1
+
+    # `visual_studio_integration` senao o CMake nao acha o toolset CUDA do
+    # VS2022 e aborta em `enable_language(CUDA)` com "No CUDA toolset found".
+    - name: Install CUDA Toolkit
+      if: steps.cuda-cache.outputs.cache-hit != 'true'
+      uses: Jimver/cuda-toolkit@v0.2.21
+      with:
+        cuda: '12.8.0'
+        method: 'network'
+        sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
+        use-github-cache: false
+
+    # Num cache hit o passo acima nao roda, entao ninguem exporta as variaveis
+    # que a action normalmente define. O `FindCUDAToolkit` do CMake localiza o
+    # toolkit por `CUDA_PATH` ou por `nvcc` no PATH; os dois sao suficientes sob
+    # o gerador Ninja. O que o cache *nao* traz de volta e o
+    # `visual_studio_integration` (ele instala .props/.targets dentro do
+    # diretorio do VS, fora do dir do CUDA) — irrelevante, porque esses arquivos
+    # so sao lidos pelo gerador Visual Studio, que abandonamos.
+    - name: Expose cached CUDA Toolkit
+      if: steps.cuda-cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        root='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8'
+        if [[ ! -f "/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8/bin/nvcc.exe" ]]; then
+          echo "::error::Cache hit mas $root\\bin\\nvcc.exe nao existe — cache corrompido."
+          exit 1
+        fi
+        echo "CUDA_PATH=$root" >> "$GITHUB_ENV"
+        echo "$root\\bin" >> "$GITHUB_PATH"
+
+    # `1.4.357.0`, nao `1.3.290.0`: desde o llama.cpp que veio no `llama-cpp-2`
+    # 0.1.155, o `ggml/src/ggml-vulkan/CMakeLists.txt` faz
+    # `find_package(SPIRV-Headers CONFIG REQUIRED)`, e o SDK 1.3.290.0 do
+    # Windows nao empacota o `SPIRV-HeadersConfig.cmake` — foi assim que a tag
+    # v0.1.4 morreu no build script do `llama-cpp-sys-2`.
+    - name: Install Vulkan SDK
+      uses: jakoch/install-vulkan-sdk-action@v1
+      with:
+        vulkan_version: '1.4.357.0'
+        install_runtime: true
+        cache: true
+        stripdown: true
+
+    # Roda em ~1s. Sem ele, a ausencia do `SPIRV-HeadersConfig.cmake` (um
+    # downgrade do SDK, ou um `stripdown` que passe a apagar a pasta) so
+    # aparece depois do nvcc, no fim do job.
+    - name: Check the Vulkan SDK ships the SPIRV-Headers CMake package
+      shell: bash
+      run: |
+        set -euo pipefail
+        # `cygpath`: `$VULKAN_SDK` chega como `C:\VulkanSDK\...` e o `find` do
+        # Git Bash quer o caminho no formato POSIX.
+        sdk=$(cygpath -u "$VULKAN_SDK")
+        found=$(find "$sdk" -iname 'SPIRV-HeadersConfig.cmake' -print -quit 2>/dev/null || true)
+        if [[ -z "$found" ]]; then
+          echo "::error::$VULKAN_SDK nao tem SPIRV-HeadersConfig.cmake — o configure do ggml-vulkan vai abortar."
+          exit 1
+        fi
+        echo "SPIRV-Headers CMake package: $found"
+
+    # CMAKE_POSITION_INDEPENDENT_CODE: os objetos `.cu` do llama.cpp sao
+    # compilados sem -fPIC por default, e o `dynamic-backends` monta o
+    # `ggml-cuda` como biblioteca compartilhada, que exige codigo PIC em
+    # qualquer OS. O `build.rs` do `llama-cpp-sys-2` repassa qualquer variavel
+    # de ambiente `CMAKE_*` como `-D` pro CMake.
+    #
+    # CMAKE_GENERATOR=Ninja: o `vulkan-shaders-gen` do llama.cpp e um
+    # `ExternalProject_Add`, e o MSBuild do gerador Visual Studio roda os custom
+    # build steps dele em nos paralelos fora de ordem — o `install` dispara
+    # antes de o `configure` escrever o `cmake_install.cmake` e o build morre em
+    # MSB8066. O Ninja respeita o grafo de stamps.
+    #
+    # CARGO_TARGET_DIR: com o Ninja o CMake passa a rodar de fato o try-compile
+    # de deteccao do compilador, que aninha mais dois niveis sob o prefixo do
+    # ExternalProject e estoura o MAX_PATH — o cl.exe morre em "C1083: Cannot
+    # open compiler generated file: ''". `D:\ct` no lugar de
+    # `D:\a\Abraxas\Abraxas\src-tauri\target` devolve 32 caracteres. Mesmo
+    # volume da workspace, entao o espaco livre nao muda. O `tauri-action` le
+    # `CARGO_TARGET_DIR` (tem precedencia sobre o `.cargo/config`) e acha os
+    # bundles no lugar novo.
+    - name: Set the CMake build environment
+      shell: bash
+      env:
+        ARCHS: ${{ inputs.cuda-architectures }}
+      run: |
+        set -euo pipefail
+        {
+          echo "CMAKE_CUDA_ARCHITECTURES=$ARCHS"
+          echo "CMAKE_POSITION_INDEPENDENT_CODE=ON"
+          echo "CMAKE_GENERATOR=Ninja"
+          echo 'CARGO_TARGET_DIR=D:\ct'
+        } >> "$GITHUB_ENV"
+
+    # Roda em ~5s e falha cedo. `sm_120` (Blackwell) exige nvcc >= 12.8: se o
+    # toolkit for repinado pra baixo, ou uma arquitetura nova entrar na lista
+    # antes de o compilador conhece-la, sem este passo a descoberta vem depois
+    # de ~70 min de nvcc.
+    #
+    # `--list-gpu-code` / `--list-gpu-arch` em vez de compilar um `.cu` de
+    # teste: aqui o bash roda sem o ambiente do MSVC, e qualquer compilacao de
+    # verdade morreria em "Cannot find compiler 'cl.exe' in PATH" — um falso
+    # negativo pior que o bug que estamos tentando pegar.
+    - name: Check nvcc supports every arch in the list
+      shell: bash
+      run: |
+        set -euo pipefail
+        nvcc --version | tail -2
+
+        codes=$(nvcc --list-gpu-code)
+        arches=$(nvcc --list-gpu-arch)
+        missing=()
+
+        IFS=';' read -ra archs <<<"$CMAKE_CUDA_ARCHITECTURES"
+        for arch in "${archs[@]}"; do
+          n="${arch%%-*}"
+          case "$arch" in
+            # `-virtual` embarca PTX: precisa existir como compute_NN.
+            *-virtual) grep -qx "compute_$n" <<<"$arches" || missing+=("compute_$n") ;;
+            # `-real` e a forma sem sufixo geram cubin: precisa de sm_NN.
+            *)         grep -qx "sm_$n"      <<<"$codes"  || missing+=("sm_$n") ;;
+          esac
+        done
+
+        if (( ${#missing[@]} )); then
+          echo "::error::nvcc nao suporta: ${missing[*]} (CMAKE_CUDA_ARCHITECTURES=$CMAKE_CUDA_ARCHITECTURES)"
+          exit 1
+        fi
+        echo "nvcc suporta todas as arquiteturas de $CMAKE_CUDA_ARCHITECTURES"
+
+    # O que torna este build caro nao e o Rust — e o OUT_DIR do
+    # `llama-cpp-sys-2`: o CMake do llama.cpp compilando 186 arquivos `.cu` uma
+    # vez por arquitetura da lista (~12 min por arquitetura num runner de 4
+    # vCPU) e gerando os 145 shaders Vulkan. Com o cache restaurado, o `cmake`
+    # crate ve o `CMakeCache.txt`, o Ninja ve os objetos em dia, e nada disso
+    # roda de novo.
+    #
+    # A chave cobre tudo que muda o *resultado* do build nativo:
+    #
+    #   - o hash deste arquivo, que e onde vivem a versao do CUDA, a versao do
+    #     Vulkan SDK, o gerador do CMake e as flags. Mudou qualquer um, a chave
+    #     roda e o `CMakeCache.txt` velho nao e reusado;
+    #   - a lista de arquiteturas, que e input e portanto nao esta no hash do
+    #     arquivo quando o chamador a sobrescreve;
+    #   - o `Cargo.lock`, que e onde a versao do `llama-cpp-sys-2` esta fixada.
+    #
+    # A versao do rustc fica *fora* de proposito: um bump do toolchain
+    # invalidaria o cache inteiro por causa dos ~8 min de crates Rust, jogando
+    # fora os ~70 min de nvcc que continuam validos. Cargo recompila o lado
+    # Rust sozinho; o Ninja nao toca nos objetos.
+    #
+    # `restore_key` degrada so no `Cargo.lock` — mesmo toolchain, mesma
+    # configuracao de CMake. Um hit parcial ai e seguro: o `CMakeCache.txt`
+    # restaurado foi gerado com exatamente estes valores, e qualquer artefato
+    # Rust obsoleto e detectado pelo fingerprint do cargo e reconstruido.
+    - name: Derive the native build cache key
+      id: key
+      shell: bash
+      env:
+        TOOLCHAIN_HASH: ${{ hashFiles('.github/actions/windows-gpu-toolchain/action.yml') }}
+        LOCK_HASH: ${{ hashFiles('src-tauri/Cargo.lock') }}
+      run: |
+        set -euo pipefail
+
+        # `hashFiles` volta vazio se o caminho nao casar nada — o que
+        # produziria uma chave que colide entre configuracoes diferentes.
+        if [[ -z "$TOOLCHAIN_HASH" || -z "$LOCK_HASH" ]]; then
+          echo "::error::hashFiles vazio (toolchain='$TOOLCHAIN_HASH' lock='$LOCK_HASH') — a chave de cache seria ambigua."
+          exit 1
+        fi
+
+        archs=$(printf '%s' "$CMAKE_CUDA_ARCHITECTURES" | sha256sum | cut -c1-12)
+        prefix="ggml-native-windows-2022-${archs}-${TOOLCHAIN_HASH:0:16}"
+
+        echo "restore_key=${prefix}-" >> "$GITHUB_OUTPUT"
+        echo "key=${prefix}-${LOCK_HASH:0:16}" >> "$GITHUB_OUTPUT"
+        echo "Chave do build nativo: ${prefix}-${LOCK_HASH:0:16}"

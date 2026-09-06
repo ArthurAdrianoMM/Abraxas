@@ -525,6 +525,72 @@ distinction.
   half that has never been exercised outside a tag. Adding it belongs to this work, not
   to a follow-up.
 
+#### 5.4.1. Amended 2026-09-06: the cache was taken, the artifact split was not
+
+The stance above — artifacts yes, cache no — was written without a measurement.
+The v0.1.6 release (run `33705396454`) supplied one, and it narrows the problem
+much further than "nvcc is slow":
+
+| Segment | Windows job |
+|---|---|
+| CUDA Toolkit install | 4m20s |
+| Vulkan SDK, guards, frontend, toolchains | ~2 min |
+| Rust crates (parallel, up to 02:06) | ~8 min |
+| **`llama-cpp-sys-2` native build** (silent 02:06 → 03:23) | **~78 min** |
+| nsis + msi bundling and upload | 2m14s |
+| **Total** | **1h33m** |
+
+Against `ci.yml`'s `gpu-build` on the same runner with a single arch (~27 min of
+build), the marginal cost is **~11.8 min per `CMAKE_CUDA_ARCHITECTURES` entry**:
+186 `.cu` files compiled once per arch on 4 vCPU. Six entries is ~71 of those 78
+minutes. Everything else combined — 145 Vulkan shaders, the seven CPU variants
+`GGML_CPU_ALL_VARIANTS=ON` brings in with `dynamic-backends`, Rust, link,
+bundle — is ~15 min. macOS closes in 8 min and Linux in 19.
+
+That leaves no middle: trimming the arch list cannot reach a 15-minute release
+(three archs still costs ~50 min), and `-j` is already saturated. The nvcc work
+has to leave the critical path entirely, and only two things do that — cache it,
+or prebuild it. The cache was chosen as the step that could ship now.
+
+What was built:
+
+- `.github/actions/windows-gpu-toolchain` — a composite action owning the CUDA
+  version, the Vulkan SDK version, the arch list, the CMake environment and the
+  guards, and **deriving the cache key from them**. Both the producer and the
+  consumer call it, so the two cannot disagree about what a given key describes.
+- `.github/workflows/warm-release-cache.yml` — the producer. Runs on `main` when
+  `Cargo.lock` or the action changes, plus twice weekly, because Actions evicts
+  a cache unused for 7 days and releases are sparser than that. Builds
+  `--release`, not debug: the build script's `OUT_DIR` lives under the profile,
+  so `ci.yml`'s debug `gpu-build` cache warms nothing here.
+- `release.yml` uses `actions/cache/restore` only, before the version stamp
+  (`set-version.sh` rewrites `Cargo.lock`, which would otherwise shift the key
+  on every tag), and logs exact hit / partial hit / miss.
+
+The §5.4 objection is answered rather than ignored. "A partially restored cache
+inside a public artifact" was never really about partiality — cargo fingerprints
+detect stale Rust artifacts and rebuild them. The real hazard is the `cmake`
+crate skipping reconfiguration when a `CMakeCache.txt` already exists, so a
+cache produced under different CMake settings would silently build something
+else. The key covers exactly that: a hash of the action file (where the CUDA
+version, SDK version, generator and flags live), the arch list, and
+`Cargo.lock` (where `llama-cpp-sys-2` is pinned). The rustc version is
+deliberately excluded — a toolchain bump would otherwise discard ~70 min of
+still-valid nvcc output to redo ~8 min of Rust. Release never writes to the
+cache, so a tag cannot poison the entry the next tag reads.
+
+What this does **not** do, and why the artifact split above stays open:
+
+- The cold path is unchanged at ~95 min. It is now rare (an evicted entry, or a
+  `Cargo.lock` change with no warm run after it) instead of unconditional, but
+  it is still reachable on a tag.
+- Cache is best-effort storage under a 10 GB per-repository quota, evicted LRU.
+  The repo was already at 10.5 GB when this landed. A published artifact is an
+  input; a cache is a hint. §5.4's preference still stands on the merits.
+- The nvcc job is still not *independent*. It runs the whole app build to
+  produce its by-product, because the modules remain entangled with a `cargo
+  build` of the app.
+
 ### 5.5. Resolved: `.deb` dependencies, and why the GPU libraries must stay out
 
 `ldd` on the installed binary, reconciled against `deb.depends`:
