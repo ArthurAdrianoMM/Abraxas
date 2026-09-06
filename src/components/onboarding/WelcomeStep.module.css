@@ -10,31 +10,18 @@
   isolation: isolate;
 }
 
-/* the fibonacci gif as background — large, centered, very subtle */
+/* the golden-ratio plate as background — large, centred, very subtle.
+   inset + margin:auto centres it without touching transform, which the plate's
+   own drift animation owns. */
 .figure {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  margin: auto;
+  width: min(92vh, 92vmin);
+  height: min(92vh, 92vmin);
   z-index: 0;
   pointer-events: none;
-}
-.figure img {
-  width: min(92vh, 92vmin);
-  height: auto;
-  /* warm the white drawing into parchment — clearer, still atmospheric */
-  filter: invert(1) hue-rotate(180deg) sepia(0.45) brightness(1.05) contrast(1);
-  opacity: 0.35;
-  mix-blend-mode: screen;
-  animation: drift 24s ease-in-out infinite alternate;
-}
-@keyframes drift {
-  0% {
-    transform: rotate(-0.6deg) scale(1);
-  }
-  100% {
-    transform: rotate(0.6deg) scale(1.04);
-  }
+  opacity: 0.34;
 }
 
 /* faint inner vignette so the spiral fades at the edges of the page */

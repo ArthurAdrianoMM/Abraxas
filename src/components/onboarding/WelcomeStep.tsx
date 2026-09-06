@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import fibonacci from "../../assets/fibonacci.gif";
+import { FibonacciFigure } from "./FibonacciFigure";
 import { useT } from "../../lib/i18n";
 import styles from "./WelcomeStep.module.css";
 
@@ -23,9 +23,7 @@ export function WelcomeStep({ onBegin, onSkip }: { onBegin: () => void; onSkip: 
 
   return (
     <div className={styles.welcome}>
-      <div className={styles.figure} aria-hidden="true">
-        <img src={fibonacci} alt="" />
-      </div>
+      <FibonacciFigure className={styles.figure} />
 
       <div className={styles.stage}>
         <div className={styles.mark}>

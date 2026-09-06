@@ -1,0 +1,73 @@
+/* Draw-on for the golden-ratio plate.
+
+   Every stroke carries pathLength-independent dashes: `stroke-dasharray: 1`
+   against `pathLength="1"` means one dash covers the whole path whatever its
+   real length, so a circle and the spiral can share one keyframe. `--beat`
+   comes from the component and staggers the start, so the construction lines
+   land first and the spiral closes the figure. */
+
+.plate {
+  /* No size here on purpose: .plate shares its element with the caller's own
+     class, which owns the box. preserveAspectRatio centres the viewBox in it. */
+  overflow: visible; /* the chords are meant to run past the box and be clipped by the screen */
+  animation: drift 30s ease-in-out infinite alternate;
+}
+
+.plate :is(path, circle) {
+  fill: none;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke; /* hairlines stay hairlines at either screen's size */
+  animation: draw 2.4s cubic-bezier(0.32, 0.06, 0.28, 1) forwards;
+  animation-delay: calc(var(--beat) * 90ms);
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* A breath, not a spin — the same slow drift the GIF used to have. */
+@keyframes drift {
+  0% {
+    transform: rotate(-0.4deg) scale(1);
+  }
+  100% {
+    transform: rotate(0.4deg) scale(1.04);
+  }
+}
+
+/* ---- the ink scale: scaffolding recedes, the spiral carries the warmth ---- */
+
+.chord :is(path, circle) {
+  stroke: var(--mute-2);
+  stroke-width: 0.6;
+  opacity: 0.35;
+}
+.hair :is(path, circle) {
+  stroke: var(--ink-3);
+  stroke-width: 0.7;
+  opacity: 0.55;
+}
+.tile :is(path, circle) {
+  stroke: var(--brass);
+  stroke-width: 0.9;
+  opacity: 0.6;
+}
+.spiral {
+  stroke: var(--brass);
+  stroke-width: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plate {
+    animation: none;
+  }
+  .plate :is(path, circle) {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

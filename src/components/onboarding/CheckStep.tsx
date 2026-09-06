@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import fibonacci from "../../assets/fibonacci.gif";
 import type { HardwareDetection } from "../../lib/tauri/bindings";
 import type { Format } from "../../lib/format";
 import { useFormat, useT, type Dict } from "../../lib/i18n";
 import { useDiskStore } from "../../stores/disk";
 import { useHardwareStore } from "../../stores/hardware";
+import { FibonacciFigure } from "./FibonacciFigure";
 import styles from "./CheckStep.module.css";
 
 const ROW_DEFS = [
@@ -145,9 +145,7 @@ export function CheckStep({ onContinue, onSkip }: { onContinue: () => void; onSk
     <div className={styles.check}>
       {/* ============== LEFT LEAF — ceremony ============== */}
       <section className={styles.leafL}>
-        <div className={styles.figure} aria-hidden="true">
-          <img src={fibonacci} alt="" />
-        </div>
+        <FibonacciFigure className={styles.figure} />
 
         <div className={styles.stack}>
           <div className={styles.markRow}>
