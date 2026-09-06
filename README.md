@@ -6,6 +6,33 @@ See [CLAUDE.md](CLAUDE.md) for the full project context: vision, stack, architec
 
 **Status:** Fase 3.5 — token streaming + cancellation in a temporary dev screen. Not yet usable as an end-user app.
 
+## Installing a release
+
+Prebuilt installers for the three OSes are attached to every GitHub Release:
+`.exe`/`.msi` (Windows), `.dmg` (macOS, Apple Silicon), `.AppImage`/`.deb` (Linux).
+
+They are **not code-signed**. A signing identity is a recurring annual cost this
+personal project doesn't pay (CLAUDE.md §2.5), so each OS warns that the
+developer is unknown and the user has to clear it once:
+
+- **Windows** — SmartScreen blue screen: *More info* → *Run anyway*. The NSIS
+  installer runs with `installMode: currentUser`, so at least there is no UAC
+  elevation prompt stacked on top of it.
+- **macOS** — the `.app` is ad-hoc signed, which is what keeps Gatekeeper from
+  calling it *damaged*, but it is not notarized. First launch is blocked; the
+  user clears it in *System Settings* → *Privacy & Security* → *Open Anyway*.
+  On macOS 15+ the old right-click → *Open* shortcut no longer works.
+- **Linux** — no OS-level warning at all. The AppImage only needs `chmod +x`.
+
+The user-facing wording of these steps ships inside the release body itself, from
+[`.github/RELEASE_NOTES.md`](.github/RELEASE_NOTES.md) — edit that file, not this
+section, when the instructions need to change.
+
+Removing the warnings outright is not a packaging trick; it requires a paid
+identity per platform (Apple Developer Program for notarization on macOS, an OV
+or Azure Trusted Signing certificate for SmartScreen reputation on Windows).
+That trade is recorded in CLAUDE.md §2.5.
+
 ## Building from source
 
 GPU backends are opt-in Cargo features. Pick the one(s) your hardware supports — you don't need every SDK installed locally.
