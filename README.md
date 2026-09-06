@@ -1,156 +1,209 @@
+<div align="center">
+
+<img src="docs/assets/logo.png" alt="Abraxas" width="96">
+
 # Abraxas
 
-Local-first desktop chat app for open-source LLMs. Cross-platform (Windows, macOS, Linux), built with Tauri v2 + Rust + React. All inference runs on your machine — no cloud, no API keys, no telemetry.
+**Chat with open-source LLMs on your own machine. No cloud, no API keys, no telemetry.**
 
-See [CLAUDE.md](CLAUDE.md) for the full project context: vision, stack, architecture decisions, roadmap.
+A cross-platform desktop app that downloads a model, picks the right GPU backend for
+your hardware, and gets out of the way. Everything runs locally — the conversation
+never leaves your computer.
 
-**Status:** Fase 3.5 — token streaming + cancellation in a temporary dev screen. Not yet usable as an end-user app.
+[![CI](https://github.com/ArthurAdrianoMM/Abraxas/actions/workflows/ci.yml/badge.svg)](https://github.com/ArthurAdrianoMM/Abraxas/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ArthurAdrianoMM/Abraxas?include_prereleases&sort=semver)](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
-## Installing a release
+<!-- TODO(assets): docs/assets/hero.gif — 10s loop, model already loaded,
+     one prompt typed and the answer streaming in. This is the single most
+     important image in the repo; it plays before anyone reads a word. -->
+<img src="docs/assets/hero.gif" alt="Abraxas streaming a response" width="820">
 
-Prebuilt installers for the three OSes are attached to every GitHub Release:
-`.exe`/`.msi` (Windows), `.dmg` (macOS, Apple Silicon), `.AppImage`/`.deb` (Linux).
+</div>
 
-They are **not code-signed**. A signing identity is a recurring annual cost this
-personal project doesn't pay (CLAUDE.md §2.5), so each OS warns that the
-developer is unknown and the user has to clear it once:
+---
 
-- **Windows** — SmartScreen blue screen: *More info* → *Run anyway*. The NSIS
-  installer runs with `installMode: currentUser`, so at least there is no UAC
-  elevation prompt stacked on top of it.
-- **macOS** — the `.app` is ad-hoc signed, which is what keeps Gatekeeper from
-  calling it *damaged*, but it is not notarized. First launch is blocked; the
-  user clears it in *System Settings* → *Privacy & Security* → *Open Anyway*.
-  On macOS 15+ the old right-click → *Open* shortcut no longer works.
-- **Linux** — no OS-level warning at all. The AppImage only needs `chmod +x`.
+## Download
 
-The user-facing wording of these steps ships inside the release body itself, from
-[`.github/RELEASE_NOTES.md`](.github/RELEASE_NOTES.md) — edit that file, not this
-section, when the instructions need to change.
+> **Beta.** The full path works end to end — install, hardware check, model download,
+> conversation — but there are rough edges. Bug reports are welcome in
+> [Issues](https://github.com/ArthurAdrianoMM/Abraxas/issues).
 
-Removing the warnings outright is not a packaging trick; it requires a paid
-identity per platform (Apple Developer Program for notarization on macOS, an OV
-or Azure Trusted Signing certificate for SmartScreen reputation on Windows).
-That trade is recorded in CLAUDE.md §2.5.
-
-## Building from source
-
-GPU backends are opt-in Cargo features. Pick the one(s) your hardware supports — you don't need every SDK installed locally.
-
-| You have... | Build command | What you need installed |
+| Platform | File | Notes |
 |---|---|---|
-| NVIDIA GPU | `cargo build --features cuda` | [CUDA Toolkit](https://developer.nvidia.com/cuda-downloads) (sets `CUDA_PATH`) |
-| AMD / Intel GPU | `cargo build --features vulkan` | [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/) **1.4.357.0 or newer** (sets `VULKAN_SDK`) |
-| Apple Silicon | `cargo build --features metal` | Xcode (Metal frameworks ship with it) |
-| CPU only / fresh clone smoke test | `cargo build` | Nothing — CPU fallback works without SDKs |
-| Production-equivalent (Windows) | `cargo build --features cuda,vulkan` | Both CUDA Toolkit and Vulkan SDK |
-| Production-equivalent (Linux) | `cargo build --features vulkan` | Vulkan SDK only — see below |
+| **Windows** | [`.exe` installer](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest) | No admin rights needed |
+| **macOS** | [`.dmg`](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest) | Apple Silicon |
+| **Linux** | [`.AppImage` / `.deb`](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest) | `chmod +x` the AppImage |
 
-Run all `cargo` commands from the `src-tauri/` directory, or pass `--manifest-path src-tauri/Cargo.toml`.
+<details>
+<summary><b>Your OS will warn you the developer is unknown — here's why, and how to get past it</b></summary>
 
-After installing an SDK on Windows, **restart your shell** so the env var (`CUDA_PATH` / `VULKAN_SDK`) propagates.
+<br>
 
-The Vulkan version floor is not cosmetic: llama.cpp's Vulkan backend runs
-`find_package(SPIRV-Headers CONFIG REQUIRED)`, and the Windows SDK ships the
-SPIR-V headers without the matching CMake package until 1.4.x — 1.3.290.0, for
-one, has `Include\spirv-headers` but no `SPIRV-HeadersConfig.cmake`. On such an
-SDK the build dies in `llama-cpp-sys-2`'s build script with *"Could not find a
-package configuration file provided by SPIRV-Headers"*. On Debian/Ubuntu the
-distro `spirv-headers` package satisfies the same check.
+The installers are not code-signed. A signing identity is a recurring annual cost
+per platform that this personal project doesn't pay, so each OS shows a warning you
+clear once:
 
-**Why the Linux release has no CUDA.** `libggml-cuda.so` needs `libcuda.so.1`
-(NVIDIA driver), `libcudart.so.12` and `libcublas.so.12` (CUDA Toolkit, ~700 MB,
-shipped with no driver). An end user has none of them, so the module would fail
-to `dlopen` and fall through to Vulkan anyway — and AppImage packaging never
-gets that far, since `linuxdeploy` aborts on the first unresolved `DT_NEEDED` in
-the AppDir. NVIDIA cards on Linux run on Vulkan through the ICD the driver
-installs. Full reasoning in
-[ADR 0001 §5.5.1](docs/decisions/0001-dynamic-backend-loading.md).
+- **Windows** — SmartScreen blue screen: *More info* → *Run anyway*. The installer
+  runs per-user, so there's no UAC prompt stacked on top of it.
+- **macOS** — the app is ad-hoc signed (which is what stops Gatekeeper from calling
+  it *damaged*) but not notarized. First launch is blocked; clear it in
+  *System Settings* → *Privacy & Security* → *Open Anyway*. On macOS 15+ the old
+  right-click → *Open* shortcut no longer works.
+- **Linux** — no warning at all. The AppImage just needs `chmod +x`.
 
-The shipped installers (downloaded from GitHub Releases) include the full per-OS combo — end users never need to install anything.
+Removing the warnings isn't a packaging trick — it requires a paid identity
+(Apple Developer Program for notarization; an OV or Azure Trusted Signing
+certificate for SmartScreen reputation).
 
-### Frontend
+</details>
 
-```bash
-pnpm install
-pnpm tauri dev          # full app (requires the Rust feature flags above)
-pnpm exec tsc --noEmit  # frontend type check (no Rust build)
-```
+---
 
-### Regenerating typed bindings
+## What it looks like
 
-After changing any `#[tauri::command]` or `#[derive(Event)]`:
+<!-- TODO(assets): four 1280x800 screenshots, same model and same conversation
+     across all of them so they read as one sequence:
+       docs/assets/01-onboarding.png  — the hardware check step
+       docs/assets/02-catalog.png     — catalog with compatibility badges
+       docs/assets/03-chat.png        — a rendered markdown answer
+       docs/assets/04-settings.png    — settings, showing the detected backend -->
 
-```bash
-cargo run --locked -p abraxas-devtools --bin export_bindings
-```
-
-This rewrites `src/lib/tauri/bindings.ts`. CI fails if the file drifts from the regenerated output.
-
-### Dev tools
-
-`src-tauri/devtools/` is a separate workspace member holding the binaries that
-are useful during development but must never ship:
-
-| Binary | What it does |
+| | |
 |---|---|
-| `export_bindings` | Regenerates `src/lib/tauri/bindings.ts` (above) |
-| `llama_smoke` | Loads a GGUF model and streams tokens to stdout, exercising the same hardware detection → backend selection path as the app |
+| <img src="docs/assets/01-onboarding.png" alt="Hardware check"> | <img src="docs/assets/02-catalog.png" alt="Model catalog"> |
+| **First run reads your machine** — CPU, cores, RAM, GPU — and picks an inference backend for you. | **The catalog rates every model against your hardware**, so you're never offered something that won't run. |
+| <img src="docs/assets/03-chat.png" alt="Chat"> | <img src="docs/assets/04-settings.png" alt="Settings"> |
+| **Tokens stream as they're generated**, with markdown rendering and a stop button. | **Conversations persist locally** in SQLite; generation parameters are per-conversation. |
 
-```bash
-cargo run --release -p abraxas-devtools --bin llama_smoke --features abraxas-devtools/metal -- \
-  --model ~/models/tinyllama.gguf --prompt "hello"
+<!-- TODO(assets): 2-3 min walkthrough, zero to first token. Upload unlisted to
+     YouTube and replace the line below with a thumbnail linking to it. -->
+📹 **[Watch the 3-minute walkthrough →](#)**
+
+---
+
+## Why it exists
+
+Running an LLM locally today means picking a quantization, knowing what a GGUF is,
+matching a backend to your GPU, and often a terminal. Abraxas is the argument that
+none of that should be the user's problem.
+
+- **Private by design.** After the first download the app works offline. No account,
+  no server, no telemetry — nothing to opt out of, because nothing is sent.
+- **Zero configuration.** You are never asked to choose a backend, a quantization or
+  a context size. The app detects the hardware and decides.
+- **Uncensored models are first-class.** Abliterated and community fine-tunes sit in
+  the catalog next to everything else. Your machine, your model.
+- **One installer per OS.** All the relevant GPU backends are bundled; the right one
+  is chosen at runtime.
+
+## How it works
+
+Hardware detection runs once at first launch and is cached against a hardware
+fingerprint, so it re-runs only if the machine actually changes.
+
+| Detected hardware | Backend | Why |
+|---|---|---|
+| Apple Silicon | **Metal** | Unified memory, ships with the OS |
+| Windows + NVIDIA | **CUDA** | 10–15% faster than Vulkan on NVIDIA in llama.cpp |
+| Linux + NVIDIA | **Vulkan** | CUDA runtime isn't shippable — [see below](#engineering-notes) |
+| AMD / Intel GPU | **Vulkan** | One build covers both vendors |
+| Anything else | **CPU** | Always works |
+
+```
+React + TypeScript  ──  typed commands  ──▶  Rust core
+   (Vite, CSS Modules)   (tauri-specta)        │
+                                               ├── hardware/   sysinfo · raw-cpuid · NVML · Vulkan enumeration
+                                               ├── models/     catalog fetch · resumable download · SHA-256 verify
+                                               ├── inference/  InferenceBackend trait ──▶ llama.cpp (llama-cpp-2)
+                                               ├── chat/       chat templates · context window · sampling params
+                                               └── db/         SQLite via sqlx, with migrations
 ```
 
-The crate forwards `cuda` / `vulkan` / `metal` to the app crate, so pass whichever
-combo you build the app with.
+Bindings are generated from the Rust commands, so a signature change breaks the
+TypeScript build instead of failing at runtime — CI fails if the checked-in
+bindings drift from what the Rust side would emit.
 
-They live outside the `abraxas` package on purpose. The Tauri bundler copies
-**every** `[[bin]]` target of the app package into the installer and ignores
-`required-features`, so a helper binary declared there either bloats the bundle
-(v0.1.0 shipped a 13 MB `export_bindings` inside `Abraxas.app`) or breaks
-`cargo tauri build` outright (v0.1.1, which tried to gate them behind a feature
-and died with `Failed to copy binary from .../export_bindings: does not exist`).
-In a separate crate the bundler simply never sees them. CI enforces this: the
-`abraxas` package must declare exactly one binary.
+## Engineering notes
 
-## Cutting a release
+The interesting parts of this project were not the chat UI. A few of them, each
+with the full write-up behind it:
 
-Tag it. That's the whole procedure:
+**Static-linking every GPU backend doesn't scale.** Bundling CUDA and Vulkan into
+one binary means every backend's dependencies must resolve at link time on every
+machine. Abraxas loads ggml backends dynamically instead and picks at runtime —
+which turned out to also make llama and ggml themselves shared libraries, the
+larger half of the packaging problem.
+→ [ADR 0001](docs/decisions/0001-dynamic-backend-loading.md)
 
-```bash
-git tag -a v0.1.4 -m "Abraxas v0.1.4"
-git push origin v0.1.4
-```
+**The Linux release ships without CUDA, on purpose.** `libggml-cuda.so` needs
+`libcudart.so.12` and `libcublas.so.12` — a ~700 MB toolkit that no NVIDIA driver
+installs. The target user doesn't have it, so the module would fail to `dlopen`
+and fall through to Vulkan anyway. Packaging never even got that far: `linuxdeploy`
+walks `DT_NEEDED` on every ELF in the AppDir and aborts on the first unresolved
+one, which is how v0.1.5 shipped with zero Linux artifacts.
+→ [ADR 0001 §5.5.1](docs/decisions/0001-dynamic-backend-loading.md)
 
-The tag is the only source of truth for the version. `src-tauri/Cargo.toml`
-declares `version = "0.0.0"` in the repo; each release runner writes the real
-version into it with `scripts/set-version.sh` right before the bundler reads it,
-and nothing is committed. There is no bump commit to forget and no version guard
-to abort the tag.
+**The Tauri bundler copies every `[[bin]]` and ignores `required-features`.** A dev
+helper declared in the app crate is either dead weight in the installer (v0.1.0
+shipped a 13 MB `export_bindings` inside `Abraxas.app`) or a hard build failure
+(v0.1.1, which tried to gate them behind a feature). The fix was a separate
+workspace member the bundler never sees — and a CI check asserting the app package
+declares exactly one binary.
 
-`tauri.conf.json` deliberately omits `version` — without the field the Tauri v2
-bundler falls back to the Cargo.toml version, so one file declares it instead of
-four. `package.json` omits it too: it's `private: true` and never published.
+**The version lives in the git tag, not in four manifests.** `Cargo.toml` says
+`0.0.0`; the release runner writes the real version in before the bundler reads it,
+and commits nothing. `tauri.conf.json` omits `version` entirely so the bundler falls
+back to Cargo. No bump commit to forget, no version guard to abort a tag.
 
-One consequence: a local `cargo tauri build` produces `Abraxas_0.0.0`, and the
-settings screen (which reads `CARGO_PKG_VERSION`) shows `0.0.0`. Run
-`./scripts/set-version.sh v0.1.4` first to reproduce a release build locally —
-just don't commit the result.
+**Backend selection is a pure function.** `select_backend(SystemInfo, GpuBackend)`
+does no I/O, so every branch — including hardware the developer doesn't own — is
+covered by unit tests that run on all three OSes in CI. 136 tests total.
 
-Pushing the `vX.Y.Z` tag builds the three installers and attaches them to a
-**draft** GitHub Release — nothing is published until the draft is reviewed and
-released by hand. A tag with a suffix (`v0.1.1-rc.1`) is marked pre-release and
-exercises the whole pipeline without burning the final version; the suffix exists
-only in the tag, never in the manifests.
+## Stack
 
-If a tag was pushed at the wrong commit, delete it locally and remotely (and
-delete the draft release it created) before re-tagging:
+| Layer | Choice |
+|---|---|
+| Shell | Tauri v2 — ~15 MB bundle against Electron's ~150 MB |
+| Core | Rust: `tokio`, `sqlx`, `reqwest`, `tracing`, `thiserror` |
+| Inference | `llama-cpp-2` behind an `InferenceBackend` trait |
+| Type safety | `tauri-specta` — TypeScript generated from Rust commands |
+| Frontend | React 19 + TypeScript + Vite, CSS Modules, Zustand |
+| i18n | Typed dictionaries, no runtime library — a missing key is a build error |
+| CI/CD | GitHub Actions — 3 OSes, GPU builds, bundle smoke tests, tag-driven releases |
 
-```bash
-git tag -d v0.1.1 && git push origin :refs/tags/v0.1.1
-gh release delete v0.1.1 --yes   # only if a draft was created
-```
+Electron with `node-llama-cpp` would have shipped sooner. Rust was chosen
+deliberately, for the depth.
+
+## Why "Abraxas"
+
+Abraxas is a gnostic figure that holds opposites in one form — the name for a thing
+that refuses to be split into the sanctioned half and the forbidden half. That is
+the app's position on local models: no split, no arbiter, no remote judgment about
+what you're allowed to ask.
+
+The interface follows the metaphor rather than mentioning it. Models are *awakened*
+rather than loaded, the catalog is a *compendium*, and wiping your data is called
+what it is. It's a deliberate identity, not decoration.
+
+## Status
+
+Beta. Working today: hardware detection and backend selection, the remote model
+catalog with per-machine compatibility ratings, resumable downloads with SHA-256
+verification, model lifecycle management, streaming generation with cancellation,
+SQLite-backed conversation history, settings, and a fully localised UI in
+**English and Portuguese** (picked from the host locale on first run, switchable
+in settings).
+
+On the roadmap: auto-update, broader model coverage, and localised catalogue
+descriptions — the model blurbs still come from the catalogue in one language.
+
+## Contributing
+
+Build instructions, the typed-bindings workflow and the release procedure are in
+[CONTRIBUTING.md](CONTRIBUTING.md). Full project context — vision, stack rationale,
+phased roadmap — is in [CLAUDE.md](CLAUDE.md).
 
 ## License
 
