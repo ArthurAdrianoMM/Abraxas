@@ -63,13 +63,6 @@ certificate for SmartScreen reputation).
 
 ## What it looks like
 
-<!-- TODO(assets): four 1280x800 screenshots, same model and same conversation
-     across all of them so they read as one sequence:
-       docs/assets/01-onboarding.png  — the hardware check step
-       docs/assets/02-catalog.png     — catalog with compatibility badges
-       docs/assets/03-chat.png        — a rendered markdown answer
-       docs/assets/04-settings.png    — settings, showing the detected backend -->
-
 | | |
 |---|---|
 | <img src="docs/assets/01-onboarding.png" alt="Hardware check"> | <img src="docs/assets/02-catalog.png" alt="Model catalog"> |
@@ -77,9 +70,21 @@ certificate for SmartScreen reputation).
 | <img src="docs/assets/03-chat.png" alt="Chat"> | <img src="docs/assets/04-settings.png" alt="Settings"> |
 | **Tokens stream as they're generated**, with markdown rendering and a stop button. | **Conversations persist locally** in SQLite; generation parameters are per-conversation. |
 
-<!-- TODO(assets): 2-3 min walkthrough, zero to first token. Upload unlisted to
-     YouTube and replace the line below with a thumbnail linking to it. -->
-📹 **[Watch the 3-minute walkthrough →](#)**
+### The 90-second walkthrough
+
+Zero to first token: hardware check, model download, first answer streaming in.
+
+<!-- The bare URL below is a GitHub attachment; GitHub's renderer turns it into
+     an inline <video> player. It must stay bare and on its own line — wrapped in
+     markdown link syntax it degrades to a plain link, and a <video> tag written
+     by hand is stripped by the sanitizer.
+
+     Anchored by: <ISSUE URL — see below>. GitHub does not document retention for
+     user-attachments, and unlinked uploads are reported to be garbage-collected
+     after ~30 days, so the asset is kept referenced from a submitted issue rather
+     than from this README alone. Master copy: docs/assets/Video2F.mp4 (gitignored). -->
+
+https://github.com/user-attachments/assets/d347b2b6-67db-409f-bc87-be21e1e42a50
 
 ---
 

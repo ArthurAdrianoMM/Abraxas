@@ -48,3 +48,7 @@ Thumbs.db
 /models/*
 # Staged by src-tauri/build.rs from llama-cpp-sys-2 OUT_DIR (ADR 0001 §5.3.2).
 /src-tauri/ggml-runtime/
+
+# Recording masters. The walkthrough is hosted as a GitHub attachment (the URL
+# lives in the README); the source mp4 stays local so git history stays small.
+/docs/assets/*.mp4
