@@ -12,6 +12,25 @@
 //! and the `.part` is promoted without hashing. Whether a file at
 //! `<filename>` (without `.part`) was verified is recorded by the caller in
 //! the registry (`sha256` column), not by this module.
+//!
+//! # Who decides a download is done
+//!
+//! The server, and then the checksum. `spec.expected_size` is a *declaration*
+//! written by hand in the catalog, and it drifts: it drives the progress
+//! denominator before the first byte lands and the disk-space estimate, and
+//! nothing else. Every completion decision compares against the size the
+//! server announced (`Content-Length` / `Content-Range`), and SHA256 has the
+//! final word on whether the bytes are the right ones.
+//!
+//! This split is the fix for two bugs that a declared size could cause on its
+//! own, with a byte-perfect file on disk and a healthy connection:
+//!
+//! - declared 32 KB *over* reality (TinyLlama 1.1B): the stream ended at the
+//!   real end of the file, the byte count never reached the declaration, and
+//!   the download failed as a truncated stream — forever, on every retry.
+//! - declared 66 MB *under* reality (Qwen3.6-35B): the `.part` grew past the
+//!   declaration, was read as stale, and got deleted. A 21 GB download that
+//!   restarted from zero every single attempt.
 
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -40,7 +59,7 @@ pub enum DownloadError {
     Io(#[from] std::io::Error),
     #[error("download cancelled")]
     Cancelled,
-    #[error("downloaded {got} bytes but catalog declares {expected}")]
+    #[error("stream ended at {got} bytes but the server announced {expected}")]
     SizeMismatch { expected: u64, got: u64 },
     #[error("checksum mismatch: expected {expected}, got {got}")]
     ChecksumMismatch { expected: String, got: String },
@@ -197,23 +216,17 @@ where
         Err(e) => return Err(e.into()),
     };
 
+    // Optimistic: a `.part` that already matches the declared size, promoted
+    // without touching the network. The hash still decides, so a wrong
+    // declaration cannot promote a bad file — at worst it spends one hash on a
+    // resume that the server would have settled for free.
+    //
+    // A `.part` *larger* than the declared size used to be deleted right here
+    // as stale. It is not evidence of anything: the declaration drifts, and
+    // deleting the file cost a 21 GB model a restart from zero on every
+    // attempt. Oversized parts are now settled against the server below.
     if let Some(expected) = spec.expected_size {
-        // `.part` larger than the expected size => corruption or stale
-        // schema. Restart from zero — same effect as a fresh download.
-        if existing > expected {
-            tracing::warn!(
-                existing,
-                expected,
-                "stale .part larger than expected size; restarting"
-            );
-            fs::remove_file(&part_path).await?;
-            existing = 0;
-        }
-
-        // Optimistic: `.part` already matches the expected size. Verify
-        // before promoting — a truncated-then-padded .part would pass the
-        // size check but fail the hash.
-        if existing == expected {
+        if existing > 0 && existing == expected {
             on_progress(existing, expected);
             verify_and_promote(
                 &part_path,
@@ -231,11 +244,58 @@ where
         }
     }
 
-    let mut req = client.get(&spec.url);
-    if existing > 0 {
-        req = req.header(reqwest::header::RANGE, format!("bytes={}-", existing));
+    let mut resp = fetch(client, &spec.url, existing).await?;
+
+    // 416: we asked to resume from at or past the end of the resource. That is
+    // exactly where a *complete* `.part` lands when the catalog declares more
+    // bytes than the file has — the old code could never get here, because it
+    // failed the download before writing the last byte. Whether to promote or
+    // to start over is the server's call, then the hash's; never the
+    // declaration's.
+    if existing > 0 && resp.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
+        let announced = unsatisfied_total(&resp);
+        let promote = match (
+            announced.map(|n| existing == n),
+            spec.expected_sha256.is_some(),
+        ) {
+            // The server named the size and we have exactly that much.
+            (Some(true), _) => true,
+            // The server named the size and we have more than that.
+            (Some(false), _) => false,
+            // No size named, but a checksum can rule on the bytes themselves.
+            (None, true) => true,
+            // No size and no checksum: nothing here can vouch for the file.
+            (None, false) => false,
+        };
+
+        if promote {
+            tracing::info!(existing, "`.part` is already the whole resource; verifying");
+            on_progress(existing, existing);
+            verify_and_promote(
+                &part_path,
+                &final_path,
+                spec.expected_sha256.as_deref(),
+                existing,
+                cancel,
+                on_verify_progress,
+            )
+            .await?;
+            return Ok(DownloadOutcome {
+                final_path,
+                bytes_written: existing,
+            });
+        }
+
+        tracing::warn!(
+            existing,
+            announced,
+            "`.part` reaches past the end of the resource; restarting from zero"
+        );
+        fs::remove_file(&part_path).await.ok();
+        existing = 0;
+        resp = fetch(client, &spec.url, 0).await?;
     }
-    let resp = req.send().await?;
+
     let status = resp.status();
 
     // Server didn't honor our range — force restart from zero. Caller's `.part`
@@ -248,13 +308,24 @@ where
         return Err(DownloadError::BadStatus(status.as_u16()));
     }
 
-    // Without an expected size, the server's headers are the only source of
-    // the total: `Content-Range: bytes a-b/total` on a resumed 206, or
-    // `Content-Length` (plus what we already have) otherwise. `0` = unknown.
-    let total = match spec.expected_size {
-        Some(expected) => expected,
-        None => total_from_headers(&resp, existing).unwrap_or(0),
-    };
+    // The size the server announced for this resource: `Content-Range:
+    // bytes a-b/total` on a resumed 206, `Content-Length` otherwise. This —
+    // not the catalog — is what says whether the stream ran to the end.
+    let announced = total_from_headers(&resp, existing);
+    if let (Some(announced), Some(declared)) = (announced, spec.expected_size) {
+        if announced != declared {
+            tracing::warn!(
+                announced,
+                declared,
+                url = %spec.url,
+                "catalog size_bytes disagrees with the server; trusting the server",
+            );
+        }
+    }
+
+    // Progress denominator only: the declaration stands in until the server
+    // has spoken, and `0` means "unknown, render it as indeterminate".
+    let total = announced.or(spec.expected_size).unwrap_or(0);
 
     let mut file = OpenOptions::new()
         .create(true)
@@ -292,13 +363,17 @@ where
     file.sync_all().await?;
     drop(file);
 
-    // A known total (declared or announced by the server) that doesn't match
-    // what landed means a truncated stream; keep the `.part` for a resume.
-    if total > 0 && downloaded != total {
-        return Err(DownloadError::SizeMismatch {
-            expected: total,
-            got: downloaded,
-        });
+    // Only the size the server announced can say the stream was cut short —
+    // and it keeps the `.part` for a resume. A catalog declaration that
+    // nobody confirmed must never fail a download that the server ran to the
+    // end; when there is no announced size either, SHA256 rules alone.
+    if let Some(announced) = announced {
+        if downloaded != announced {
+            return Err(DownloadError::SizeMismatch {
+                expected: announced,
+                got: downloaded,
+            });
+        }
     }
 
     on_progress(downloaded, downloaded);
@@ -347,6 +422,30 @@ async fn verify_and_promote(
     }
     fs::rename(part_path, final_path).await?;
     Ok(())
+}
+
+/// One GET, with a `Range` header when there is something to resume from.
+async fn fetch(
+    client: &reqwest::Client,
+    url: &str,
+    from: u64,
+) -> Result<reqwest::Response, DownloadError> {
+    let mut req = client.get(url);
+    if from > 0 {
+        req = req.header(reqwest::header::RANGE, format!("bytes={from}-"));
+    }
+    Ok(req.send().await?)
+}
+
+/// Total size out of a 416's `Content-Range: bytes */total`. Servers are not
+/// required to send it (HF and S3 do), so `None` means "the server declined to
+/// say how big this is", not "size zero".
+fn unsatisfied_total(resp: &reqwest::Response) -> Option<u64> {
+    resp.headers()
+        .get(reqwest::header::CONTENT_RANGE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.rsplit_once('/'))
+        .and_then(|(_, total)| total.trim().parse::<u64>().ok())
 }
 
 /// Total size of the resource according to the response headers, given
@@ -486,6 +585,10 @@ mod tests {
                             end = body.len() - 1,
                             total = body.len()
                         )
+                    } else if status == 416 {
+                        // What HF and S3 send: the range is unsatisfiable, and
+                        // here is how big the resource actually is.
+                        format!("Content-Range: bytes */{total}\r\n", total = body.len())
                     } else {
                         String::new()
                     };
@@ -1175,5 +1278,156 @@ mod tests {
             spec.expected_sha256.as_deref(),
             Some("a".repeat(64).as_str())
         );
+    }
+
+    /// Regression: a catalog declaring more bytes than the file has must not
+    /// fail a download that ran to the real end. TinyLlama 1.1B shipped with
+    /// `size_bytes` 32 128 over reality, and every attempt died as
+    /// ERR.DOWNLOAD.NETWORK with a byte-perfect file on disk.
+    #[tokio::test]
+    async fn declared_size_over_reality_still_completes() {
+        let body = make_body(16 * 1024);
+        let opts = ServerOpts::default();
+        let port = spawn_server(body.clone(), opts.clone()).await;
+        let dir = tempfile::tempdir().unwrap();
+        let entry = make_entry(
+            port,
+            "model.gguf",
+            body.len() as u64 + 32_128,
+            &sha256_hex(&body),
+        );
+
+        let outcome = download_model(
+            &http_client(),
+            &entry,
+            dir.path(),
+            CancelFlag::new(),
+            |_, _| {},
+            |_, _| {},
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(outcome.bytes_written, body.len() as u64);
+        assert_eq!(std::fs::read(&outcome.final_path).unwrap(), body);
+        assert!(!dir.path().join("model.gguf.part").exists());
+    }
+
+    /// The same declaration bug, on a `.part` that is already the whole file:
+    /// the resume asks for a range past the end, and that 416 has to be read
+    /// as "you already have it" rather than as a failure.
+    #[tokio::test]
+    async fn complete_part_survives_a_declaration_over_reality() {
+        let body = make_body(16 * 1024);
+        let opts = ServerOpts::default();
+        let port = spawn_server(body.clone(), opts.clone()).await;
+        let dir = tempfile::tempdir().unwrap();
+        let entry = make_entry(
+            port,
+            "model.gguf",
+            body.len() as u64 + 32_128,
+            &sha256_hex(&body),
+        );
+
+        let part_path = dir.path().join("model.gguf.part");
+        std::fs::write(&part_path, &body).unwrap();
+
+        let outcome = download_model(
+            &http_client(),
+            &entry,
+            dir.path(),
+            CancelFlag::new(),
+            |_, _| {},
+            |_, _| {},
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(outcome.bytes_written, body.len() as u64);
+        assert_eq!(std::fs::read(&outcome.final_path).unwrap(), body);
+        assert!(!part_path.exists());
+        // One request settled it: the 416 promoted the file, nothing was
+        // downloaded twice.
+        assert_eq!(opts.request_count.load(Ordering::SeqCst), 1);
+    }
+
+    /// Regression: a catalog declaring *fewer* bytes than the file has must not
+    /// throw away a partial download. Qwen3.6-35B shipped 66 MB short, so the
+    /// `.part` grew past the declaration, was read as stale and deleted — a
+    /// 21 GB download restarting from zero on every attempt.
+    #[tokio::test]
+    async fn declared_size_under_reality_resumes_instead_of_restarting() {
+        let body = make_body(16 * 1024);
+        let opts = ServerOpts::default();
+        let port = spawn_server(body.clone(), opts.clone()).await;
+        let dir = tempfile::tempdir().unwrap();
+        let entry = make_entry(
+            port,
+            "model.gguf",
+            body.len() as u64 - 4_096,
+            &sha256_hex(&body),
+        );
+
+        // More bytes than the catalog declares, but a legitimate prefix of the
+        // real file: it must be resumed from, not deleted.
+        let have = body.len() - 1_024;
+        std::fs::write(dir.path().join("model.gguf.part"), &body[..have]).unwrap();
+
+        let outcome = download_model(
+            &http_client(),
+            &entry,
+            dir.path(),
+            CancelFlag::new(),
+            |_, _| {},
+            |_, _| {},
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            opts.last_range.lock().await.clone(),
+            format!("bytes={have}-"),
+            "must resume from what was on disk, not restart",
+        );
+        assert_eq!(outcome.bytes_written, body.len() as u64);
+        assert_eq!(std::fs::read(&outcome.final_path).unwrap(), body);
+    }
+
+    /// The bar has to end full, on the size that actually arrived — not stuck
+    /// short of a declared total that never materialises.
+    #[tokio::test]
+    async fn progress_ends_on_the_real_total_not_the_declared_one() {
+        let body = make_body(16 * 1024);
+        let opts = ServerOpts::default();
+        opts.delay_per_chunk_ms.store(1, Ordering::SeqCst);
+        let port = spawn_server(body.clone(), opts.clone()).await;
+        let dir = tempfile::tempdir().unwrap();
+        let entry = make_entry(
+            port,
+            "model.gguf",
+            body.len() as u64 + 32_128,
+            &sha256_hex(&body),
+        );
+
+        let progress = Arc::new(StdMutex::new(Vec::<(u64, u64)>::new()));
+        let p2 = progress.clone();
+
+        download_model(
+            &http_client(),
+            &entry,
+            dir.path(),
+            CancelFlag::new(),
+            move |d, t| p2.lock().unwrap().push((d, t)),
+            |_, _| {},
+        )
+        .await
+        .unwrap();
+
+        let snapshot = progress.lock().unwrap().clone();
+        assert_eq!(
+            snapshot.last().unwrap(),
+            &(body.len() as u64, body.len() as u64),
+        );
+        assert!(snapshot.iter().all(|(d, t)| *d <= *t));
     }
 }
