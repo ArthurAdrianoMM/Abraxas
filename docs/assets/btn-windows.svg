@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="Download for Windows">
+  <title>Download for Windows</title>
+  <rect x="0.75" y="0.75" width="94.5" height="94.5" rx="20" fill="#000000" stroke="#3d444d" stroke-width="1.5"/>
+  <g transform="translate(21.0 21.0) scale(2.25)" fill="#ffffff">
+    <path d="M1.4 3.1 10.9 1.8v9.1H1.4Z M12.4 1.6 22.6 0.2v10.7H12.4Z M1.4 13.1H10.9v9.1L1.4 20.9Z M12.4 13.1H22.6V23.8L12.4 22.4Z"/>
+  </g>
+</svg>

@@ -32,7 +32,7 @@ never leaves your computer.
 
 <div align="center">
 
-[<img src="https://img.shields.io/badge/%20-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" height="44">](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest)&nbsp;&nbsp;[<img src="https://img.shields.io/badge/%20-000000?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" height="44">](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest)&nbsp;&nbsp;[<img src="https://img.shields.io/badge/%20-000000?style=for-the-badge&logo=linux&logoColor=white" alt="Download for Linux" height="44">](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest)
+[<img src="docs/assets/btn-macos.svg" alt="Download for macOS" width="72" height="72">](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest)&nbsp;&nbsp;[<img src="docs/assets/btn-windows.svg" alt="Download for Windows" width="72" height="72">](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest)&nbsp;&nbsp;[<img src="docs/assets/btn-linux.svg" alt="Download for Linux" width="72" height="72">](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest)
 
 </div>
 
