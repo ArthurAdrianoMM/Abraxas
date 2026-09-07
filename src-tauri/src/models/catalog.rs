@@ -24,6 +24,26 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 pub const CATALOG_URL: &str = "https://arthuradrianomm.github.io/Abraxas/catalog.json";
+
+/// Where the catalog is fetched from, with `ABRAXAS_CATALOG_URL` able to point
+/// it somewhere else — same convention as `ABRAXAS_LOG`.
+///
+/// Publishing is the only way to change the live catalog, which makes trying a
+/// catalog edit a push to `main` and a wait. This exists so an edit can be
+/// exercised against the real app before it reaches anyone: point it at a file
+/// served on localhost, run the app, see the result. Read per call so a run can
+/// be redirected without a rebuild. Model URLs are still validated as `https`,
+/// so this redirects where the *list* comes from, never where the weights do.
+pub fn catalog_url() -> String {
+    match std::env::var("ABRAXAS_CATALOG_URL") {
+        Ok(url) if !url.trim().is_empty() => {
+            let url = url.trim().to_owned();
+            tracing::info!(%url, "using catalog URL from ABRAXAS_CATALOG_URL");
+            url
+        }
+        _ => CATALOG_URL.to_owned(),
+    }
+}
 pub const CATALOG_CACHE_FILENAME: &str = "catalog_cache.json";
 pub const FETCH_TIMEOUT: Duration = Duration::from_secs(15);
 pub const SUPPORTED_SCHEMA_VERSION: u8 = 1;

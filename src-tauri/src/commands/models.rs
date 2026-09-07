@@ -34,8 +34,7 @@ use crate::events::DownloadEvent;
 use crate::hardware::cache;
 use crate::inference::ModelManager;
 use crate::models::catalog::{
-    self, CatalogResponse, ChatTemplate, ModelEntry, CATALOG_CACHE_FILENAME, CATALOG_URL,
-    FETCH_TIMEOUT,
+    self, CatalogResponse, ChatTemplate, ModelEntry, CATALOG_CACHE_FILENAME, FETCH_TIMEOUT,
 };
 use crate::models::compatibility::{self, ClassifiedCatalogResponse};
 use crate::models::download::{self, DownloadError, DownloadSpec};
@@ -79,7 +78,7 @@ pub async fn fetch_catalog(app: AppHandle) -> Result<CatalogResponse, CommandErr
         .build()
         .map_err(|e| AppError::Catalog(catalog::CatalogError::Http(e.to_string())))?;
 
-    let resp = catalog::fetch_with_cache(&client, CATALOG_URL, &cache_path)
+    let resp = catalog::fetch_with_cache(&client, &catalog::catalog_url(), &cache_path)
         .await
         .map_err(AppError::Catalog)?;
 
@@ -111,8 +110,9 @@ pub async fn fetch_classified_catalog(
         .map_err(|e| AppError::Catalog(catalog::CatalogError::Http(e.to_string())))?;
 
     // Run catalog fetch and hardware detection concurrently.
+    let url = catalog::catalog_url();
     let (catalog_resp, hw) = tokio::join!(
-        catalog::fetch_with_cache(&client, CATALOG_URL, &catalog_cache),
+        catalog::fetch_with_cache(&client, &url, &catalog_cache),
         tauri::async_runtime::spawn_blocking(move || cache::load_or_detect(&hw_cache)),
     );
 
