@@ -30,11 +30,11 @@ never leaves your computer.
 > conversation — but there are rough edges. Bug reports are welcome in
 > [Issues](https://github.com/ArthurAdrianoMM/Abraxas/issues).
 
-| Platform | File | Notes |
-|---|---|---|
-| **Windows** | [`.exe` installer](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest) | No admin rights needed |
-| **macOS** | [`.dmg`](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest) | Apple Silicon |
-| **Linux** | [`.AppImage` / `.deb`](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest) | `chmod +x` the AppImage |
+<div align="center">
+
+[<img src="https://img.shields.io/badge/%20-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" height="44">](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest)&nbsp;&nbsp;[<img src="https://img.shields.io/badge/%20-000000?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" height="44">](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest)&nbsp;&nbsp;[<img src="https://img.shields.io/badge/%20-000000?style=for-the-badge&logo=linux&logoColor=white" alt="Download for Linux" height="44">](https://github.com/ArthurAdrianoMM/Abraxas/releases/latest)
+
+</div>
 
 <details>
 <summary><b>Your OS will warn you the developer is unknown — here's why, and how to get past it</b></summary>
