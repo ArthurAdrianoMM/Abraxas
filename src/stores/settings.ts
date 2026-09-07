@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { commands, type AppSettings } from "../lib/tauri/bindings";
 import { describeError, unwrap } from "../lib/tauri/result";
+import { DEMO_LOCALE } from "../lib/demo";
 import { resolveHostLocale } from "../lib/i18n/locale";
 
 export type SettingsStatus = "idle" | "loading" | "ready" | "error";
@@ -43,12 +44,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ status: "loading", error: null });
       try {
         const settings = await unwrap(commands.getAppSettings());
-        applyFontSize(settings);
-        set({ status: "ready", settings, error: null });
+        // A recording build pins the language (`VITE_DEMO_LOCALE`). Applied to
+        // the snapshot we paint from, not just persisted, so the take opens in
+        // that language instead of flashing the host's first.
+        const effective = DEMO_LOCALE ? { ...settings, locale: DEMO_LOCALE } : settings;
+        applyFontSize(effective);
+        set({ status: "ready", settings: effective, error: null });
         // First run: nothing has ever chosen a language, so adopt the host's
         // and persist it. Done after `set` so the UI paints immediately in
         // the resolved locale rather than waiting on the write.
-        if (settings.locale === null) {
+        if (DEMO_LOCALE) {
+          if (settings.locale !== DEMO_LOCALE) void get().save({ locale: DEMO_LOCALE });
+        } else if (settings.locale === null) {
           void get().save({ locale: resolveHostLocale() });
         }
       } catch (e) {

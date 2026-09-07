@@ -85,6 +85,40 @@ and died with `Failed to copy binary from .../export_bindings: does not exist`).
 In a separate crate the bundler simply never sees them. CI enforces this: the
 `abraxas` package must declare exactly one binary.
 
+### Recording a demo
+
+Two things get in the way of filming the app: this machine already has models,
+conversations and a completed onboarding, and the entrance animations — the
+golden-ratio plate on the welcome screen draws itself in 2.4s — are long over
+by the time a human reaches the record button.
+
+[`scripts/demo-reset.sh`](scripts/demo-reset.sh) handles the first. Everything
+the app knows lives in `~/Library/Application Support/abraxas.arthuradriano.com`
+(SQLite, `models/`, caches) plus `~/Library/Logs/abraxas.arthuradriano.com`;
+`stash` moves both aside so the next launch finds a virgin machine, `restore`
+puts them back and discards whatever the take created. Close the app first —
+the database is in WAL mode and moving the directory under a live process
+corrupts it.
+
+`VITE_DEMO_MODE=1` handles the second. The app then holds on a curtain — the
+same blank the real boot shows — instead of resolving the first-run rule at
+launch; any key starts the take, and `⌘⇧R` drops back to the curtain so the
+next one is a fresh mount with every animation replayed. Unlike
+`VITE_FORCE_ONBOARDING` (dev-only, and it touches nothing on disk) this flag is
+honoured in a bundle, because the point is to film the real app:
+
+```bash
+./scripts/demo-reset.sh stash
+VITE_DEMO_MODE=1 pnpm tauri build --features metal --bundles app
+open src-tauri/target/release/bundle/macos/Abraxas.app
+# ...record...
+./scripts/demo-reset.sh restore
+```
+
+A normal build leaves `import.meta.env.VITE_DEMO_MODE` undefined and Rollup
+drops the curtain entirely, so nothing of this reaches a release — but never
+publish a bundle built with the flag set.
+
 ## The model catalog
 
 The catalog the app fetches at runtime lives in

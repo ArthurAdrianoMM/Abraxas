@@ -1,0 +1,32 @@
+/* The curtain is the boot blank, held. Nothing here should read as chrome —
+   the first frames of the recording must be indistinguishable from a launch
+   that simply has not painted yet. */
+
+.curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--bg);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+/* Fades in late and dim: the opening frames stay pure, and the hint is easy
+   to trim or crop out of the take. */
+.hint {
+  margin-bottom: 2.5rem;
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+  opacity: 0;
+  animation: reveal 900ms ease-out 1.6s forwards;
+}
+
+@keyframes reveal {
+  to {
+    opacity: 0.5;
+  }
+}
